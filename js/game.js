@@ -14,6 +14,11 @@
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // 화면 표시용: "0.2 M"처럼 숫자와 단위가 갈라지지 않게, "→"는 앞 낱말에 붙인다(학생 입력에는 쓰지 않는다).
+  const nb = (s) => String(s ?? '').replace(/(\d)\s+(M|%|번)(?![A-Za-z])/g, '$1\u00a0$2').replace(/\s+→/g, '\u00a0→');
+  const tx = (s) => esc(nb(s));
+  // 두 문장 이상이면 문장마다 줄을 나눈다.
+  const bySentence = (s) => nb(s).split(/(?<=[?!.])\s+/).map(esc).join('<br>');
   const now = () => Date.now();
   const STAGES = ['explore', 'claim', 'rebuttal', 'defense'];
 
@@ -43,7 +48,7 @@
     $('#stage').innerHTML = `
       <div id="board" class="obj" data-obj="board" data-drop="board">
         <div class="frame">
-          <div class="q">${esc(M.boardQuestion)}</div>
+          <div class="q">${tx(M.boardQuestion)}</div>
           <div class="chalk"></div>
           <div class="placed"></div>
           <div class="axis"></div>
@@ -110,10 +115,10 @@
 
   function setNote(text, hint) {
     const n = $('#questNote');
-    $('.q', n).textContent = text;
+    $('.q', n).textContent = nb(text);
     const h = $('.hint', n);
     h.hidden = !hint;
-    h.textContent = hint || '';
+    h.textContent = nb(hint || '');
     n.classList.remove('bump');
     void n.offsetWidth;
     n.classList.add('bump');
@@ -123,8 +128,44 @@
     const quest = S.q && S.q.quest;
     if (!quest || !quest.hint) return;
     const h = $('#questNote .hint');
-    h.textContent = quest.hint;
+    h.textContent = nb(quest.hint);
     h.hidden = false;
+  }
+
+  // 퀘스트 쪽지 아래 "지금 무엇을 누를지" 안내. 빛나는 물건과 같은 이름을 노란 글씨로 쓴다.
+  function updateDo() {
+    const el = $('#doHint');
+    if (!el) return;
+    const z = S.zoom;
+    let t = '';
+    if (S.busy && !S.saying) t = '';
+    else if (S.saying) t = '<b>말풍선</b>을 눌러 다음 대사를 보세요';
+    else if (z && z.mode === 'membrane') {
+      t = z.collect && !z.awarded
+        ? '<b>물</b>과 <b>설탕</b> 분자를 세포막으로 끌어다 놓으세요'
+        : '분자를 세포막에 놓아 보고, <b>실험대로 돌아가기</b>를 누르세요';
+    } else if (z && z.mode === 'slider') {
+      t = z.collect && !z.awarded
+        ? '<b>슬라이더</b>를 움직여 세포가 부풀면 <b>이거다!</b>를 누르세요'
+        : '<b>슬라이더</b>를 움직여 보고, <b>실험대로 돌아가기</b>를 누르세요';
+    } else if (S.stage === 'explore') {
+      t = resultCount() >= M.explore.minResultCards ? '빛나는 <b>칠판</b>을 누르세요' : '<b>비커</b>를 눌러 실험 결과를 모으세요';
+    } else if (S.stage === 'claim') {
+      t = '<b>칠판</b>을 눌러 답을 마저 쓰세요';
+    } else if (S.stage === 'rebuttal' && S.q && !S.q.done) {
+      if (S.q.combine) t = '아래 <b>초록 카드 2장</b>을 눌러 칠판에 올리세요';
+      else if (S.q.needModel) t = '빛나는 <b>현미경</b>을 누르세요';
+      else if (S.q.microscopeGlow) t = '<b>현미경</b>으로 다시 확인하거나, <b>교수님</b>을 눌러 답하세요';
+      else t = '<b>교수님</b>을 눌러 답하세요';
+    } else if (S.stage === 'defense') {
+      t = '<b>교수님</b>을 눌러 답안을 쓰세요';
+    }
+    el.hidden = !t;
+    if (t && el.dataset.t !== t) {
+      el.dataset.t = t;
+      el.innerHTML = `<span class="ic" aria-hidden="true">👆</span><span>${t}</span>`;
+      el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+    }
   }
 
   function shake(el) {
@@ -138,8 +179,8 @@
   function showBubble(lines, opts = {}) {
     const b = $('#bubble');
     $('.who', b).textContent = M.professorName;
-    let html = lines.map((l) => `<p>${esc(l)}</p>`).join('');
-    if (opts.model) html += `<p class="model">${esc(opts.model)}</p>`;
+    let html = lines.map((l) => `<p>${tx(l)}</p>`).join('');
+    if (opts.model) html += `<p class="model">${tx(opts.model)}</p>`;
     $('.body', b).innerHTML = html;
     b.classList.toggle('model', !!opts.model);
     $('.more', b).hidden = !opts.tap;
@@ -163,6 +204,8 @@
 
   // bubbles: [[문장, 문장], [문장]] — 말풍선 하나에 2문장 이하, 탭으로 넘김
   async function say(bubbles, opts = {}) {
+    S.saying = true;
+    updateDo();
     for (let i = 0; i < bubbles.length; i++) {
       const last = i === bubbles.length - 1;
       showBubble(bubbles[i], { tap: true, model: last ? opts.model : null });
@@ -170,6 +213,8 @@
     }
     if (!opts.keep) hideBubble();
     S.lastLines = bubbles[bubbles.length - 1];
+    S.saying = false;
+    updateDo();
   }
 
   function variant(key, list) {
@@ -206,6 +251,7 @@
 
   // 시트를 닫았을 때 무엇이 빛나야 하는지 다시 정한다
   function refreshFocus() {
+    updateDo();
     if (S.stage === 'explore') {
       const enough = resultCount() >= M.explore.minResultCards;
       focus(enough ? ['board'] : []);
@@ -238,9 +284,9 @@
   const hasCard = (id) => S.cards.some((c) => c.id === id);
 
   function cardHTML(c) {
-    if (c.type === 'model') return `<div class="card model" data-id="${c.id}"><span><b>${c.id}</b>${esc(c.text)}</span></div>`;
+    if (c.type === 'model') return `<div class="card model" data-id="${c.id}"><span><b>${c.id}</b> ${tx(c.text)}</span></div>`;
     const cls = c.type === 'concl' ? 'concl' : `clue ${c.kind}`;
-    return `<div class="card ${cls}${c.used ? ' used' : ''}" data-id="${c.id}">${esc(c.text)}</div>`;
+    return `<div class="card ${cls}${c.used ? ' used' : ''}" data-id="${c.id}">${tx(c.text)}</div>`;
   }
   function renderTray() {
     $('#trayCards').innerHTML = S.cards.map(cardHTML).join('');
@@ -465,10 +511,10 @@
   }
 
   function openClaimSheet() {
-    const opts = M.claim.options.map((o) => `<button type="button" class="opt${S.claim.opt === o.id ? ' on' : ''}" data-opt="${o.id}">${esc(o.label)}</button>`).join('');
+    const opts = M.claim.options.map((o) => `<button type="button" class="opt${S.claim.opt === o.id ? ' on' : ''}" data-opt="${o.id}">${tx(o.label)}</button>`).join('');
     const slots = Array.from({ length: M.claim.slots }, (_, i) => `<div class="slot" data-drop="slot-${i}" data-slot="${i}"></div>`).join('');
     const sh = openSheet(`
-      <h4>${esc(M.boardQuestion)}</h4>
+      <h4>${tx(M.boardQuestion)}</h4>
       <div class="opts">${opts}</div>
       <div class="sub">근거: 아래 수집함에서 단서 카드를 끌어다 놓거나 눌러 넣자</div>
       <div class="slots">${slots}</div>
@@ -502,7 +548,7 @@
       const id = S.claim.slots[i];
       const c = id && M.clues.find((x) => x.id === id);
       el.classList.toggle('filled', !!c);
-      el.innerHTML = c ? `${esc(c.text)}<button type="button" class="x" data-unslot="${i}" aria-label="빼기">✕</button>` : `근거 ${i + 1}`;
+      el.innerHTML = c ? `${tx(c.text)}<button type="button" class="x" data-unslot="${i}" aria-label="빼기">✕</button>` : `근거 ${i + 1}`;
     });
     $$('#trayCards .card.clue').forEach((el) => el.classList.toggle('used', S.claim.slots.includes(el.dataset.id)));
     updateClaimSubmit();
@@ -528,7 +574,7 @@
     });
     $$('.card.clue').forEach((c) => c.classList.remove('glow', 'used'));
     closeSheet();
-    S.busy = true;
+    S.busy = true; updateDo();
     if (!C) {
       const d = M.data.find((x) => x.id === opt.contradicts);
       focus([d.id]);
@@ -547,7 +593,7 @@
       return;
     }
     const chalk = $('#board .chalk');
-    chalk.innerHTML = `${esc(opt.label)} 사이!<small>${cards.map((c) => esc(c.text)).join('<br>')}</small>`;
+    chalk.innerHTML = `${tx(opt.label)} 사이!<small>${cards.map((c) => tx(c.text)).join('<br>')}</small>`;
     chalk.classList.add('show');
     S.firstAnswer = `${opt.label} 사이이다. 근거: ${cards.map((c) => c.text).join(', ')}.`;
     S.session.firstAnswer = S.firstAnswer;
@@ -561,7 +607,7 @@
 
   // ───────────────────────── 3. 교수 반박 ─────────────────────────
   async function startRebuttal() {
-    S.busy = true;
+    S.busy = true; updateDo();
     setStage('rebuttal');
     focus([], { dim: true, keep: ['prof', 'board'] });
     $('#prof').classList.add('stand');
@@ -580,7 +626,7 @@
 
   async function banner(text) {
     const b = $('#banner');
-    $('.card', b).textContent = text;
+    $('.card', b).innerHTML = bySentence(text);
     b.classList.remove('fly');
     b.hidden = false;
     await sleep(1500);
@@ -601,7 +647,7 @@
     setNote(quest.note);
     if (!skipIntro) {
       refreshFocus();
-      S.busy = true;
+      S.busy = true; updateDo();
       await say(quest.intro, { keep: true });
       S.busy = false;
     }
@@ -642,7 +688,6 @@
     z.innerHTML = `
       <div class="lens"><svg class="field" viewBox="0 0 640 440"></svg></div>
       <div class="side">
-        <div class="how">${slider ? '슬라이더를 움직여 세포를 살펴보자' : '분자를 세포막으로 끌어다 놓아 보자'}</div>
         <div class="legend">
           <span><i style="background:var(--water)"></i>물 분자</span>
           <span><i style="background:var(--sugar)"></i>설탕 분자</span>
@@ -660,6 +705,7 @@
       </div>`;
     z.hidden = false;
     focus([]);
+    updateDo();
     const svg = $('svg.field', z);
     if (slider) buildSlider(svg); else buildMembrane(svg);
     z.onclick = (e) => {
@@ -891,16 +937,16 @@
     let html = '';
     if (a.type === 'choice') {
       const [pre, post] = a.prompt.split('[ ? ]');
-      html = `<h4>${esc(pre)}<u>&nbsp;&nbsp;?&nbsp;&nbsp;</u>${esc(post)}</h4>
-        <div class="opts">${a.options.map((o, i) => `<button type="button" class="opt${q.draft.choice === i ? ' on' : ''}" data-choice="${i}">${esc(o.label)}</button>`).join('')}</div>
+      html = `<h4>${tx(pre)}<u>&nbsp;&nbsp;?&nbsp;&nbsp;</u>${tx(post)}</h4>
+        <div class="opts">${a.options.map((o, i) => `<button type="button" class="opt${q.draft.choice === i ? ' on' : ''}" data-choice="${i}">${tx(o.label)}</button>`).join('')}</div>
         <div class="actions"><button type="button" class="submit" data-act="answer" ${q.draft.choice == null ? 'disabled' : ''}>교수님께 답하기</button></div>`;
     } else if (a.type === 'choice+text') {
-      html = `<div class="line"><b>${esc(a.prompt)}</b>
-          ${a.options.map((o) => `<button type="button" class="opt${q.draft.choice === o.value ? ' on' : ''}" data-choice="${o.value}" style="min-width:110px">${esc(o.label)}</button>`).join('')}</div>
-        <div class="line">${esc(a.textPrefix)} <input type="text" id="ansText" maxlength="80" placeholder="${esc(a.placeholder)}" value="${esc(q.draft.text || '')}"> ${esc(a.textSuffix)}</div>
+      html = `<div class="line"><b>${tx(a.prompt)}</b>
+          ${a.options.map((o) => `<button type="button" class="opt${q.draft.choice === o.value ? ' on' : ''}" data-choice="${o.value}" style="min-width:110px">${tx(o.label)}</button>`).join('')}</div>
+        <div class="line">${tx(a.textPrefix)} <input type="text" id="ansText" maxlength="80" placeholder="${esc(a.placeholder)}" value="${esc(q.draft.text || '')}"> ${tx(a.textSuffix)}</div>
         <div class="actions"><button type="button" class="submit" data-act="answer">교수님께 답하기</button></div>`;
     } else {
-      html = `<div class="starter">${esc(a.starter)}</div>
+      html = `<div class="starter">${tx(a.starter)}</div>
         <textarea id="ansText" maxlength="400" placeholder="${esc(a.placeholder)}">${esc(q.draft.text || '')}</textarea>
         <div class="actions"><button type="button" class="submit" data-act="answer">교수님께 답하기</button></div>`;
     }
@@ -945,7 +991,7 @@
     const quest = q.quest;
     const a = quest.answer;
     closeSheet();
-    S.busy = true;
+    S.busy = true; updateDo();
     let result;
     let input;
     if (a.type === 'choice') {
@@ -1037,7 +1083,7 @@
     span.textContent = card.text;
     $('#board .placed').appendChild(span);
     if (S.placed.length < M.combine.cards.length) return;
-    S.busy = true;
+    S.busy = true; updateDo();
     const lo = Math.max(...M.combine.cards.filter((k) => k.bound === 'low').map((k) => k.value));
     const hi = Math.min(...M.combine.cards.filter((k) => k.bound === 'high').map((k) => k.value));
     $('#board .axis').innerHTML = ART.axis(M.combine.axis, lo, hi);
@@ -1054,7 +1100,7 @@
 
   // ───────────────────────── 4. 최종 변론 ─────────────────────────
   async function startDefense() {
-    S.busy = true;
+    S.busy = true; updateDo();
     setStage('defense');
     S.q = null;
     const df = M.defense;
@@ -1063,7 +1109,7 @@
     $('#prof').classList.add('atboard');
     const board = $('#board');
     board.classList.add('defense');
-    $('.paper', board).innerHTML = `<h3>${esc(df.problem)}</h3>${df.dataLines.map((l) => `<div class="row">• ${esc(l)}</div>`).join('')}`;
+    $('.paper', board).innerHTML = `<h3>${bySentence(df.problem)}</h3>${df.dataLines.map((l) => `<div class="row">• ${tx(l)}</div>`).join('')}`;
     $('#tray').classList.add('closed');
     focus([], { dim: true, keep: ['prof', 'board'] });
     await sleep(1000);
@@ -1104,7 +1150,7 @@
   async function submitDefense() {
     const text = S.defenseText.trim();
     closeSheet();
-    S.busy = true;
+    S.busy = true; updateDo();
     showBubble(M.thinkingLine);
     const kw = JUDGE.judgeDefense(text, M.lexicon);
     const [llm] = await Promise.all([
@@ -1144,7 +1190,7 @@
 
   // ───────────────────────── 클리어 ─────────────────────────
   async function finish(type, text, r) {
-    S.busy = true;
+    S.busy = true; updateDo();
     setNose(0);
     await sleep(700);
     await say([type === 'full' ? M.defense.passLine : M.defense.partialLine]);
@@ -1183,7 +1229,7 @@
   }
 
   function quoteOf(s) {
-    const t = String(s || '').trim().replace(/[.。]+$/, '');
+    const t = String(s || '').trim().replace(/[\s.。,，]+$/, '');
     return t.length > 46 ? t.slice(0, 44) + '…' : t;
   }
 
@@ -1211,17 +1257,17 @@
       <div class="top">
         ${ART.professor(0)}
         <div>
-          <h2>${esc(type === 'full' ? M.clear.title : M.defense.partialLine[0])}</h2>
+          <h2>${tx(type === 'full' ? M.clear.title : M.defense.partialLine[0])}</h2>
           ${type === 'partial' ? '<div class="partial">부분 클리어</div>' : ''}
         </div>
       </div>
       <div class="cmp">
-        <div class="col first"><h3>처음 답 (칠판)</h3><p>${esc(S.firstAnswer)}</p></div>
+        <div class="col first"><h3>처음 답 (칠판)</h3><p>${tx(S.firstAnswer)}</p></div>
         <div class="col"><h3>지금 답 (최종 변론)</h3><p>${highlight(text, ev)}</p></div>
       </div>
       <ul class="praise">
-        ${praise.map((p) => `<li>${esc(p)}</li>`).join('')}
-        ${next ? `<li class="next">${esc(next)}</li>` : ''}
+        ${praise.map((p) => `<li>${tx(p)}</li>`).join('')}
+        ${next ? `<li class="next">${tx(next)}</li>` : ''}
       </ul>
       <div class="foot"><button type="button" id="nextMission">다음 미션</button></div>`;
     $('#clearScreen').hidden = false;
@@ -1236,7 +1282,7 @@
         <div class="tag">서술 실험실</div>
         <h1>미션 목록</h1>
         <div class="missions">
-          <div class="m">${esc(M.label)} · ${esc(M.title)} <span>클리어</span></div>
+          <div class="m">${tx(M.label)} · ${tx(M.title)} <span>클리어</span></div>
           <div class="m" style="opacity:.55">미션 02 · 준비 중 <span>곧 열려요</span></div>
         </div>
         <button class="go" type="button" id="again">미션 01 다시 하기</button>
@@ -1280,6 +1326,7 @@
     setStage('explore');
     setNote('비커를 눌러 실험 결과를 모아 보자');
     renderTray();
+    refreshFocus();
   }
 
   window.addEventListener('resize', fit);
