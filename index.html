@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>서술 실험실 · 미션 01</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&display=swap">
+  <link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 1. 단계 트랙 -->
+    <header id="track">
+      <div class="mission" id="missionTitle"></div>
+      <ol>
+        <li data-stage="explore"><b>1</b>탐색</li>
+        <li data-stage="claim"><b>2</b>주장</li>
+        <li data-stage="rebuttal"><b>3</b>반박</li>
+        <li data-stage="defense"><b>4</b>변론</li>
+      </ol>
+      <div class="who" id="who"></div>
+    </header>
+
+    <!-- 3. 장면 -->
+    <main id="sceneZone">
+      <div id="stage"></div>
+      <!-- 2. 퀘스트 쪽지 -->
+      <div id="questNote"><p class="q"></p><p class="hint" hidden></p></div>
+      <div id="zoom" hidden></div>
+      <div id="banner" hidden><div class="card"></div></div>
+    </main>
+
+    <!-- 4. 수집 트레이 -->
+    <footer id="tray">
+      <div class="label">수집함</div>
+      <div class="cards" id="trayCards"></div>
+      <div class="cover">메모는 덮었어요 — 이제 자네 말로.</div>
+    </footer>
+  </div>
+
+  <div id="dim"></div>
+  <div id="catcher" hidden></div>
+  <div id="bubble"><div class="who"></div><div class="body"></div><span class="more">탭 ▶</span></div>
+  <section id="sheet" aria-live="polite"></section>
+  <div id="netBadge" hidden></div>
+
+  <!-- 시작 화면 -->
+  <div class="screen" id="startScreen">
+    <form class="start-card" id="startForm" autocomplete="off">
+      <div class="tag" id="startTag"></div>
+      <h1 id="startTitle"></h1>
+      <label for="classCode">반 코드</label>
+      <input id="classCode" maxlength="20" placeholder="예: 3-2" required>
+      <label for="studentNo">출석번호</label>
+      <input id="studentNo" inputmode="numeric" maxlength="3" placeholder="예: 12" required>
+      <button class="go" type="submit" id="goBtn" disabled>실험실 들어가기</button>
+      <div class="mode" id="modeNote"></div>
+    </form>
+  </div>
+
+  <!-- 클리어 화면 -->
+  <div class="screen" id="clearScreen" hidden><div class="wrap"></div></div>
+
+  <script src="js/config.js"></script>
+  <script src="missions/mission01.js"></script>
+  <script src="js/judge.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
