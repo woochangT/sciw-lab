@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "potato-osmosis",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "C:/Users/wooch/OneDrive/Desktop/edu_sciw_v1/.claude/devserver.py",
+        "8782",
+        "C:/Users/wooch/OneDrive/Desktop/edu_sciw_v1/감자 삼투/web"
+      ],
+      "port": 8782
+    }
+  ]
+}

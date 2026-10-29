@@ -1,41 +1,11 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>서술 실험실 · 교사 히트맵</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-  <link rel="stylesheet" href="css/teacher.css">
+<meta charset="utf-8">
+<title>서술 실험실 · 교사 히트맵</title>
+<!-- 예전 주소(…/sciw-lab/teacher.html?class=반코드)를 미션 01 교사 화면으로 보낸다. 반 코드(?class=)는 그대로 넘긴다 -->
+<script>location.replace(encodeURI('감자 삼투/web/teacher.html') + location.search + location.hash);</script>
+<meta http-equiv="refresh" content="0; url=%EA%B0%90%EC%9E%90%20%EC%82%BC%ED%88%AC/web/teacher.html">
 </head>
-<body>
-  <header class="bar">
-    <div class="brand">서술 실험실 <span>교사 히트맵</span></div>
-    <form id="classForm" autocomplete="off">
-      <input id="classCode" placeholder="반 코드 (예: 3-2)" maxlength="20" required>
-      <button type="submit">보기</button>
-    </form>
-    <div class="status" id="status"></div>
-  </header>
-
-  <main>
-    <section class="summary" id="summary" hidden></section>
-    <section class="legend" id="legend" hidden>
-      <span><i class="c dark"></i>최종 변론에서 자기 말로 씀</span>
-      <span><i class="c cardfill"></i>최종 변론에서 카드 문장으로 채움</span>
-      <span><i class="c light"></i>퀘스트에선 했지만 최종 변론에서 빠뜨림</span>
-      <span><i class="c empty"></i>끝까지 못 함</span>
-      <span><i class="c err first"></i>처음 오류</span>
-      <span><i class="c err"></i>이후 같은 오류 (횟수)</span>
-    </section>
-    <div class="layout">
-      <div class="tableWrap" id="tableWrap"><p class="empty-msg">반 코드를 입력하면 히트맵이 나타납니다.</p></div>
-      <aside class="detail" id="detail" hidden></aside>
-    </div>
-  </main>
-
-  <script src="js/config.js"></script>
-  <script src="missions/mission01.js"></script>
-  <script src="js/api.js"></script>
-  <script src="js/teacher.js"></script>
-</body>
+<body><a href="%EA%B0%90%EC%9E%90%20%EC%82%BC%ED%88%AC/web/teacher.html">교사 히트맵으로 이동</a></body>
 </html>

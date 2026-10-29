@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-29",
+  "browser": "Chrome via Playwright",
+  "mode": "Local storage; API configuration overridden only in the test browser",
+  "resolutions": [
+    "1280x800",
+    "1024x768"
+  ],
+  "result": "passed",
+  "checks": [
+    "Current concentration and mass units: %, g",
+    "All four beakers, explicit collection, then notebook, then claim",
+    "Claim selection, pointer and keyboard evidence placement, wrong-range feedback",
+    "One thin closed circular membrane and brighter cell interior",
+    "Water drag through membrane and sugar button experiment",
+    "Model card collection stays in microscope until explicit return",
+    "Concentration slider: influx, equilibrium and efflux",
+    "Conclusion-card tray scrolling and combination",
+    "Cards / own-words mode switching preserves draft",
+    "Full clear with all C, D, W1, W2a, W2b and W3 elements",
+    "Final D recorded as card-assisted rather than own words",
+    "Teacher heatmap displays one cardfill cell for the local test session",
+    "No page JavaScript exceptions",
+    "Changed JavaScript syntax and Git whitespace checks",
+    "Original concept ZIP copied byte-for-byte",
+    "Eight untouched current-version files match the pre-edit backup"
+  ],
+  "preservedFiles": [
+    "web/css/game.css",
+    "web/js/art.js",
+    "web/missions/mission01.js",
+    "web/js/teacher.js",
+    "web/css/teacher.css",
+    "web/teacher.html",
+    "apps-script/Code.gs",
+    "README.md"
+  ],
+  "refinements": {
+    "magicMicroscope": "crystal, sparkles, stronger cyan-violet glow; conceptual imagery label",
+    "modelFrame": "rounded rectangle with smaller circular cell and wider outside space",
+    "noseMeter": "four vertical segments beside the NPC, visible above the answer dimmer, progresses 4 to 0",
+    "judgmentFix": "normalize concentration nouns before comparison; both reported answers pass",
+    "unitTests": 11,
+    "browserChecks": "full clear using the first reported answer; both viewport sizes; teacher cardfill; no page JavaScript exceptions"
+  }
+}

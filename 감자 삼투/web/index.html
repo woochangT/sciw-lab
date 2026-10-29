@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>서술 실험실 · 미션 01</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&display=swap">
+  <link rel="stylesheet" href="css/game.css">
+  <link rel="stylesheet" href="css/laboratory.css">
+  <link rel="stylesheet" href="css/classroom.css">
+  <link rel="preload" as="image" href="assets/laboratory-room.png">
+  <link rel="preload" as="image" href="assets/professor-expressions.png">
+</head>
+<body>
+  <div id="app">
+    <!-- 1. 단계 트랙 -->
+    <header id="track">
+      <div class="brand"><svg viewBox="0 0 32 40" aria-hidden="true"><path d="M11 3h10m-8 0v13L3 33q-2 4 3 4h20q5 0 3-4L19 16V3M8 27h16"/></svg><div><strong>서술 실험실</strong><div class="mission" id="missionTitle"></div></div></div>
+      <ol aria-label="미션 진행 단계">
+        <li data-stage="explore"><b>1</b>탐색</li>
+        <li data-stage="claim"><b>2</b>주장</li>
+        <li data-stage="rebuttal"><b>3</b>반박</li>
+        <li data-stage="defense"><b>4</b>변론</li>
+      </ol>
+      <div class="who" id="who"></div>
+    </header>
+
+    <!-- 3. 장면 -->
+    <main id="sceneZone">
+      <div id="stage"></div>
+      <div id="zoom" hidden></div>
+    </main>
+
+    <!-- 4. 수집 트레이 -->
+    <footer id="tray">
+      <div class="label"><span class="tray-symbol" aria-hidden="true">▤</span><strong>수집함</strong><span id="clueCount">단서 0 / 6</span></div>
+      <button type="button" class="tray-nav" id="trayPrev" aria-label="이전 카드 보기" hidden>‹</button>
+      <div class="cards" id="trayCards"></div>
+      <button type="button" class="tray-nav" id="trayNext" aria-label="다음 카드 보기" hidden>›</button>
+      <div class="cover">메모는 덮었어요 — 이제 자네 말로.</div>
+    </footer>
+  </div>
+
+  <div id="dim"></div>
+  <div id="questArea">
+    <div id="questNote"><p class="q"></p><p class="hint" hidden></p></div>
+    <div id="doHint" role="status" aria-live="polite" hidden></div>
+  </div>
+  <section id="defenseContext" aria-label="최종 답안을 쓸 때 확인할 질문과 자료" hidden></section>
+  <section id="banner" role="dialog" aria-modal="true" aria-labelledby="instructionText" hidden>
+    <div class="instruction-shade"></div>
+    <div class="card instruction-card"><div class="instruction-label">지금 할 일</div><p id="instructionText"></p><p class="instruction-action"></p><button type="button" id="instructionContinue">좋아, 해 보자!</button></div>
+  </section>
+  <div id="catcher" hidden></div>
+  <div id="bubble"><div class="who"></div><div class="body"></div><span class="more">탭 ▶</span></div>
+  <aside id="noseMeter" role="progressbar" aria-label="교수의 콧대" aria-valuemin="0" aria-valuemax="4" aria-valuenow="2" hidden><span class="nose-title">콧대</span><div class="nose-track"><i></i><i></i><i></i><i></i></div><span class="nose-value" aria-hidden="true">2 / 4</span></aside>
+  <section id="sheet" aria-live="polite"></section>
+  <div id="netBadge" hidden></div>
+
+  <!-- 시작 화면 -->
+  <div class="screen" id="startScreen">
+    <div class="start-layout">
+      <div class="start-story">
+        <div class="story-tag">관찰하고, 추리하고, 설명하는 과학 미션</div>
+        <div class="story-heading">숫자 너머의<br><em>이유</em>를 찾아라.</div>
+        <p>작은 감자 조각에 숨은 비밀.<br>실험의 단서를 모아 콧대 교수에게 도전해 보세요.</p>
+        <div class="start-dialogue"><div class="hero-quote">“흠… 근거를<br>보여 주겠나?”</div><div class="hero-prof" role="img" aria-label="호기심 가득한 콧대 교수"></div></div>
+      </div>
+    <form class="start-card" id="startForm" autocomplete="off">
+      <div class="tag" id="startTag"></div>
+      <h1 id="startTitle"></h1>
+      <p class="start-intro">오늘의 미션을 해결할 연구원은 누구인가요?</p>
+      <label for="classCode">반 코드</label>
+      <input id="classCode" maxlength="20" placeholder="예: 3-2" required>
+      <label for="studentNo">출석번호</label>
+      <input id="studentNo" inputmode="numeric" maxlength="3" placeholder="예: 12" required>
+      <button class="go" type="submit" id="goBtn" disabled>실험실 들어가기</button>
+      <div class="mode" id="modeNote"></div>
+    </form>
+    </div>
+  </div>
+
+  <!-- 클리어 화면 -->
+  <div class="screen" id="clearScreen" hidden><div class="wrap"></div></div>
+
+  <script src="js/config.js"></script>
+  <script src="missions/mission01.js"></script>
+  <script src="js/judge.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/scene-art.js"></script>
+  <script src="js/learning.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
