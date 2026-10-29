@@ -32,6 +32,7 @@ td { height: 40px; min-width: 50px; text-align: center; font-size: 13px; border-
 td.no { font-weight: 800; min-width: 44px; background: #f8f6f2; }
 td.meta { color: var(--soft); background: #faf9f6; min-width: 64px; }
 .c.dark, td.dark { background: var(--dark); color: #fff; }
+.c.cardfill, td.cardfill, .chips span.on.cardfill { background: repeating-linear-gradient(135deg, var(--dark) 0 5px, #79b493 5px 10px); color: #fff; }
 .c.light, td.light { background: var(--light); }
 .c.empty, td.empty { background: var(--empty); }
 .c.err, td.err { background: var(--err); color: #7a3a22; font-weight: 700; }

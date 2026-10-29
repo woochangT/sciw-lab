@@ -6,12 +6,15 @@
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+  // 정답 범위의 두 경계 농도 (예: 5%, 10%)
+  const LO = `${M.answer.low}${M.unit}`;
+  const HI = `${M.answer.high}${M.unit}`;
   const ELEMENTS = [
-    { key: 'C', label: 'C', desc: '감자 세포 안 농도는 0.2 M보다 크고 0.4 M보다 작다', quest: 'CLAIM' },
-    { key: 'D', label: 'D', desc: '0.2 M에서 질량 증가, 0.4 M에서 감소', quest: 'CLAIM' },
+    { key: 'C', label: 'C', desc: `감자 세포 안 농도는 ${LO}보다 크고 ${HI}보다 작다`, quest: 'CLAIM' },
+    { key: 'D', label: 'D', desc: `${LO} 설탕물에서 질량 증가, ${HI}에서 감소`, quest: 'CLAIM' },
     { key: 'W1', label: 'W1', desc: '세포막은 물만 통과시키므로 질량 변화는 물의 출입이다', quest: 'Q1' },
-    { key: 'W2a', label: 'W2a', desc: '0.2 M에서 늘었다면 안이 0.2 M보다 진하다', quest: 'Q2' },
-    { key: 'W2b', label: 'W2b', desc: '0.4 M에서 줄었다면 안이 0.4 M보다 묽다', quest: 'Q3' },
+    { key: 'W2a', label: 'W2a', desc: `${LO}에서 늘었다면 안이 ${LO}보다 진하다`, quest: 'Q2' },
+    { key: 'W2b', label: 'W2b', desc: `${HI}에서 줄었다면 안이 ${HI}보다 묽다`, quest: 'Q3' },
     { key: 'W3', label: 'W3/WB', desc: '두 결론을 합쳐 범위를 좁힌다 (또는 경로 ② WB)', quest: 'W3' }
   ];
   const ERRORS = [
@@ -41,11 +44,21 @@
   function cellState(s, key) {
     const fj = obj(s.finalJudgment);
     const qp = obj(s.questPassed);
-    const fin = key === 'W3' ? (bool(fj.W3) || bool(fj.WB)) : bool(fj[key]);
-    if (fin) return 'dark';
+    const pick = (o) => (key === 'W3' ? (bool(o.W3) || bool(o.WB)) : bool(o[key]));
+    if (pick(fj)) {
+      // own: 카드 문장을 뺀, 학생이 직접 쓴 부분으로 판정한 결과 (예전 기록에는 없음)
+      const own = fj.own && typeof fj.own === 'object' ? fj.own : null;
+      return own && !pick(own) ? 'cardfill' : 'dark';
+    }
     if (bool(qp[key])) return 'light';
     return 'empty';
   }
+  const STATE_TEXT = {
+    dark: '최종 변론에서 자기 말로 씀',
+    cardfill: '최종 변론에서 카드 문장으로 채움 (자기 말로는 아직)',
+    light: '퀘스트에선 했지만 최종 변론에서 빠뜨림',
+    empty: '아직 못 함'
+  };
 
   function render() {
     const rows = pickSessions(data.sessions);
@@ -59,7 +72,7 @@
     let worst = null;
     if (finished.length) {
       ['W1', 'W2a', 'W2b', 'W3'].forEach((k) => {
-        const miss = finished.filter((s) => cellState(s, k) !== 'dark').length / finished.length;
+        const miss = finished.filter((s) => !['dark', 'cardfill'].includes(cellState(s, k))).length / finished.length;
         if (!worst || miss > worst.p) worst = { k: k === 'W3' ? 'W3' : k, p: miss };
       });
     }
@@ -71,7 +84,7 @@
     else if (worst) parts.push('모든 학생이 워런트를 최종 변론에 썼어요');
     if (topErr) parts.push(`가장 많은 처음 오류: ${topErr[0]} (${Math.round(topErr[1] / rows.length * 100)}%)`);
     $('#summary').innerHTML = `${parts.join(' · ') || '아직 최종 변론을 제출한 학생이 없습니다'}
-      <div class="sub">${rows.length}명 · 최종 변론 제출 ${finished.length}명 (완전 ${finished.filter((s) => s.clearType === 'full').length} · 부분 ${finished.filter((s) => s.clearType === 'partial').length})</div>`;
+      <div class="sub">${rows.length}명 · 최종 변론 제출 ${finished.length}명 (완전 ${finished.filter((s) => s.clearType === 'full').length} · 부분 ${finished.filter((s) => s.clearType === 'partial').length}) · 카드 사용 ${finished.filter((s) => (obj(s.finalJudgment).usedCards || []).length).length}명</div>`;
     $('#summary').hidden = false;
     $('#legend').hidden = false;
 
@@ -110,7 +123,10 @@
       : a.errorType ? `<span class="tag err">${esc(a.errorType)}</span>` : a.diagnosis ? `<span class="tag">${esc(a.diagnosis)}</span>` : '';
     let chips = '';
     if (a.questId === 'FINAL') {
-      chips = `<div class="chips">${['C', 'D', 'W1', 'W2a', 'W2b', 'W3', 'WB'].map((k) => `<span class="${bool(j[k]) ? 'on' : ''}">${k}</span>`).join('')}</div>`;
+      // 진한 칩: 자기 말로 씀, 줄무늬 칩: 카드 문장으로만 채움
+      const own = j.own && typeof j.own === 'object' ? j.own : null;
+      chips = `<div class="chips">${['C', 'D', 'W1', 'W2a', 'W2b', 'W3', 'WB'].map((k) => `<span class="${bool(j[k]) ? (own && !bool(own[k]) ? 'on cardfill' : 'on') : ''}">${k}</span>`).join('')}</div>`;
+      if (j.mode) extra = `<span>${j.mode === 'own' ? '내 말로만 쓰기' : `카드 ${(j.usedCards || []).length}장 사용`}</span>`;
     }
     const t = a.createdAt ? new Date(a.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
     return `<div class="att"><div class="head"><b>${esc(a.questId)}</b> ${a.attemptNo}번째 ${tag}
@@ -131,7 +147,7 @@
     if (el) {
       title = `${s.studentNo}번 · ${el.label}`;
       const st = cellState(s, col);
-      desc = `${el.desc}<br>${st === 'dark' ? '최종 변론에서 맨손으로 씀' : st === 'light' ? '퀘스트에선 했지만 최종 변론에서 빠뜨림' : '아직 못 함'}`;
+      desc = `${el.desc}<br>${STATE_TEXT[st]}`;
       list = atts.filter((a) => a.questId === el.quest || a.questId === 'FINAL');
     } else {
       const er = ERRORS.find((e) => e.key === col);

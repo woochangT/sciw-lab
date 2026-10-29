@@ -1,8 +1,9 @@
 /*
  * 판정 엔진 (키워드 규칙)
  * - 고르기 문항은 설정 파일의 선택지 진단을 그대로 쓴다.
- * - 서술 문항은 문장을 절 단위로 나누고, 각 절이 어느 농도(0.2 M / 0.4 M) 이야기인지 붙인 뒤
+ * - 서술 문항은 문장을 절 단위로 나누고, 각 절이 어느 설탕물 농도(예: 5% / 10%) 이야기인지 붙인 뒤
  *   물의 출입·안쪽 농도 비교·이동 방향 같은 특징을 뽑아 체크 항목과 오류 유형을 정한다.
+ * - 질량 변화도 %로 쓰므로, '질량'·부호 뒤에 오거나 '늘·줄' 앞에 오는 %는 농도 언급으로 세지 않는다.
  * - LLM 판정 결과가 오면 game.js에서 이 결과와 합친다.
  */
 (function () {
@@ -15,26 +16,41 @@
     t = t.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
     t = t.replace(/(\d)\s*\.\s*(\d)/g, '$1.$2');
     t = t.replace(/(^|[^\d.])\.(\d)/g, '$10.$2'); // .2 → 0.2
-    t = t.replace(/몰(?![가-힣])/g, 'm');
     t = t.replace(/물론/g, '당연');
+    // '진하기'는 농도를 가리키는 명사다. '진하'만 잡아 '진하다'라는 주장으로 읽지 않는다.
+    // 농도로 바꾸면 '진하기가 높다/낮다'도 기존 농도 비교 규칙을 그대로 쓸 수 있다.
+    t = t.replace(/진하기|짙기/g, '농도');
     (lex.replace || []).forEach(([a, b]) => { t = t.split(a).join(b); });
     return t;
   }
 
   const compact = (s) => s.replace(/\s+/g, '');
 
+  // 문장 속 설탕물 농도 언급(예: "10% 설탕물")을 찾는다. "질량이 5% 줄었다"의 5%는 질량 변화라서 뺀다.
+  function concMentions(sent, lex) {
+    const out = [];
+    const re = new RegExp('(?<![\\d.])(\\d+(?:\\.\\d+)?)\\s*' + lex.concUnit, 'g');
+    const massBefore = new RegExp(lex.massBefore + '(이|은|가|도|의|변화가|변화는|변화)?(약)?$');
+    const massAfter = new RegExp('^(정도|쯤|가량)?(만큼)?' + lex.massAfter);
+    let m;
+    while ((m = re.exec(sent))) {
+      const before = compact(sent.slice(Math.max(0, m.index - 10), m.index));
+      const after = compact(sent.slice(m.index + m[0].length, m.index + m[0].length + 8));
+      if (massBefore.test(before) || massAfter.test(after)) continue;
+      out.push({ idx: m.index, val: Number(m[1]) });
+    }
+    return out;
+  }
+
   // 원문을 문장 → 절(농도 언급이 바뀌는 지점) 단위로 나눈다.
-  function splitClauses(text) {
+  function splitClauses(text, lex) {
     const guarded = text.replace(/(\d)\.(\d)/g, '$1' + DOT + '$2');
     // 문장 끝과 쉼표에서 끊는다(쉼표 뒤 절은 앞 절의 농도를 이어받는다).
     const sentences = guarded.match(/[^.!?。\n,，]+[.!?。,，]*\s*/g) || [];
     const clauses = [];
     sentences.forEach((s) => {
       const sent = s.split(DOT).join('.');
-      const mentions = [];
-      const re = /0\s*\.\s*([246])|(?<![\d.])0\s*(?:m|몰)/gi;
-      let m;
-      while ((m = re.exec(sent))) mentions.push({ idx: m.index, val: m[1] ? Number('0.' + m[1]) : 0 });
+      const mentions = concMentions(sent, lex);
       if (!mentions.length) { clauses.push({ raw: sent, ref: null }); return; }
       let start = 0;
       let cur = mentions[0].val;
@@ -101,11 +117,13 @@
 
     // 안쪽 농도 주장
     f.insideHigh = false; f.insideLow = false;
-    const scan = (re, isHigh) => {
+    const concentrationBefore = new RegExp('농도(가|는|이|은)?((\\d+(\\.\\d+)?' + lex.concUnit + ')?(바깥용액|용액|밖|바깥)?보다(는|도)?)?(더|훨씬|조금|약간)?$');
+    const scan = (re, isHigh, needsConcentration = false) => {
       const g = new RegExp(re.source, 'g');
       let m;
       while ((m = g.exec(c))) {
         const prefix = c.slice(0, m.index);
+        if (needsConcentration && !concentrationBefore.test(prefix)) continue;
         let subject = 'inside';
         const k = prefix.lastIndexOf('보다');
         const hasIn = (s) => R('inside').test(s);
@@ -116,7 +134,7 @@
           const comp = prefix.slice(Math.max(0, k - 8), k).split(/[이가은는]/).pop();
           if (hasOut(afterB) && !hasIn(afterB)) subject = 'outside';
           else if (hasIn(afterB)) subject = 'inside';
-          else if (hasIn(comp) && !hasOut(comp) && !/0\.\d/.test(comp)) subject = 'outside';
+          else if (hasIn(comp) && !hasOut(comp) && !/\d/.test(comp)) subject = 'outside';
         } else {
           const seg = prefix.slice(-10);
           if (hasOut(seg) && !hasIn(seg)) subject = 'outside';
@@ -127,7 +145,11 @@
     };
     scan(R('high'), true);
     scan(R('low'), false);
-    f.comparator = /보다|더|0\.\d|밖|바깥|외부|용액/.test(c);
+    // '농도가 10%보다 낮다'처럼 비교 대상이 명사와 서술어 사이에 들어갈 수 있다.
+    // 높다/낮다는 농도에 붙은 경우에만 읽어 질량·크기 표현과 구분한다.
+    scan(/높/, true, true);
+    scan(/낮/, false, true);
+    f.comparator = new RegExp('보다|더|\\d' + lex.concUnit + '|밖|바깥|외부|용액').test(c);
 
     f.label = R('label').test(c);
     f.data = R('data').test(c);
@@ -143,7 +165,7 @@
   function analyze(text, lex) {
     const orig = String(text || '').normalize('NFC');
     const norm = normalize(orig, lex);
-    const clauses = splitClauses(orig).map((cl) => Object.assign(cl, { f: featuresOf(normalize(cl.raw, lex), lex) }));
+    const clauses = splitClauses(orig, lex).map((cl) => Object.assign(cl, { f: featuresOf(normalize(cl.raw, lex), lex) }));
     const any = (k, ref) => clauses.some((cl) => cl.f[k] && (ref === undefined || cl.ref === ref));
     const find = (pred) => clauses.find(pred);
     return { orig, norm, compact: compact(norm), clauses, any, find, hangul: (norm.match(/[가-힣]/g) || []).length };
@@ -189,29 +211,42 @@
   }
 
   // ───── 최종 변론 판정 ─────
-  function judgeDefense(text, lex) {
+  // ans: { low, high } — 정답 범위의 두 경계 농도(설정 파일의 answer)
+  function judgeDefense(text, lex, ans) {
     const a = analyze(text, lex);
     const ev = {};
     const pick = (key, pred) => { const cl = a.find(pred); if (cl) ev[key] = cl.raw.trim(); return !!cl; };
+    const lo = ans.low;
+    const hi = ans.high;
+    const numRe = (v) => '(?<![\\d.])' + String(v).replace('.', '\\.') + '(?![\\d.])\\s*' + lex.concUnit + '?';
 
-    const cm = a.compact.match(/0\.2[^。!?\n]{0,30}0\.4[^。!?\n]{0,10}/);
+    // C: "5%와 10% 사이", "5~10%", "5%보다 진하고 10%보다 묽다" 같은 결론
+    // 앞쪽의 "5%"가 질량 변화일 수도 있으니, low가 나오는 자리마다 살펴본다.
+    const pair = new RegExp('^' + numRe(lo) + '[^。!?\\n]{0,30}?' + numRe(hi) + '[^。!?\\n]{0,10}');
+    const rangeWord = /(사이|~|–|부터|까지|미만|이하|보다작|보다묽|보다낮|보다연|크고|진하고|높고|초과|이상)/;
+    const lowAt = new RegExp(numRe(lo), 'g');
     let C = false;
-    if (cm) C = /(사이|~|–|부터|까지|미만|이하|보다작|보다묽|보다낮|보다연|크고|진하고|높고|초과|이상)/.test(cm[0]);
-    if (/0\.2m?[~\-–]0\.4/.test(a.compact)) C = true;
+    let lm;
+    while (!C && (lm = lowAt.exec(a.compact))) {
+      const p = a.compact.slice(lm.index).match(pair);
+      if (p && rangeWord.test(p[0])) C = true;
+    }
+    if (new RegExp(numRe(lo) + '\\s*[~\\-–]\\s*' + numRe(hi)).test(a.compact)) C = true;
     if (C) {
-      const sent = a.orig.split(/(?<!\d)\.(?!\d)|[!?\n]/).find((s) => /0\s*\.\s*2[\s\S]*0\s*\.\s*4/.test(s));
+      const both = new RegExp(numRe(lo) + '[\\s\\S]*' + numRe(hi));
+      const sent = a.orig.split(/(?<!\d)\.(?!\d)|[!?\n]/).find((s) => both.test(s));
       if (sent) ev.C = sent.trim();
     }
-    const D = pick('D', (cl) => cl.ref === 0.2 && cl.f.increase) && a.clauses.some((cl) => cl.ref === 0.4 && cl.f.decrease);
+    const D = pick('D', (cl) => cl.ref === lo && cl.f.increase) && a.clauses.some((cl) => cl.ref === hi && cl.f.decrease);
     const W1 = pick('W1', (cl) => cl.f.waterIn || cl.f.waterOut);
     const fwd = a.any('dirForward');
-    const W2a = a.clauses.some((cl) => cl.ref === 0.2 && cl.f.insideHigh) &&
-      (a.any('waterIn', 0.2) || fwd) && pick('W2a', (cl) => cl.ref === 0.2 && cl.f.insideHigh);
-    const W2b = a.clauses.some((cl) => cl.ref === 0.4 && cl.f.insideLow) &&
-      (a.any('waterOut', 0.4) || fwd) && pick('W2b', (cl) => cl.ref === 0.4 && cl.f.insideLow);
+    const W2a = a.clauses.some((cl) => cl.ref === lo && cl.f.insideHigh) &&
+      (a.any('waterIn', lo) || fwd) && pick('W2a', (cl) => cl.ref === lo && cl.f.insideHigh);
+    const W2b = a.clauses.some((cl) => cl.ref === hi && cl.f.insideLow) &&
+      (a.any('waterOut', hi) || fwd) && pick('W2b', (cl) => cl.ref === hi && cl.f.insideLow);
     // 원리 문장(방향)이나 물 출입 절도 형광펜 후보로 둔다.
-    if (W2a && !ev.W2a_water) { const w = a.find((cl) => cl.ref === 0.2 && cl.f.waterIn); if (w) ev.W2a_water = w.raw.trim(); }
-    if (W2b) { const w = a.find((cl) => cl.ref === 0.4 && cl.f.waterOut); if (w) ev.W2b_water = w.raw.trim(); }
+    if (W2a && !ev.W2a_water) { const w = a.find((cl) => cl.ref === lo && cl.f.waterIn); if (w) ev.W2a_water = w.raw.trim(); }
+    if (W2b) { const w = a.find((cl) => cl.ref === hi && cl.f.waterOut); if (w) ev.W2b_water = w.raw.trim(); }
     if (fwd) { const w = a.find((cl) => cl.f.dirForward); if (w) ev.principle = w.raw.trim(); }
     const W3 = C && W2a && W2b;
     if (W3) ev.W3 = ev.C;
@@ -219,7 +254,7 @@
 
     const errors = [];
     if (a.any('soluteMoves')) errors.push('E1');
-    if (a.any('dirReverse') || a.any('insideLow', 0.2) || a.any('insideHigh', 0.4)) errors.push('E2');
+    if (a.any('dirReverse') || a.any('insideLow', lo) || a.any('insideHigh', hi)) errors.push('E2');
     if (a.any('label') && !W1) errors.push('N2');
     if (a.clauses.some((cl) => (cl.f.insideHigh || cl.f.insideLow) && !cl.f.comparator && cl.ref === null)) errors.push('E3');
     if (!W1 && !W2a && !W2b && !WB && a.any('data')) errors.push('N1');

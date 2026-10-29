@@ -46,8 +46,9 @@
 </svg>`;
   }
 
-  function beaker(conc) {
-    const a = 0.12 + conc * 0.9;
+  // level: 0(맹물) ~ 1(가장 진한 비커) — 진할수록 설탕물 색을 짙게
+  function beaker(level) {
+    const a = 0.12 + level * 0.54;
     return `
 <svg viewBox="0 0 80 110">
   <path d="M10 8 L70 8 L66 104 Q66 108 62 108 L18 108 Q14 108 14 104 Z" fill="rgba(220,240,255,.55)" stroke="#8fb3c9" stroke-width="2.5"/>
@@ -96,12 +97,12 @@
       ${after}<text x="88" y="54" font-size="9" text-anchor="middle" fill="#888">30분 뒤</text></svg>`;
   }
 
-  function axis(ticks, lo, hi) {
+  function axis(ticks, lo, hi, unit) {
     const x0 = 16; const x1 = 290;
     const max = ticks[ticks.length - 1];
     const X = (v) => x0 + (x1 - x0) * (v / max);
     let t = '';
-    ticks.forEach((v) => { t += `<path d="M${X(v)} 22 L${X(v)} 32" stroke="#f6f3ea" stroke-width="2"/><text x="${X(v)}" y="50" font-size="13" fill="#f6f3ea" text-anchor="middle" font-family="Gaegu, cursive">${v} M</text>`; });
+    ticks.forEach((v) => { t += `<path d="M${X(v)} 22 L${X(v)} 32" stroke="#f6f3ea" stroke-width="2"/><text x="${X(v)}" y="50" font-size="13" fill="#f6f3ea" text-anchor="middle" font-family="Gaegu, cursive">${v}${unit}</text>`; });
     const band = lo != null ? `<rect class="band" x="${X(lo)}" y="17" width="${X(hi) - X(lo)}" height="20" rx="4" fill="#ffd54a" opacity=".85"/>` : '';
     return `<svg viewBox="0 0 306 56" width="100%" height="100%">${band}<path d="M${x0 - 6} 27 L${x1 + 8} 27" stroke="#f6f3ea" stroke-width="2.5"/>${t}</svg>`;
   }

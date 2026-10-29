@@ -1,0 +1,40 @@
+{
+  "errors": [],
+  "clearType": "full",
+  "finalJudgment": {
+    "C": true,
+    "D": true,
+    "W1": true,
+    "W2a": true,
+    "W2b": true,
+    "W3": true,
+    "WB": false,
+    "mode": "own",
+    "usedCards": [],
+    "own": {
+      "C": true,
+      "D": true,
+      "W1": true,
+      "W2a": true,
+      "W2b": true,
+      "W3": true,
+      "WB": false
+    },
+    "reward": "potato-keyring"
+  },
+  "questPassed": {
+    "C": true,
+    "D": true,
+    "W1": true,
+    "W2a": true,
+    "W2b": true,
+    "W3": true
+  },
+  "attemptCount": 7,
+  "resolutions": [
+    "1280x800",
+    "1024x768",
+    "1366x720",
+    "1920x1080"
+  ]
+}
