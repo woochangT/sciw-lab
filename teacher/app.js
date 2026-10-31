@@ -22,7 +22,7 @@
   $('#backToStart').href = returnPaths[params.get('from')] || 'index.html';
   function updateNotice() {
     const source = $('#source').value;
-    $('#notice').textContent = source === 'demo' ? '현재 가상의 예시 데이터입니다. 실제 학생 기록이 아닙니다.' : '이 브라우저에만 저장된 로컬 기록입니다. 수업 ID를 비우면 예전 기록을 볼 수 있습니다. 다른 기기와 공유되지 않습니다.';
+    $('#notice').textContent = source === 'demo' ? '현재 가상의 예시 데이터입니다. 실제 학생 기록이 아닙니다.' : source === 'remote' ? '서버 기록 · 교사 접근 키와 검증된 서버 배포가 필요합니다. 시트 공유 권한도 별도로 보호해야 합니다.' : '이 브라우저에만 저장된 로컬 기록입니다. 수업 ID를 비우면 예전 기록을 볼 수 있습니다. 다른 기기와 공유되지 않습니다.';
   }
   updateNotice();
   const date = value => { const d = new Date(value); return value && !isNaN(d) ? d.toLocaleString('ko-KR') : '기록 없음'; };
@@ -50,11 +50,16 @@
     $('#status').textContent = '조회 중…';
     try {
       let db;
-      db = source === 'demo' ? demo : JSON.parse(localStorage.getItem('sciw_localdb_v1') || '{"sessions":{},"attempts":[]}');
+      if (source === 'remote') {
+        if (!config.API_URL || !$('#teacherKey').value) throw new Error('검증된 서버 주소와 교사 접근 키가 필요합니다');
+        const response = await fetch(config.API_URL, {method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'classData',classCode,missionId,teacherKey:$('#teacherKey').value}),redirect:'follow'});
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        db = await response.json(); if (!db.ok) throw new Error(db.error || '서버 조회 실패');
+      } else db = source === 'demo' ? demo : JSON.parse(localStorage.getItem('sciw_localdb_v1') || '{"sessions":{},"attempts":[]}');
       if (current !== generation) return;
-      data = M.select(db, classCode, missionId, lessonId);
+      data = M.select(db, classCode, missionId, source === 'remote' ? undefined : lessonId);
       lastSuccess = new Date(); render();
-      const label = source === 'demo' ? '합성 예시' : source === 'local' ? '이 브라우저의 로컬 저장소' : '이 브라우저의 로컬 저장소';
+      const label = source === 'demo' ? '합성 예시' : source === 'local' ? '이 브라우저의 로컬 저장소' : '서버 기록';
       $('#status').textContent = `${label} · 마지막 조회 ${lastSuccess.toLocaleTimeString('ko-KR')} · 20초마다 다시 조회`;
     } catch(e) {
       if (current !== generation) return;
@@ -63,7 +68,7 @@
   }
   function changeScope() {
     generation++; selected=null; data={sessions:[],attempts:[]}; lastSuccess=null;
-    $('#detail').hidden=true; updateNotice(); render(); load();
+    $('#detail').hidden=true; $('#keyLabel').hidden=$('#source').value !== 'remote'; $('#lessonLabel').hidden=$('#source').value === 'remote'; updateNotice(); render(); load();
   }
   $('#content').addEventListener('click', e => { const b=e.target.closest('[data-student]'); if(b) { detail(b.dataset.student); $('#detail').scrollIntoView({behavior:'smooth'}); } });
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => { view=b.dataset.view; document.querySelectorAll('.tab').forEach(t => { t.classList.toggle('active',t===b); t.setAttribute('aria-pressed',String(t===b)); }); render(); });

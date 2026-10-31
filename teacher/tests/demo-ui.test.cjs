@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 function app(search='?mission=m02&from=m02') {
- const ids=['source','classCode','lessonId','mission','notice','backToStart','content','detail','status','signin','refresh','newLesson','close'];
+ const ids=['source','classCode','lessonId','mission','notice','backToStart','content','detail','status','signin','refresh','newLesson','close','keyLabel','teacherKey','lessonLabel'];
  const elements=Object.fromEntries(ids.map(id=>[id,{id,value:'',hidden:false,textContent:'',innerHTML:'',href:'',onclick:null,onchange:null,addEventListener(type,fn){this['on'+type]=fn},scrollIntoView(){}}]));
  Object.assign(elements.source,{value:'demo'});Object.assign(elements.classCode,{value:'DEMO'});Object.assign(elements.lessonId,{value:'DEMO'});Object.assign(elements.mission,{value:'m01'});
  const tabs=['live','analysis'].map(view=>({dataset:{view},classList:{toggle(){}},setAttribute(){}}));
