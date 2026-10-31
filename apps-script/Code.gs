@@ -1,4 +1,4 @@
-/** 미션별 단일 탭 기록 백엔드. 운영 전 교사 인증과 시트 공유 범위를 검토한다.
+/** 미션별 탭과 기존 Sessions/Attempts에 함께 저장하는 기록 백엔드. 운영 전 교사 인증과 시트 공유 범위를 검토한다.
  * 기존 batch 프로토콜을 유지한다. POST classData는 반·미션별 교사 키를 검증한다.
  * legacy GET classData는 차단한다. reconcileLegacy는 원본 탭을 수정하지 않는다.
  */
@@ -34,7 +34,7 @@ const DEFAULT_MISSION = 'm01';
 
 // ───────────────────────── 진입점 ─────────────────────────
 
-// 활성 데이터는 미션별 한 탭에 저장한다. 기존 Sessions/Attempts는 건드리지 않는다.
+// 미션별 탭에 기록하고 기존 Sessions/Attempts에도 같은 기록을 반영한다.
 const TARGET_SPREADSHEET_ID = '1oA71tk0hqCXC0ImV3c5MZq938hZFKcj2XkJnB3XNnAU';
 const RECORD_HEADERS = ['recordType','recordId','sessionId','classCode','studentNo','missionId','createdAt','updatedAt','payload'];
 const MISSION_SHEETS = {m01:'감자', m02:'강철솜'};
@@ -103,15 +103,43 @@ function putRecord_(kind, id, record, mission, existing) {
 function readPayload_(record) {
   let value; try { value=JSON.parse(record[8]); } catch(e) { throw new Error('기록 payload를 읽을 수 없습니다'); }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('기록 payload가 잘못되었습니다');
-  return value;
+  // 이전 이관본에 JSON 문자열로 남은 필드도 새 기록과 같은 형태로 읽는다.
+  return rowToObj_(Object.keys(value), Object.keys(value).map(function(k) { return value[k]; }));
 }
+// 미션 저장을 먼저 검증한다. 두 번째 쓰기가 실패해도 재전송으로 두 저장소를 복구한다.
 function applyMissionOp_(op) {
+  writeMissionOp_(op);
+  if (op.action === 'startSession') {
+    const saved = locate_('session', op.session.sessionId);
+    upsertSession_(op.session.sessionId, readPayload_(saved.values));
+  } else if (op.action === 'updateSession') {
+    const saved = locate_('session', op.sessionId);
+    upsertSession_(op.sessionId, readPayload_(saved.values));
+  } else if (op.action === 'logAttempt') {
+    const saved = locate_('attempt', op.attempt.attemptId);
+    appendAttempt_(readPayload_(saved.values));
+  }
+}
+
+// 배포 전에 시작된 판도 startSession 재전송 없이 계속 기록할 수 있다.
+function restoreLegacySession_(sid) {
+  const sh = SpreadsheetApp.openById(TARGET_SPREADSHEET_ID).getSheetByName(SHEET_SESSIONS);
+  if (!sh) return null;
+  const row = findRow_(sh, sid);
+  if (!row) return null;
+  const h = headers_(sh);
+  const session = rowToObj_(h, sh.getRange(row, 1, 1, h.length).getValues()[0]);
+  const mission = session.missionId || DEFAULT_MISSION;
+  putRecord_('session', sid, session, mission, null);
+  return locate_('session', sid);
+}
+function writeMissionOp_(op) {
   if (!op || ['startSession','updateSession','logAttempt'].indexOf(op.action)<0) throw new Error('지원하지 않는 기록 작업');
   const fields=op.action==='startSession'?op.session:op.action==='updateSession'?op.fields:op.attempt;
   if (!fields || typeof fields !== 'object' || Array.isArray(fields)) throw new Error('잘못된 기록');
   const sid=op.action==='startSession'?fields.sessionId:op.action==='updateSession'?op.sessionId:fields.sessionId;
   if (typeof sid !== 'string' || !sid || sid.length>128) throw new Error('세션 ID 오류');
-  const existing=locate_('session',sid);
+  const existing=locate_('session',sid) || (op.action==='startSession' ? null : restoreLegacySession_(sid));
   if (op.action==='startSession') {
     const mission=fields.missionId || 'm01'; if (!MISSION_SHEETS[mission]) throw new Error('지원하지 않는 미션');
     if (existing) {
@@ -150,7 +178,7 @@ function reconcileLegacy() {
       const last=sh.getLastRow(), n=sh.getLastColumn(); if(last<2) return;
       const h=sh.getRange(1,1,1,n).getDisplayValues()[0];
       sh.getRange(2,1,last-1,n).getDisplayValues().forEach(function(row){
-        const obj={}; h.forEach(function(k,i){if(k)obj[k]=row[i];});
+        const obj=rowToObj_(h,row);
         const kind=name==='Sessions'?'session':'attempt', id=kind==='session'?obj.sessionId:obj.attemptId;
         if (!id) throw new Error('기존 기록 ID 없음');
         const mission=obj.missionId || 'm01'; if(!MISSION_SHEETS[mission]) throw new Error('기존 미션 확인 필요');
@@ -262,12 +290,7 @@ function rowToObj_(headers, row) {
 // ───────────────────────── 시트 도우미 ─────────────────────────
 
 function ss_() {
-  const active = SpreadsheetApp.getActiveSpreadsheet();
-  if (active) return active;
-  const props = PropertiesService.getScriptProperties();
-  const id = props.getProperty('SPREADSHEET_ID');
-  if (id) return SpreadsheetApp.openById(id);
-  throw new Error('기존 스프레드시트 설정이 필요합니다');
+  return SpreadsheetApp.openById(TARGET_SPREADSHEET_ID);
 }
 
 function sheet_(name, headers) {
@@ -301,10 +324,11 @@ function findRow_(sh, id) {
   return hit ? hit.getRow() : 0;
 }
 
-/** 처음 한 번 실행: 시트 두 개를 만들고 머리글을 넣는다. */
+/** 처음 한 번 실행: 기존 기록 탭과 미션 탭을 준비한다. */
 function setup() {
   sheet_(SHEET_SESSIONS, SESSION_HEADERS);
   sheet_(SHEET_ATTEMPTS, ATTEMPT_HEADERS);
+  Object.keys(MISSION_SHEETS).forEach(function(m) { sheet_(MISSION_SHEETS[m], RECORD_HEADERS); });
   Logger.log('준비 완료: ' + ss_().getUrl());
 }
 
