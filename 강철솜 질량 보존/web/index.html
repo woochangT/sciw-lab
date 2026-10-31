@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>서술 실험실 · 미션 02</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Share+Tech+Mono&display=swap">
+  <link rel="stylesheet" href="css/m02.css">
+  <link rel="preload" as="image" href="assets/laboratory-room.png">
+  <link rel="preload" as="image" href="assets/professor-expressions.png">
+</head>
+<body>
+  <div id="app">
+    <header id="track">
+      <div class="brand"><svg viewBox="0 0 32 40" aria-hidden="true"><path d="M11 3h10m-8 0v13L3 33q-2 4 3 4h20q5 0 3-4L19 16V3M8 27h16"/></svg><div><strong>서술 실험실</strong><div class="mission" id="missionTitle"></div></div></div>
+      <ol aria-label="미션 진행 단계">
+        <li data-stage="explore"><b>1</b>탐색</li>
+        <li data-stage="claim"><b>2</b>주장</li>
+        <li data-stage="rebuttal"><b>3</b>반박</li>
+        <li data-stage="defense"><b>4</b>변론</li>
+      </ol>
+      <div class="who" id="who"></div>
+    </header>
+
+    <main id="sceneZone">
+      <div id="stage">
+        <div id="bench"></div>
+        <div id="board" class="board"></div>
+        <div id="scope" hidden></div>
+        <div id="profCol">
+          <div id="bubble" role="status" aria-live="polite"><div class="body"></div><span class="more" aria-hidden="true">▶</span></div>
+          <div id="reply" hidden></div>
+          <div id="noseMeter" role="progressbar" aria-label="교수의 콧대" aria-valuemin="0" aria-valuemax="4"><div class="nose-track"><i></i><i></i><i></i><i></i></div></div>
+          <div id="prof" class="professor-art" role="img" aria-label="콧대 교수"></div>
+        </div>
+        <div id="pop" hidden></div>
+      </div>
+    </main>
+
+    <footer id="tray">
+      <div class="label"><strong>수집함</strong></div>
+      <button type="button" class="tray-nav" id="trayPrev" aria-label="앞 카드 보기">‹</button>
+      <div class="cards" id="trayCards"></div>
+      <button type="button" class="tray-nav" id="trayNext" aria-label="뒤 카드 보기">›</button>
+    </footer>
+  </div>
+
+  <div id="catcher" hidden></div>
+  <div id="cardPeek" hidden></div>
+
+  <div class="screen" id="startScreen">
+    <div class="start-layout">
+      <div class="start-story">
+        <div class="story-tag">관찰하고, 추리하고, 설명하는 과학 미션</div>
+        <div class="story-heading">숫자 너머의<br><em>이유</em>를 찾아라.</div>
+        <p>태웠더니 오히려 무거워진 강철솜.<br>실험의 단서를 모아 콧대 교수에게 도전해 보세요.</p>
+        <div class="start-dialogue"><div class="hero-quote">“타면 가벼워지는 거<br>아니었나?”</div><div class="hero-prof professor-art" data-expression="skeptical" role="img" aria-label="콧대 교수"></div></div>
+      </div>
+      <form class="start-card" id="startForm" autocomplete="off">
+        <div class="tag" id="startTag"></div>
+        <h1 id="startTitle"></h1>
+        <p class="start-intro">오늘의 미션을 해결할 연구원은 누구인가요?</p>
+        <label for="classCode">반 코드</label>
+        <input id="classCode" maxlength="20" placeholder="예: 3-2" required>
+        <label for="studentNo">출석번호</label>
+        <input id="studentNo" inputmode="numeric" maxlength="3" placeholder="예: 12" required>
+        <button class="go" type="submit" id="goBtn" disabled>실험실 들어가기</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="screen" id="clearScreen" hidden><div class="wrap"></div></div>
+
+  <script src="js/config.js"></script>
+  <script src="missions/mission02.js"></script>
+  <script src="js/judge02.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/art02.js"></script>
+  <script src="js/game02.js"></script>
+</body>
+</html>
