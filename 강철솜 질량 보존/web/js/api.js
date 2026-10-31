@@ -7,7 +7,8 @@
 (function () {
   const cfg = window.SCIW_CONFIG || {};
   const URL_ = (cfg.API_URL || '').trim();
-  const QUEUE_KEY = 'sciw_queue_v1';
+  // 미션 01 큐와 분리해 검증되지 않은 기록이 감자 서버로 전송되는 일을 막는다.
+  const QUEUE_KEY = 'sciw_queue_m02_v1';
   const LOCAL_DB_KEY = 'sciw_localdb_v1';
 
   const store = {
@@ -82,11 +83,8 @@
     showSaveStatus('서버 저장 중…');
     const batch = queue.slice(0, 40);
     try {
-      // credential은 메모리의 인증 제공자에서만 가져오며 큐에 저장하지 않는다.
-      if (!window.SCIW_AUTH || typeof window.SCIW_AUTH.getCredential !== 'function') throw new Error('학생 인증이 필요합니다');
-      const credential = await window.SCIW_AUTH.getCredential();
-      if (!credential) throw new Error('학생 인증이 필요합니다');
-      await post({ action: 'batch', ops: batch, credential });
+      if (!cfg.M02_SERVER_VERIFIED) throw new Error('미션 02 서버 지원 확인 필요');
+      await post({ action: 'batch', ops: batch });
       queue = queue.slice(batch.length);
       store.set(QUEUE_KEY, queue);
       backoff = 1000;
@@ -95,7 +93,7 @@
       if (queue.length) flush();
     } catch (e) {
       flushing = false;
-      showSaveStatus('서버 저장 실패 · 재시도 대기 중');
+      showSaveStatus(cfg.M02_SERVER_VERIFIED ? '서버 저장 실패 · 재시도 대기 중' : '미션 02 서버 지원 확인 필요 · 전송 보류');
       backoff = Math.min(backoff * 2, 30000);
       clearTimeout(timer);
       timer = setTimeout(flush, backoff);
@@ -141,6 +139,7 @@
 
     async classData(classCode, missionId = cfg.MISSION_ID || 'm01') {
       if (!URL_) return localClassData(classCode, missionId);
+      if (!cfg.M02_SERVER_VERIFIED) throw new Error('미션 02 서버 지원 확인 필요');
       const res = await fetch(URL_ + '?action=classData&classCode=' + encodeURIComponent(classCode) + '&missionId=' + encodeURIComponent(missionId));
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || 'server error');

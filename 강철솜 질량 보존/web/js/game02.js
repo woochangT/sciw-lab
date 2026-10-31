@@ -1389,15 +1389,15 @@
     $('#missionTitle').textContent = `${M.label} · ${M.title}`;
     $('#startTag').textContent = M.label;
     $('#startTitle').textContent = M.title;
-    const cc = $('#classCode'); const sn = $('#studentNo'); const lesson = $('#lessonId');
-    const check = () => { $('#goBtn').disabled = !(cc.value.trim() && /^[A-Za-z0-9_-]{1,64}$/.test(lesson.value.trim()) && /^\d{1,3}$/.test(sn.value.trim())); };
-    cc.addEventListener('input', check); sn.addEventListener('input', check); lesson.addEventListener('input', check);
-    $('#startForm').addEventListener('submit', (e) => { e.preventDefault(); if (!$('#goBtn').disabled) start(cc.value.trim(), String(Number(sn.value.trim())), lesson.value.trim()); });
+    const cc = $('#classCode'); const sn = $('#studentNo');
+    const check = () => { $('#goBtn').disabled = !(cc.value.trim() && sn.value.trim()); };
+    cc.addEventListener('input', check); sn.addEventListener('input', check);
+    $('#startForm').addEventListener('submit', (e) => { e.preventDefault(); start(cc.value.trim(), sn.value.trim()); });
   }
-  async function start(classCode, studentNo, lessonId) {
+  async function start(classCode, studentNo) {
     S.classCode = classCode; S.studentNo = studentNo;
     S.sessionId = API.uid('s');
-    API.startSession({ sessionId: S.sessionId, missionId: M.id, classCode, studentNo, lessonId, startedAt: new Date().toISOString(), stage: 'explore' });
+    API.startSession({ sessionId: S.sessionId, missionId: M.id, classCode, studentNo, startedAt: new Date().toISOString(), stage: 'explore' });
     $('#who').textContent = `${classCode} · ${studentNo}번`;
     $('#startScreen').hidden = true;
     S.started = true;

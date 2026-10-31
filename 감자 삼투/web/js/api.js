@@ -82,11 +82,7 @@
     showSaveStatus('서버 저장 중…');
     const batch = queue.slice(0, 40);
     try {
-      // credential은 메모리의 인증 제공자에서만 가져오며 큐에 저장하지 않는다.
-      if (!window.SCIW_AUTH || typeof window.SCIW_AUTH.getCredential !== 'function') throw new Error('학생 인증이 필요합니다');
-      const credential = await window.SCIW_AUTH.getCredential();
-      if (!credential) throw new Error('학생 인증이 필요합니다');
-      await post({ action: 'batch', ops: batch, credential });
+      await post({ action: 'batch', ops: batch });
       queue = queue.slice(batch.length);
       store.set(QUEUE_KEY, queue);
       backoff = 1000;

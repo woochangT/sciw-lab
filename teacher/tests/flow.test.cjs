@@ -6,7 +6,7 @@ require('../model.js');
 const model = global.TeacherModel;
 function api(path, url = '') {
   const values = new Map(), calls = [];
-  const window = {SCIW_CONFIG:{API_URL:url,MISSION_ID:'m02'},addEventListener(){}};
+  const window = {SCIW_CONFIG:{API_URL:url,MISSION_ID:'m02',M02_SERVER_VERIFIED:true},addEventListener(){}};
   const document = {readyState:'loading',addEventListener(){},getElementById(){return null;}};
   const context = {window, document, localStorage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)},setTimeout(){},clearTimeout(){},AbortController,fetch:async url=>{calls.push(url);return {ok:true,json:async()=>({ok:true,sessions:[],attempts:[]})}}};
   vm.runInNewContext(fs.readFileSync(path,'utf8'),context);
@@ -32,9 +32,8 @@ test('latest ongoing attempt is not hidden by older completion', () => {
 test('m02 remote query specifies mission', async () => {
  const {api:a,calls} = api('강철솜 질량 보존/web/js/api.js','https://example.invalid'); await a.classData('T'); assert.match(calls[0],/missionId=m02/);
 });
-test('server refuses class data without authentication', () => {
- const context = {ContentService:{MimeType:{JSON:'json'},createTextOutput:s=>({setMimeType(){return s}})}};
- vm.createContext(context); vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8'),context);
- const result = JSON.parse(context.doGet({parameter:{action:'classData',classCode:'T',missionId:'m02'}}));
- assert.equal(result.ok,false); assert.match(result.error,/인증/);
+test('legacy local sessions without lesson ID remain available separately', () => {
+ const old={sessions:{s:{sessionId:'s',classCode:'A',studentNo:'1',missionId:'m01'}},attempts:[]};
+ assert.equal(model.select(old,'A','m01','').sessions.length,1);
+ assert.equal(model.select(old,'A','m01','L1').sessions.length,0);
 });

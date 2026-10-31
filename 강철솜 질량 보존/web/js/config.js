@@ -6,6 +6,8 @@
 window.SCIW_CONFIG = {
   API_URL: '',
   MISSION_ID: 'm02',
+  // 테스트 배포가 미션 02를 분리 저장·조회하는지 확인하기 전에는 켜지 않는다.
+  M02_SERVER_VERIFIED: false,
   LLM_TIMEOUT_MS: 3000,
   USE_LLM: false
 };

@@ -137,7 +137,6 @@
       S.session.stageTimes[S.stage] = (S.session.stageTimes[S.stage] || 0) + (t - S.stageStart);
     }
     S.stage = stage;
-    if (S.session && stage) API.updateSession(S.session.sessionId, { stage });
     $('#app').dataset.stage = stage || 'clear';
     document.body.dataset.stage = stage || 'clear';
     $('#questArea').hidden = !stage;
@@ -1710,24 +1709,24 @@
     $('#modeNote').textContent = API.isLocal
       ? '연구 기록은 이 기기에 저장돼요.'
       : '기록은 선생님 화면으로 전송됩니다.';
-    const cc = $('#classCode'); const sn = $('#studentNo'); const lesson = $('#lessonId'); const go = $('#goBtn');
+    const cc = $('#classCode'); const sn = $('#studentNo'); const go = $('#goBtn');
     try { cc.value = localStorage.getItem('sciw_class') || ''; } catch (e) { /* noop */ }
-    const sync = () => { go.disabled = !(cc.value.trim() && /^[A-Za-z0-9_-]{1,64}$/.test(lesson.value.trim()) && /^\d{1,3}$/.test(sn.value.trim())); };
-    cc.oninput = sync; sn.oninput = sync; lesson.oninput = sync; sync();
+    const sync = () => { go.disabled = !(cc.value.trim() && /^\d{1,3}$/.test(sn.value.trim())); };
+    cc.oninput = sync; sn.oninput = sync; sync();
     $('#startForm').onsubmit = (e) => {
       e.preventDefault();
       if (go.disabled) return;
       try { localStorage.setItem('sciw_class', cc.value.trim()); } catch (err) { /* noop */ }
-      start(cc.value.trim(), String(Number(sn.value.trim())), lesson.value.trim());
+      start(cc.value.trim(), String(Number(sn.value.trim())));
     };
   }
 
-  function start(classCode, studentNo, lessonId) {
+  function start(classCode, studentNo) {
     $('#startScreen').hidden = true;
     $('#who').textContent = `${classCode} · ${studentNo}번`;
     S.session = {
       sessionId: API.uid('s'),
-      classCode, studentNo, lessonId, missionId: M.id,
+      classCode, studentNo, missionId: M.id,
       startedAt: new Date().toISOString(), endedAt: '',
       stageTimes: {}, clueCards: [], modelCards: [], clearType: '',
       firstAnswer: '', finalAnswer: '', finalJudgment: {}, questPassed: {},

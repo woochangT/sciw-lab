@@ -13,7 +13,7 @@
     {attemptId:'a2',sessionId:'d2',createdAt:at(4),stage:'defense',questId:'FINAL',input:'물이 감자 밖으로 이동해 질량이 줄었어요.'},
     {attemptId:'a3',sessionId:'d3',createdAt:at(1),stage:'compose',questId:'final',input:'공기 중 산소가 철과 결합했어요.'}
   ]};
-  let data = {sessions:[],attempts:[]}, view = 'live', selected = null, lastSuccess = null, credential = '', generation = 0, loading = false;
+  let data = {sessions:[],attempts:[]}, view = 'live', selected = null, lastSuccess = null, generation = 0, loading = false;
   const config = window.SCIW_TEACHER_CONFIG;
   const params = new URLSearchParams(location.search);
   const missionFromUrl = params.get('mission');
@@ -22,7 +22,7 @@
   $('#backToStart').href = returnPaths[params.get('from')] || 'index.html';
   function updateNotice() {
     const source = $('#source').value;
-    $('#notice').textContent = source === 'demo' ? '현재 가상의 예시 데이터입니다. 실제 학생 기록이 아닙니다.' : source === 'local' ? '이 브라우저에만 저장된 로컬 기록입니다. 다른 기기와 공유되지 않습니다.' : '서버 기록에는 교사 인증과 수업별 권한이 필요합니다. 운영 인증을 검증하기 전에는 실제 학생 데이터를 사용하지 마세요.';
+    $('#notice').textContent = source === 'demo' ? '현재 가상의 예시 데이터입니다. 실제 학생 기록이 아닙니다.' : '이 브라우저에만 저장된 로컬 기록입니다. 수업 ID를 비우면 예전 기록을 볼 수 있습니다. 다른 기기와 공유되지 않습니다.';
   }
   updateNotice();
   const date = value => { const d = new Date(value); return value && !isNaN(d) ? d.toLocaleString('ko-KR') : '기록 없음'; };
@@ -50,12 +50,11 @@
     $('#status').textContent = '조회 중…';
     try {
       let db;
-      if (source === 'remote') db = await window.TeacherTransport.classData(config.API_URL, credential, classCode, missionId, lessonId, config.TIMEOUT_MS);
-      else db = source === 'demo' ? demo : JSON.parse(localStorage.getItem('sciw_localdb_v1') || '{"sessions":{},"attempts":[]}');
+      db = source === 'demo' ? demo : JSON.parse(localStorage.getItem('sciw_localdb_v1') || '{"sessions":{},"attempts":[]}');
       if (current !== generation) return;
       data = M.select(db, classCode, missionId, lessonId);
       lastSuccess = new Date(); render();
-      const label = source === 'demo' ? '합성 예시' : source === 'local' ? '이 브라우저의 로컬 저장소' : '인증된 서버';
+      const label = source === 'demo' ? '합성 예시' : source === 'local' ? '이 브라우저의 로컬 저장소' : '이 브라우저의 로컬 저장소';
       $('#status').textContent = `${label} · 마지막 조회 ${lastSuccess.toLocaleTimeString('ko-KR')} · 20초마다 다시 조회`;
     } catch(e) {
       if (current !== generation) return;
@@ -64,27 +63,13 @@
   }
   function changeScope() {
     generation++; selected=null; data={sessions:[],attempts:[]}; lastSuccess=null;
-    $('#detail').hidden=true; $('#signin').hidden=$('#source').value !== 'remote'; updateNotice(); render(); load();
+    $('#detail').hidden=true; updateNotice(); render(); load();
   }
-  $('#signin').onclick = async () => {
-    try {
-      if (!window.SCIW_TEACHER_AUTH || typeof window.SCIW_TEACHER_AUTH.signIn !== 'function') throw new Error('교사 인증 제공자가 설정되지 않았습니다');
-      credential = await window.SCIW_TEACHER_AUTH.signIn();
-      if (!credential) throw new Error('교사 인증을 완료하지 못했습니다');
-      changeScope();
-    } catch (e) { credential=''; changeScope(); $('#status').textContent='인증 실패 · ' + e.message; }
-  };
   $('#content').addEventListener('click', e => { const b=e.target.closest('[data-student]'); if(b) { detail(b.dataset.student); $('#detail').scrollIntoView({behavior:'smooth'}); } });
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => { view=b.dataset.view; document.querySelectorAll('.tab').forEach(t => { t.classList.toggle('active',t===b); t.setAttribute('aria-pressed',String(t===b)); }); render(); });
   $('#refresh').onclick = load;
-  $('#newLesson').onclick = () => {
-    if (!window.crypto || !window.crypto.getRandomValues) { $('#status').textContent='안전한 수업 ID 생성에 HTTPS가 필요합니다'; return; }
-    const bytes = new Uint8Array(12); window.crypto.getRandomValues(bytes);
-    $('#lessonId').value = 'L_' + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join(''); changeScope();
-    $('#status').textContent = '새 수업 ID를 만들었습니다. 참여자에게 알리고 서버 권한에도 등록해야 합니다.';
-  };
   $('#mission').onchange = changeScope;
-  $('#source').onchange = changeScope;
+  $('#source').onchange = () => { $('#lessonId').value = $('#source').value === 'demo' ? 'DEMO' : ''; changeScope(); };
   $('#classCode').onchange = changeScope;
   $('#lessonId').onchange = changeScope;
   load(); setInterval(load, config.REFRESH_MS);

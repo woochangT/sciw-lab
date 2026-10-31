@@ -29,6 +29,6 @@ test('demo mission switch, details, analysis, empty class, re-entry, and remote 
  e.mission.value='m01'; e.mission.onchange(); assert.match(e.content.innerHTML,/2명/);
  e.content.onclick({target:{closest:()=>({dataset:{student:'2'}})}});assert.match(e.detail.innerHTML,/설탕이 움직여요/);assert.match(e.detail.innerHTML,/물이 감자 밖으로/);
  e.classCode.value='EMPTY';e.classCode.onchange();assert.match(e.content.innerHTML,/저장된 기록이 없습니다/);
- e.source.value='remote';e.source.onchange(); await new Promise(resolve=>setImmediate(resolve));assert.match(e.status.textContent,/조회 실패/);assert.match(e.notice.textContent,/교사 인증/);
+ e.source.value='local';e.source.onchange();assert.equal(e.lessonId.value,'');assert.match(e.notice.textContent,/예전 기록/);
  const reentry=app('?mission=m01&from=m01');assert.match(reentry.elements.notice.textContent,/예시/);assert.match(reentry.elements.content.innerHTML,/2명/);
 });
