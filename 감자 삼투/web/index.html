@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="css/game.css">
   <link rel="stylesheet" href="css/laboratory.css">
   <link rel="stylesheet" href="css/classroom.css">
+  <link rel="stylesheet" href="../../teacher/entry.css">
   <link rel="preload" as="image" href="assets/laboratory-room.png">
   <link rel="preload" as="image" href="assets/professor-expressions.png">
 </head>
@@ -77,6 +78,7 @@
       <label for="studentNo">출석번호</label>
       <input id="studentNo" inputmode="numeric" maxlength="3" placeholder="예: 12" required>
       <button class="go" type="submit" id="goBtn" disabled>실험실 들어가기</button>
+      <div class="teacher-entry"><span>선생님이신가요?</span><a href="../../teacher.html?mission=m01&amp;from=m01">교사용 대시보드 예시 보기 <span aria-hidden="true">→</span></a><small>로그인 없이 가상 수업을 둘러볼 수 있어요.</small></div>
       <div class="mode" id="modeNote"></div>
     </form>
     </div>

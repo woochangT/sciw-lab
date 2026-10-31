@@ -1,20 +1,6 @@
-/**
- * 서술 실험실 — Apps Script 백엔드
- *
- * 학생 기록을 Google 스프레드시트에 저장하고, 교사 히트맵에 반 단위 데이터를 내려준다.
- * (선택) Script Properties에 ANTHROPIC_API_KEY가 있으면 서술 답안을 Claude로 판정한다.
- *
- * 시트
- *   Sessions : 학생 1명 × 미션 1판 = 1행 (세션 + 요약)
- *   Attempts : 입력 1회 = 1행 (시도)
- *
- * 요청
- *   POST (Content-Type: text/plain, 본문 JSON)
- *     { action: 'batch', ops: [ {action:'startSession', session}, {action:'updateSession', sessionId, fields}, {action:'logAttempt', attempt} ] }
- *     { action: 'judge', kind: 'quest'|'defense', questId, text, checks }
- *   GET
- *     ?action=classData&classCode=3-2   → 그 반의 세션과 시도
- *     ?action=ping
+/** 미션별 단일 탭 기록 백엔드. 운영 전 교사 인증과 시트 공유 범위를 검토한다.
+ * 기존 batch 프로토콜을 유지한다. POST classData는 반·미션별 교사 키를 검증한다.
+ * legacy GET classData는 차단한다. reconcileLegacy는 원본 탭을 수정하지 않는다.
  */
 
 const SHEET_SESSIONS = 'Sessions';
@@ -26,49 +12,161 @@ const SESSION_HEADERS = [
   'finalC', 'finalD', 'finalW1', 'finalW2a', 'finalW2b', 'finalW3', 'finalWB',
   'firstError', 'hintTotal', 'defenseTries', 'judgedBy',
   'stageTimes', 'clueCards', 'modelCards', 'questPassed', 'finalJudgment', 'errorCounts', 'hintMax',
-  'updatedAt'
+  'updatedAt',
+  // 미션 02에서 더한 열 (기존 시트에는 맨 뒤에 붙는다)
+  'finalDA', 'finalDB', 'finalW1a', 'finalW1b', 'path', 'hintLevel', 'hintReason',
+  'sortFirstRight', 'dwConfusion', 'selfPredict', 'selfPredictMatch', 'firstSubmitBeforeHint', 'firstSubmitDiag',
+  'ownMode', 'ownReward', 'extra'
 ];
 const ATTEMPT_HEADERS = [
   'attemptId', 'sessionId', 'classCode', 'studentNo', 'missionId', 'stage', 'questId', 'element',
-  'attemptNo', 'input', 'diagnosis', 'errorType', 'hintLevel', 'durationMs', 'judgedBy', 'judgment', 'createdAt'
+  'attemptNo', 'input', 'diagnosis', 'errorType', 'hintLevel', 'durationMs', 'judgedBy', 'judgment', 'createdAt',
+  'choice', 'pass', 'extra'
 ];
-const JSON_FIELDS = ['stageTimes', 'clueCards', 'modelCards', 'questPassed', 'finalJudgment', 'errorCounts', 'hintMax', 'judgment'];
+const JSON_FIELDS = ['stageTimes', 'clueCards', 'modelCards', 'questPassed', 'finalJudgment', 'errorCounts', 'hintMax', 'judgment', 'extra'];
 const FINAL_KEYS = ['C', 'D', 'W1', 'W2a', 'W2b', 'W3', 'WB'];
+// 미션별 최종 판정 요소. 열 이름은 'final' + 요소 코드에서 '-'를 뺀 것 (D-A → finalDA)
+const FINAL_KEYS_BY_MISSION = {
+  m01: FINAL_KEYS,
+  m02: ['C', 'D-A', 'D-B', 'W1a', 'W1b', 'W2a', 'W2b']
+};
+const DEFAULT_MISSION = 'm01';
 
 // ───────────────────────── 진입점 ─────────────────────────
 
+// 활성 데이터는 미션별 한 탭에 저장한다. 기존 Sessions/Attempts는 건드리지 않는다.
+const TARGET_SPREADSHEET_ID = '1oA71tk0hqCXC0ImV3c5MZq938hZFKcj2XkJnB3XNnAU';
+const RECORD_HEADERS = ['recordType','recordId','sessionId','classCode','studentNo','missionId','createdAt','updatedAt','payload'];
+const MISSION_SHEETS = {m01:'감자', m02:'강철솜'};
 function doGet(e) {
-  const p = (e && e.parameter) || {};
-  try {
-    if (p.action === 'classData') return json_(Object.assign({ ok: true }, getClassData_(String(p.classCode || ''))));
-    if (p.action === 'ping') return json_({ ok: true, time: new Date().toISOString() });
-    return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">서술 실험실 백엔드가 동작 중입니다.</p>');
-  } catch (err) {
-    return json_({ ok: false, error: String(err && err.message || err) });
-  }
+  const p = e && e.parameter || {};
+  if (p.action === 'ping') return json_({ok:true, schema:'mission-records-v1', missions:['m01','m02']});
+  if (p.action === 'classData') return json_({ok:false,error:'교사 인증이 필요합니다'});
+  return json_({ok:true});
 }
-
 function doPost(e) {
   try {
-    const body = JSON.parse(e.postData.contents || '{}');
-    if (body.action === 'judge') return json_({ ok: true, result: judge_(body) });
-
-    const ops = body.action === 'batch' ? (body.ops || []) : [body];
-    const lock = LockService.getScriptLock();
-    lock.waitLock(20000);
-    try {
-      ops.forEach(applyOp_);
-    } finally {
-      lock.releaseLock();
+    const raw = e && e.postData && e.postData.contents || '';
+    if (!raw || raw.length > 150000) throw new Error('잘못된 요청 크기');
+    const body = JSON.parse(raw);
+    if (body.action === 'classData') {
+      authorizeTeacher_(body);
+      return json_(Object.assign({ok:true}, getMissionClassData_(body.classCode, body.missionId)));
     }
-    return json_({ ok: true, applied: ops.length });
-  } catch (err) {
-    return json_({ ok: false, error: String(err && err.message || err) });
-  }
+    if (body.action === 'judge') return json_({ok:true,result:judge_(body)});
+    const ops = body.action === 'batch' ? body.ops : [body];
+    if (!Array.isArray(ops) || !ops.length || ops.length > 40) throw new Error('잘못된 기록 묶음');
+    const lock = LockService.getScriptLock(); lock.waitLock(20000);
+    try { ops.forEach(applyMissionOp_); } finally { lock.releaseLock(); }
+    return json_({ok:true,applied:ops.length});
+  } catch (err) { return json_({ok:false,error:String(err && err.message || err)}); }
+}
+// 별도 키를 정적 웹 파일에 넣지 않는다. 강한 비밀값과 반·미션 매핑을 운영자가 Script Properties에 설정해야 한다.
+function authorizeTeacher_(body) {
+  if (!body || typeof body.classCode !== 'string' || !body.classCode || body.classCode.length > 20 || !MISSION_SHEETS[body.missionId] || typeof body.teacherKey !== 'string' || body.teacherKey.length < 24 || body.teacherKey.length > 256) throw new Error('교사 인증 실패');
+  const raw = PropertiesService.getScriptProperties().getProperty('TEACHER_ACCESS');
+  if (!raw) throw new Error('교사 접근 설정이 없습니다');
+  const rules = JSON.parse(raw);
+  const digest = value => Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, value).map(x => ('0'+((x+256)%256).toString(16)).slice(-2)).join('');
+  const got = digest(body.teacherKey);
+  if (!Array.isArray(rules) || !rules.some(r => r && r.classCode === body.classCode && r.missionId === body.missionId && typeof r.keySha256 === 'string' && r.keySha256 === got)) throw new Error('교사 인증 실패');
 }
 
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function missionSheet_(missionId) {
+  const name = MISSION_SHEETS[missionId]; if (!name) throw new Error('지원하지 않는 미션');
+  const sh = SpreadsheetApp.openById(TARGET_SPREADSHEET_ID).getSheetByName(name);
+  if (!sh) throw new Error('미션 탭이 없습니다');
+  const header = sh.getRange(1,1,1,RECORD_HEADERS.length).getValues()[0].map(String);
+  if (header.join('\t') !== RECORD_HEADERS.join('\t')) throw new Error('미션 탭 헤더가 다릅니다');
+  return sh;
+}
+function missionRows_(missionId) {
+  const sh = missionSheet_(missionId), last = sh.getLastRow();
+  return {sh:sh, rows:last < 2 ? [] : sh.getRange(2,1,last-1,RECORD_HEADERS.length).getDisplayValues()};
+}
+function locate_(kind,id) {
+  const hits=[];
+  Object.keys(MISSION_SHEETS).forEach(function(m) { const data=missionRows_(m); data.rows.forEach(function(r,i){if(r[0]===kind && r[1]===id) hits.push({mission:m,sh:data.sh,row:i+2,values:r});}); });
+  if (hits.length > 1) throw new Error('기록 ID가 중복되어 확인이 필요합니다');
+  return hits[0] || null;
+}
+function putRecord_(kind, id, record, mission, existing) {
+  if (!id || typeof id !== 'string' || id.length > 128 || JSON.stringify(record).length > 40000) throw new Error('기록이 잘못되었거나 너무 큽니다');
+  const sh = existing ? existing.sh : missionSheet_(mission), timestamp = new Date().toISOString();
+  const row = [kind,id,String(record.sessionId || ''),String(record.classCode || ''),String(record.studentNo || ''),mission,String(record.createdAt || record.startedAt || timestamp),String(record.updatedAt || timestamp),JSON.stringify(record)];
+  sh.getRange(existing ? existing.row : sh.getLastRow()+1,1,1,RECORD_HEADERS.length).setNumberFormat('@').setValues([row]);
+}
+function readPayload_(record) {
+  let value; try { value=JSON.parse(record[8]); } catch(e) { throw new Error('기록 payload를 읽을 수 없습니다'); }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('기록 payload가 잘못되었습니다');
+  return value;
+}
+function applyMissionOp_(op) {
+  if (!op || ['startSession','updateSession','logAttempt'].indexOf(op.action)<0) throw new Error('지원하지 않는 기록 작업');
+  const fields=op.action==='startSession'?op.session:op.action==='updateSession'?op.fields:op.attempt;
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) throw new Error('잘못된 기록');
+  const sid=op.action==='startSession'?fields.sessionId:op.action==='updateSession'?op.sessionId:fields.sessionId;
+  if (typeof sid !== 'string' || !sid || sid.length>128) throw new Error('세션 ID 오류');
+  const existing=locate_('session',sid);
+  if (op.action==='startSession') {
+    const mission=fields.missionId || 'm01'; if (!MISSION_SHEETS[mission]) throw new Error('지원하지 않는 미션');
+    if (existing) {
+      const old=readPayload_(existing.values);
+      if (existing.mission!==mission || String(old.classCode)!==String(fields.classCode) || String(old.studentNo)!==String(fields.studentNo)) throw new Error('세션 범위 충돌');
+      return; // 재시작 재전송이 기존 진행을 되돌리지 않는다.
+    }
+    putRecord_('session',sid,Object.assign({},fields,{missionId:mission}),mission,null); return;
+  }
+  if (!existing) throw new Error('세션이 없어 기록을 보류합니다');
+  const old=readPayload_(existing.values), mission=existing.mission;
+  if (op.action==='updateSession') {
+    ['sessionId','missionId','classCode','studentNo'].forEach(function(k){ if (fields[k]!==undefined && String(fields[k])!==String(old[k])) throw new Error('세션 범위 변경 불가'); });
+    const merged=Object.assign({},old,fields,{sessionId:sid,missionId:mission,updatedAt:new Date().toISOString()});
+    putRecord_('session',sid,merged,mission,existing); return;
+  }
+  if (!fields.attemptId || typeof fields.attemptId!=='string') throw new Error('시도 ID 오류');
+  ['missionId','classCode','studentNo'].forEach(function(k){const expected=k==='missionId' ? mission : old[k]; if(fields[k]!==undefined && String(fields[k])!==String(expected)) throw new Error('시도 범위 충돌');});
+  const previous=locate_('attempt',fields.attemptId);
+  if (previous) { if(previous.mission!==mission || previous.values[2]!==sid) throw new Error('시도 ID 충돌'); return; }
+  putRecord_('attempt',fields.attemptId,Object.assign({},fields,{missionId:mission,classCode:old.classCode,studentNo:old.studentNo}),mission,null);
+}
+function getMissionClassData_(classCode, missionId) {
+  const all=missionRows_(missionId).rows, sessions=all.filter(r=>r[0]==='session' && r[3]===classCode).map(readPayload_);
+  const ids=new Set(sessions.map(s=>String(s.sessionId)));
+  const attempts=all.filter(r=>r[0]==='attempt' && ids.has(r[2])).map(readPayload_);
+  return {sessions:sessions,attempts:attempts};
+}
+// 운영 중인 구버전 쓰기를 멈춘 뒤, 기존 탭을 읽어 최신 분을 다시 반영한다. 원본 탭은 수정하지 않는다.
+function reconcileLegacy() {
+  const lock=LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const ss=SpreadsheetApp.openById(TARGET_SPREADSHEET_ID);
+    ['Sessions','Attempts'].forEach(function(name){
+      const sh=ss.getSheetByName(name); if (!sh) throw new Error('기존 탭 없음: '+name);
+      const last=sh.getLastRow(), n=sh.getLastColumn(); if(last<2) return;
+      const h=sh.getRange(1,1,1,n).getDisplayValues()[0];
+      sh.getRange(2,1,last-1,n).getDisplayValues().forEach(function(row){
+        const obj={}; h.forEach(function(k,i){if(k)obj[k]=row[i];});
+        const kind=name==='Sessions'?'session':'attempt', id=kind==='session'?obj.sessionId:obj.attemptId;
+        if (!id) throw new Error('기존 기록 ID 없음');
+        const mission=obj.missionId || 'm01'; if(!MISSION_SHEETS[mission]) throw new Error('기존 미션 확인 필요');
+        const existing=locate_(kind,id);
+        if (existing && existing.mission!==mission) throw new Error('기존 기록 미션 충돌');
+        if (existing && kind==='attempt') return;
+        if (existing) {
+          const oldTime=Date.parse(obj.updatedAt || obj.startedAt || '');
+          const newTime=Date.parse(existing.values[7] || '');
+          if (!oldTime || !newTime) throw new Error('시각 없는 세션 충돌: 수동 확인 필요');
+          if(oldTime <= newTime) return;
+        }
+        putRecord_(kind,id,obj,mission,existing);
+      });
+    });
+  } finally { lock.releaseLock(); }
 }
 
 // ───────────────────────── 쓰기 ─────────────────────────
@@ -88,8 +186,10 @@ function upsertSession_(sessionId, fields) {
   const current = row ? rowToObj_(headers, sh.getRange(row, 1, 1, headers.length).getValues()[0]) : {};
   const merged = Object.assign({}, current, fields, { sessionId: sessionId, updatedAt: new Date().toISOString() });
   if (fields.finalJudgment) {
-    FINAL_KEYS.forEach(function (k) { merged['final' + k] = fields.finalJudgment[k] ? 'TRUE' : 'FALSE'; });
+    const keys = FINAL_KEYS_BY_MISSION[merged.missionId || DEFAULT_MISSION] || FINAL_KEYS;
+    keys.forEach(function (k) { merged[finalCol_(k)] = fields.finalJudgment[k] ? 'TRUE' : 'FALSE'; });
   }
+  merged.extra = withExtra_(current.extra, fields, headers);
   const values = [headers.map(function (h) { return cell_(h, merged[h]); })];
   const target = row || sh.getLastRow() + 1;
   sh.getRange(target, 1, 1, headers.length).setNumberFormat('@').setValues(values);
@@ -100,8 +200,20 @@ function appendAttempt_(a) {
   const sh = sheet_(SHEET_ATTEMPTS, ATTEMPT_HEADERS);
   if (findRow_(sh, a.attemptId)) return; // 재전송 중복 방지
   const headers = headers_(sh);
-  const values = [headers.map(function (h) { return cell_(h, a[h]); })];
+  const row = Object.assign({}, a, { extra: withExtra_(null, a, headers) });
+  const values = [headers.map(function (h) { return cell_(h, row[h]); })];
   sh.getRange(sh.getLastRow() + 1, 1, 1, headers.length).setNumberFormat('@').setValues(values);
+}
+
+function finalCol_(k) { return 'final' + String(k).replace(/-/g, ''); }
+
+// 머리글에 없는 값을 extra(JSON)에 모은다. 이전에 모인 값은 유지하고 같은 이름은 새 값으로 바꾼다.
+function withExtra_(prev, fields, headers) {
+  const out = (prev && typeof prev === 'object') ? Object.assign({}, prev) : {};
+  Object.keys(fields || {}).forEach(function (k) {
+    if (headers.indexOf(k) < 0) out[k] = fields[k];
+  });
+  return Object.keys(out).length ? out : '';
 }
 
 function cell_(header, v) {
@@ -113,9 +225,13 @@ function cell_(header, v) {
 
 // ───────────────────────── 읽기 ─────────────────────────
 
-function getClassData_(classCode) {
+function getClassData_(classCode, missionId) {
   if (!classCode) throw new Error('반 코드가 필요합니다');
-  const sessions = readSheet_(SHEET_SESSIONS, SESSION_HEADERS).filter(function (s) { return String(s.classCode) === classCode; });
+  const sameMission = function (s) {
+    const m = String(s.missionId || '');
+    return missionId ? m === missionId : (m === '' || m === DEFAULT_MISSION);
+  };
+  const sessions = readSheet_(SHEET_SESSIONS, SESSION_HEADERS).filter(function (s) { return String(s.classCode) === classCode && sameMission(s); });
   const ids = {};
   sessions.forEach(function (s) { ids[s.sessionId] = true; });
   const attempts = readSheet_(SHEET_ATTEMPTS, ATTEMPT_HEADERS).filter(function (a) { return ids[a.sessionId]; });
@@ -151,9 +267,7 @@ function ss_() {
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty('SPREADSHEET_ID');
   if (id) return SpreadsheetApp.openById(id);
-  const created = SpreadsheetApp.create('서술 실험실 기록');
-  props.setProperty('SPREADSHEET_ID', created.getId());
-  return created;
+  throw new Error('기존 스프레드시트 설정이 필요합니다');
 }
 
 function sheet_(name, headers) {
@@ -213,6 +327,13 @@ function judge_(body) {
   const checks = body.checks || {};
   const names = Object.keys(checks);
   const isDefense = body.kind === 'defense';
+  // 미션별 값은 요청에서 받는다. 없으면 미션 01(감자) 값을 쓴다.
+  const codes = (Array.isArray(body.errorCodes) && body.errorCodes.length)
+    ? body.errorCodes.map(String).filter(function (c) { return /^[A-Z][A-Z0-9]{0,7}$/.test(c) && c !== 'NONE' && c !== 'UNCLEAR'; }).slice(0, 12)
+    : ['N1', 'N2', 'E1', 'E2', 'E3'];
+  const guide = clip_(body.errorGuide, 2000) || ERROR_GUIDE;
+  const synonyms = clip_(body.synonyms, 600) || '유의어를 넓게 인정한다. "물이 빨려 들어갔다", "수분이 흡수됐다"는 "물이 들어왔다"와 같다. "농도가 높다"는 "진하다"와 같다.';
+  const defenseNote = clip_(body.defenseNote, 600) || 'errors에는 답안에 나타난 오류 유형을 모두 넣는다(없으면 빈 배열). WB는 W2a·W2b·W3 대신 "안팎 농도가 같으면 질량 변화가 0" 경로로 설명한 경우다.';
 
   const boolProps = {};
   names.forEach(function (k) { boolProps[k] = { type: 'boolean' }; });
@@ -222,7 +343,7 @@ function judge_(body) {
         type: 'object',
         properties: {
           elements: boolObj,
-          errors: { type: 'array', items: { type: 'string', enum: ['N1', 'N2', 'E1', 'E2', 'E3'] } }
+          errors: { type: 'array', items: { type: 'string', enum: codes } }
         },
         required: ['elements', 'errors'],
         additionalProperties: false
@@ -231,7 +352,7 @@ function judge_(body) {
         type: 'object',
         properties: {
           checks: boolObj,
-          error_type: { type: 'string', enum: ['NONE', 'N1', 'N2', 'E1', 'E2', 'E3', 'UNCLEAR'] }
+          error_type: { type: 'string', enum: ['NONE'].concat(codes, ['UNCLEAR']) }
         },
         required: ['checks', 'error_type'],
         additionalProperties: false
@@ -239,13 +360,13 @@ function judge_(body) {
 
   const system = [
     '너는 중학교 과학 서술형 답안을 판정하는 채점 보조다. 점수를 매기지 말고 체크 항목별 참/거짓과 오류 유형만 낸다.',
-    '상황: ' + (body.context || '감자 조각을 퍼센트 농도가 0%, 5%, 10%, 15%인 설탕물에 30분 담갔더니 질량 변화가 +8 g, +3 g, −5 g, −10 g이었다. 묻는 것은 감자 세포 안 용액의 농도다.'),
-    '유의어를 넓게 인정한다. "물이 빨려 들어갔다", "수분이 흡수됐다"는 "물이 들어왔다"와 같다. "농도가 높다"는 "진하다"와 같다.',
+    '상황: ' + (clip_(body.context, 1500) || '감자 조각을 퍼센트 농도가 0%, 5%, 10%, 15%인 설탕물에 30분 담갔더니 질량 변화가 +8 g, +3 g, −5 g, −10 g이었다. 묻는 것은 감자 세포 안 용액의 농도다.'),
+    synonyms,
     '학생이 실제로 쓴 의미만 보고, 쓰지 않은 내용을 추측해서 참으로 만들지 않는다.',
     '오류 유형:',
-    ERROR_GUIDE,
+    guide,
     isDefense
-      ? 'errors에는 답안에 나타난 오류 유형을 모두 넣는다(없으면 빈 배열). WB는 W2a·W2b·W3 대신 "안팎 농도가 같으면 질량 변화가 0" 경로로 설명한 경우다.'
+      ? defenseNote
       : 'error_type: 모든 체크가 참이면 NONE, 아니면 가장 핵심적인 오류 유형 하나.'
   ].join('\n');
 
@@ -281,12 +402,27 @@ function judge_(body) {
   return out;
 }
 
+function clip_(v, max) { return typeof v === 'string' && v.trim() ? v.slice(0, max) : ''; }
+
 /** 편집기에서 실행해 LLM 연결을 확인한다. */
 function testJudge() {
   const r = judge_({
     kind: 'quest',
     text: '10% 설탕물에서 질량이 줄었다는 것은 물이 감자 밖으로 빠져나갔다는 것이고, 감자 안이 10% 설탕물보다 묽다는 뜻이다.',
     checks: { water_out: '물이 빠져나갔다고 썼는가', inside_low: '안이 10% 설탕물보다 묽다고 썼는가' }
+  });
+  Logger.log(JSON.stringify(r));
+}
+
+/** 편집기에서 실행해 미션 02 판정 설정이 통하는지 확인한다 (강철솜). */
+function testJudgeM02() {
+  const r = judge_({
+    kind: 'quest',
+    text: '실험 A에서 늘어난 0.5 g은 공기 중에서 들어와 강철솜과 결합한 산소의 질량이다.',
+    checks: { oxygen: '산소라고 썼는가', from_air: '공기(바깥)에서 들어왔다고 썼는가', mass: '0.5 g이 그 산소의 질량이라고 썼는가' },
+    context: '실험 A: 강철솜 2.0 g을 공기 중에서 태웠더니 2.5 g이 되었다. 실험 B: 마개를 막은 플라스크 안에서 태웠더니 전체 150.0 g이 그대로였다.',
+    errorCodes: ['N1', 'N2', 'N3', 'N5', 'E1', 'E2', 'E3', 'E4'],
+    errorGuide: 'N2 개념 이름표: "산화 철"처럼 이름만 씀\nE4 스스로 무거워짐: 질량이 새로 생겼다고 함\nUNCLEAR 판정 불가'
   });
   Logger.log(JSON.stringify(r));
 }
