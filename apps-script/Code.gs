@@ -34,7 +34,7 @@ const SESSION_HEADERS = [
   // 미션 02에서 더한 열 (기존 시트에는 맨 뒤에 붙는다)
   'finalDA', 'finalDB', 'finalW1a', 'finalW1b', 'path', 'hintLevel', 'hintReason',
   'sortFirstRight', 'dwConfusion', 'selfPredict', 'selfPredictMatch', 'firstSubmitBeforeHint', 'firstSubmitDiag',
-  'ownMode', 'ownReward', 'extra'
+  'ownMode', 'ownReward', 'extra', 'stage', 'lessonId', 'ownerSub'
 ];
 const ATTEMPT_HEADERS = [
   'attemptId', 'sessionId', 'classCode', 'studentNo', 'missionId', 'stage', 'questId', 'element',
@@ -49,13 +49,41 @@ const FINAL_KEYS_BY_MISSION = {
   m02: ['C', 'D-A', 'D-B', 'W1a', 'W1b', 'W2a', 'W2b']
 };
 const DEFAULT_MISSION = 'm01';
+// 고정된 평가 항목 정의. 이것은 판정기가 아니며 학생이 보낸 평가 결과를 신뢰하지 않는다.
+const SERVER_RUBRICS = {
+  m01: {version:'m01-1', elements:{C:'세포 안 농도의 범위',D:'5%와 10%의 질량 변화 자료',W1:'질량 변화와 물의 이동',W2a:'5%에서 물 이동과 농도 비교',W2b:'10%에서 물 이동과 농도 비교',W3:'두 결과를 결합한 범위',WB:'평형과 부호 변화로 범위 추론'}},
+  m02: {version:'m02-1', elements:{C:'산소가 결합해 질량 증가', 'D-A':'열린 실험의 질량 변화', 'D-B':'닫힌 실험의 전체 질량 유지', W1a:'질량이 저절로 생기지 않음', W1b:'산소가 반응에 참여', W2a:'닫힌 계에서 산소의 이동', W2b:'증가한 질량과 산소 결합의 연결'}}
+};
+const MAX_BODY_CHARS = 100000;
+function validId_(v, max) { return typeof v === 'string' && v.length > 0 && v.length <= max && /^[a-zA-Z0-9_-]+$/.test(v); }
+function validateTree_(v, depth) {
+  if (depth > 8) throw new Error('기록 구조가 너무 깊습니다');
+  if (typeof v === 'string' && v.length > 4000) throw new Error('입력이 너무 깁니다');
+  if (typeof v === 'number' && !isFinite(v)) throw new Error('숫자가 잘못되었습니다');
+  if (Array.isArray(v)) { if (v.length > 100) throw new Error('항목이 너무 많습니다'); v.forEach(function(x){validateTree_(x, depth+1);}); }
+  else if (v && typeof v === 'object') {
+    const keys = Object.keys(v); if (keys.length > 80) throw new Error('항목이 너무 많습니다');
+    keys.forEach(function(k) { if (k.length > 80 || ['__proto__','constructor','prototype'].indexOf(k) >= 0) throw new Error('허용되지 않은 항목'); validateTree_(v[k], depth+1); });
+  }
+}
+function validateOp_(op) {
+  validateTree_(op, 0);
+  if (JSON.stringify(op).length > 20000) throw new Error('기록이 너무 큽니다');
+  const record = op.action === 'startSession' ? op.session : op.action === 'updateSession' ? op.fields : op.attempt;
+  if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error('잘못된 기록');
+  const forbidden = ['ownerSub','updatedAt','extra','finalC','finalD','finalW1','finalW2a','finalW2b','finalW3','finalWB','finalDA','finalDB','finalW1a','finalW1b'];
+  if (Object.keys(record).some(function(k){return forbidden.indexOf(k)>=0;})) throw new Error('서버 전용 항목은 변경할 수 없습니다');
+  if (op.action === 'logAttempt' && !validId_(record.attemptId, 128)) throw new Error('잘못된 시도 ID');
+}
+
 
 // ───────────────────────── 진입점 ─────────────────────────
 
 function doGet(e) {
   const p = (e && e.parameter) || {};
   try {
-    if (p.action === 'classData') return json_(Object.assign({ ok: true }, getClassData_(String(p.classCode || ''), String(p.missionId || ''))));
+    // 공개 웹 앱에서는 호출자의 교사 신원을 검증할 수 없다. 인증 도입 전 원문 조회를 차단한다.
+    if (p.action === 'classData') throw new Error('교사 인증이 설정되지 않아 조회가 차단되었습니다');
     if (p.action === 'ping') return json_({ ok: true, time: new Date().toISOString() });
     return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">서술 실험실 백엔드가 동작 중입니다.</p>');
   } catch (err) {
@@ -65,21 +93,67 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    const body = JSON.parse(e.postData.contents || '{}');
-    if (body.action === 'judge') return json_({ ok: true, result: judge_(body) });
-
-    const ops = body.action === 'batch' ? (body.ops || []) : [body];
+    const raw = e && e.postData && e.postData.contents || '';
+    if (!raw || raw.length > MAX_BODY_CHARS) throw new Error('요청 크기가 잘못되었습니다');
+    const body = JSON.parse(raw);
+    if (body.action === 'classData') {
+      const identity = authenticate_(body.credential);
+      authorizeTeacher_(identity, body.classCode, body.missionId, body.lessonId);
+      return json_(Object.assign({ ok: true, rubric: SERVER_RUBRICS[body.missionId], evaluation: 'client_unverified' }, getClassData_(body.classCode, body.missionId, body.lessonId)));
+    }
+    if (body.action === 'judge') throw new Error('서버 루브릭과 학생 인증이 준비되지 않아 판정이 차단되었습니다');
+    const ops = body.action === 'batch' ? body.ops : [body];
+    if (!Array.isArray(ops) || !ops.length || ops.length > 40) throw new Error('잘못된 요청');
+    const identity = authenticate_(body.credential);
     const lock = LockService.getScriptLock();
     lock.waitLock(20000);
     try {
-      ops.forEach(applyOp_);
-    } finally {
-      lock.releaseLock();
-    }
+      ops.forEach(function (op) { validateOp_(op); authorizeStudentOp_(identity, op); if (op.action === 'startSession') op.session.ownerSub = identity.sub; applyOp_(op); });
+    } finally { lock.releaseLock(); }
     return json_({ ok: true, applied: ops.length });
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message || err) });
   }
+}
+
+// 운영 배포 전 검증된 신원 제공자를 연결해야 한다. 클라이언트 값은 신원으로 취급하지 않는다.
+// 실제 구현은 서명, 발급자, 대상, 만료를 검증한 뒤 불변 사용자 ID(sub)를 반환해야 한다.
+function authenticate_(credential) {
+  throw new Error('인증 제공자가 설정되지 않았습니다');
+}
+
+// 서버 Script Properties의 ACCESS_GRANTS만 권한의 기준이다. 예: {"sub": {"teachers":[{"classCode":"A","missionId":"m01"}],"students":[{"classCode":"A","missionId":"m01","studentNo":"1"}]}}
+function grants_(identity) {
+  if (!identity || typeof identity.sub !== 'string' || !identity.sub) throw new Error('인증 실패');
+  const raw = PropertiesService.getScriptProperties().getProperty('ACCESS_GRANTS');
+  if (!raw) throw new Error('접근 권한이 설정되지 않았습니다');
+  const all = JSON.parse(raw);
+  return Object.prototype.hasOwnProperty.call(all, identity.sub) ? all[identity.sub] : {};
+}
+function sameScope_(grant, classCode, missionId, lessonId) {
+  return grant && grant.classCode === classCode && grant.missionId === missionId && grant.lessonId === lessonId;
+}
+function authorizeTeacher_(identity, classCode, missionId, lessonId) {
+  if (typeof classCode !== 'string' || !classCode || classCode.length > 20 || !validId_(lessonId, 64) || ['m01','m02'].indexOf(missionId) < 0) throw new Error('수업과 미션이 필요합니다');
+  const grants = grants_(identity);
+  if (!Array.isArray(grants.teachers) || !grants.teachers.some(function (g) { return sameScope_(g, classCode, missionId, lessonId); })) throw new Error('수업 접근 권한이 없습니다');
+}
+function authorizeStudentOp_(identity, op) {
+  if (!op || ['startSession','updateSession','logAttempt'].indexOf(op.action) < 0) throw new Error('잘못된 기록 작업');
+  const id = op.action === 'startSession' ? op.session && op.session.sessionId : op.action === 'logAttempt' ? op.attempt && op.attempt.sessionId : op.sessionId;
+  if (!validId_(id, 128)) throw new Error('잘못된 세션');
+  const rows = readSheet_(SHEET_SESSIONS, SESSION_HEADERS);
+  const existing = rows.find(function (s) { return s.sessionId === id; });
+  const submitted = op.action === 'startSession' ? op.session : op.action === 'logAttempt' ? op.attempt : op.fields;
+  if (!submitted || typeof submitted !== 'object' || Array.isArray(submitted)) throw new Error('잘못된 기록');
+  const scope = existing || (op.action === 'startSession' ? op.session : null);
+  if (!scope) throw new Error('세션을 찾을 수 없습니다');
+  if (!validId_(scope.lessonId, 64) || typeof scope.classCode !== 'string' || !scope.classCode || scope.classCode.length > 20 || !/^[0-9]{1,3}$/.test(String(scope.studentNo)) || !SERVER_RUBRICS[scope.missionId]) throw new Error('잘못된 수업 정보');
+  if (existing && existing.ownerSub !== identity.sub) throw new Error('다른 학생의 세션입니다');
+  const immutable = ['sessionId','classCode','missionId','studentNo','lessonId'];
+  if (existing && immutable.some(function (k) { return submitted[k] !== undefined && String(submitted[k]) !== String(existing[k]); })) throw new Error('세션 소속을 변경할 수 없습니다');
+  const grants = grants_(identity);
+  if (!Array.isArray(grants.students) || !grants.students.some(function (g) { return sameScope_(g, String(scope.classCode), String(scope.missionId || DEFAULT_MISSION), String(scope.lessonId)) && String(g.studentNo) === String(scope.studentNo); })) throw new Error('학생 기록 권한이 없습니다');
 }
 
 function json_(obj) {
@@ -102,10 +176,7 @@ function upsertSession_(sessionId, fields) {
   const row = findRow_(sh, sessionId);
   const current = row ? rowToObj_(headers, sh.getRange(row, 1, 1, headers.length).getValues()[0]) : {};
   const merged = Object.assign({}, current, fields, { sessionId: sessionId, updatedAt: new Date().toISOString() });
-  if (fields.finalJudgment) {
-    const keys = FINAL_KEYS_BY_MISSION[merged.missionId || DEFAULT_MISSION] || FINAL_KEYS;
-    keys.forEach(function (k) { merged[finalCol_(k)] = fields.finalJudgment[k] ? 'TRUE' : 'FALSE'; });
-  }
+  // finalJudgment는 클라이언트 기록일 뿐이다. 서버가 검증한 평가 열로 변환하지 않는다.
   merged.extra = withExtra_(current.extra, fields, headers);
   const values = [headers.map(function (h) { return cell_(h, merged[h]); })];
   const target = row || sh.getLastRow() + 1;
@@ -142,17 +213,16 @@ function cell_(header, v) {
 
 // ───────────────────────── 읽기 ─────────────────────────
 
-function getClassData_(classCode, missionId) {
+function getClassData_(classCode, missionId, lessonId) {
   if (!classCode) throw new Error('반 코드가 필요합니다');
   const sameMission = function (s) {
     const m = String(s.missionId || '');
-    return missionId ? m === missionId : (m === '' || m === DEFAULT_MISSION);
+    return missionId ? (m === missionId || (!m && missionId === DEFAULT_MISSION)) : (m === '' || m === DEFAULT_MISSION);
   };
-  const sessions = readSheet_(SHEET_SESSIONS, SESSION_HEADERS).filter(function (s) { return String(s.classCode) === classCode && sameMission(s); });
-  const ids = {};
-  sessions.forEach(function (s) { ids[s.sessionId] = true; });
-  const attempts = readSheet_(SHEET_ATTEMPTS, ATTEMPT_HEADERS).filter(function (a) { return ids[a.sessionId]; });
-  return { sessions: sessions, attempts: attempts };
+  const sessions = readSheet_(SHEET_SESSIONS, SESSION_HEADERS).filter(function (s) { return String(s.classCode) === classCode && String(s.lessonId) === lessonId && sameMission(s); });
+  const ids = new Set(sessions.map(function (s) { return s.sessionId; }));
+  const attempts = readSheet_(SHEET_ATTEMPTS, ATTEMPT_HEADERS).filter(function (a) { return ids.has(a.sessionId); });
+  return { sessions: sessions.map(function (s) { const safe = Object.assign({}, s); delete safe.ownerSub; return safe; }), attempts: attempts };
 }
 
 function readSheet_(name, defaultHeaders) {
