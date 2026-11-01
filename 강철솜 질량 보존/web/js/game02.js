@@ -43,11 +43,24 @@
 
   /* ───────── 교수 ───────── */
   function expr(level) { return level >= 3 ? 'proud' : level === 2 ? 'skeptical' : level === 1 ? 'surprised' : 'acknowledging'; }
+  // 콧대 게이지: 칸이 줄면 꺾이는 연출, 늘면 솟는 연출. 이름과 남은 칸 수를 함께 보여 준다.
   function setNose(level, face) {
+    const prev = S.nose;
     S.nose = Math.max(0, Math.min(4, level));
     $('#prof').dataset.expression = face || expr(S.nose);
-    $$('#noseMeter i').forEach((el, i) => el.classList.toggle('on', i < S.nose));
-    $('#noseMeter').setAttribute('aria-valuenow', S.nose);
+    const meter = $('#noseMeter');
+    $$('#noseMeter i').forEach((el, i) => {
+      const was = el.classList.contains('on'); const on = i < S.nose;
+      el.classList.toggle('on', on);
+      if (was && !on) { el.classList.remove('snap'); void el.offsetWidth; el.classList.add('snap'); }
+    });
+    $('#noseValue').textContent = `${S.nose} / 4`;
+    meter.setAttribute('aria-valuenow', S.nose);
+    meter.setAttribute('aria-valuetext', `콧대 ${S.nose}칸 남음`);
+    if (S.nose !== prev) {
+      const cls = S.nose < prev ? 'drop' : 'rise';
+      meter.classList.remove('drop', 'rise'); void meter.offsetWidth; meter.classList.add(cls);
+    }
   }
   const pick = (v) => (Array.isArray(v) && Array.isArray(v[0]) ? v[Math.floor(Math.random() * v.length)] : v);
 
@@ -208,7 +221,7 @@
   }
 
   /* ───────── 카드 ───────── */
-  // 단서는 그 증거의 모양으로 보인다: 실험 결과는 장치 사진, 현미경 결과는 관찰 슬라이드, 노트는 찢은 쪽지,
+  // 단서는 그 증거의 모양으로 보인다: 실험 결과는 장치 사진, 현미경 결과는 관찰 슬라이드,
   // 학생이 쓴 결론은 손글씨 메모, 주장은 작은 칠판
   function cardHTML(id, extra = '') {
     const c = S.cards[id];
@@ -219,8 +232,8 @@
   }
   function renderTray() {
     const box = $('#trayCards');
-    // 실험 조건 카드(노트)는 주장 단계가 끝나면 수집함에서 뺀다. 변론에서 칸에 놓은 카드도 뺀다.
-    const ids = S.tray.filter((id) => !(S.stage === 'defense' && S.placedOut && S.placedOut.has(id)) && !(['rebuttal', 'defense'].includes(S.stage) && S.cards[id].kind === 'condition'));
+    // 변론에서 칸에 놓은 카드는 수집함에서 뺀다.
+    const ids = S.tray.filter((id) => !(S.stage === 'defense' && S.placedOut && S.placedOut.has(id)));
     box.innerHTML = ids.map((id) => cardHTML(id, S.dimmed && S.dimmed.has(id) ? 'dim' : '')).join('');
     $$('.card', box).forEach((el) => { bindCard(el); bindPeek(el); });
     updateTrayNav();
@@ -259,7 +272,8 @@
     if (S.tray.includes(id)) return;
     S.tray.push(id);
     renderTray();
-    const target = $(`#trayCards [data-card="${id}"]`);
+    if (S.arena) renderDeck();
+    const target = S.arena ? $(`#arenaDeck [data-card="${id}"]`) : $(`#trayCards [data-card="${id}"]`);
     if (fromEl && target && !reduced) {
       const a = fromEl.getBoundingClientRect(); const b = target.getBoundingClientRect();
       const fly = document.createElement('div');
@@ -355,10 +369,8 @@
       <div class="power" id="power">${ART.power()}</div>
       <div class="clip-tool" id="clipB" role="button" tabindex="0" aria-label="전선 집게">${ART.clip()}</div>
       <div class="flame-tool" id="flameA" role="button" tabindex="0" aria-label="불꽃 막대">${ART.torch()}</div>
-      <button type="button" class="thing" id="notebook" aria-label="실험 노트">${ART.notebook()}</button>
       <button type="button" class="thing" id="microscope" aria-label="마법 현미경">${ART.microscope()}<span class="lock" aria-hidden="true"></span></button>`;
     setupClipB();
-    $('#notebook').addEventListener('click', openNotebook);
     $('#microscope').addEventListener('click', onMicroscope);
     setupFlameA();
   }
@@ -565,13 +577,6 @@
     setTimeout(finish, reduced ? 900 : 1700);
   }
 
-  function openNotebook() {
-    if (S.done.note) return;
-    if (!S.done.burnB) { say(M.lines.nudge[S.done.burnA ? 'deviceB' : 'deviceA']); return; }
-    S.done.note = true;
-    acquire(['n1', 'n2'], () => { glow($('#board'), 'board'); });
-  }
-
   function onMicroscope() {
     if (S.scope.locked) { const m = $('#microscope'); m.classList.remove('shake'); void m.offsetWidth; m.classList.add('shake'); return; }
     openScope();
@@ -622,7 +627,7 @@
   function dropEvidence(id, idx) {
     if (S.stage !== 'claim') return;
     const c = S.cards[id];
-    if (!['clue', 'condition'].includes(c.kind)) return;
+    if (c.kind !== 'clue') return;
     const other = S.evidence.indexOf(id);
     if (other >= 0) S.evidence[other] = null;
     S.evidence[idx] = id;
@@ -647,17 +652,15 @@
   async function submitClaim() {
     const opt = M.claimOptions.find((o) => o.id === S.claimPick);
     const ev = S.evidence.slice();
-    const condOnly = ev.every((id) => S.cards[id].kind === 'condition');
     const evKey = ev.slice().sort().join('+');
     const evTag = ev.includes('cA') && ev.includes('cB') ? 'N3쪽' : ev.includes('cA') ? 'N1쪽' : 'other';
-    logAttempt({ stage: 'claim', questId: 'claim', choice: opt.id, input: evKey, diag: opt.correct ? (condOnly ? 'condOnly' : 'pass') : opt.diag });
+    logAttempt({ stage: 'claim', questId: 'claim', choice: opt.id, input: evKey, diag: opt.correct ? 'pass' : opt.diag });
     glow(null);
     if (!opt.correct) {
       await say(M.lines.claimWrong[opt.diag]);
       blinkOnce($('#trayCards [data-card="cB"]'));
       return;
     }
-    if (condOnly) { await say(M.lines.claimConditionOnly); return; }
     S.claim = opt;
     S.cards.claim = { kind: 'claim', col: 'event', title: '내 주장', text: '강철솜이 공기 중의 산소와 결합했다.', sentence: opt.text.replace('때문이다.', '때문이다.') };
     updateSession({ claim: opt.id, evidence: evKey, evidenceTag: evTag });
@@ -782,6 +785,9 @@
     const lbl = svgEl('text', { x: box.x + 10, y: box.y - 8, fill: '#fff7d6', 'font-size': 15 }, svg);
     lbl.textContent = '저울이 재는 범위';
     const sp = svgEl('g', { id: 'woolSparks', class: 'scope-sparks' }, svg);
+    // 타는 동안: 강철솜 뒤 주황빛, 막힘이면 전극 끝 사이의 전기 불꽃
+    svgEl('ellipse', { class: 'fx-glow', cx: WOOL[0], cy: WOOL[1], rx: 110, ry: 62, fill: '#ff8a3d', opacity: 0.35 }, sp);
+    if (mode === 'closed') svgEl('path', { class: 'fx-arc', d: 'M290 300 l5 -7 l4 9 l5 -8 l4 8 l2 -2', stroke: '#fffbe0', 'stroke-width': 3, fill: 'none', 'stroke-linejoin': 'round' }, sp);
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2;
       svgEl('path', { d: `M${WOOL[0] + Math.cos(a) * 30} ${WOOL[1] + Math.sin(a) * 18} L${WOOL[0] + Math.cos(a) * 52} ${WOOL[1] + Math.sin(a) * 30}`, stroke: i % 2 ? '#ffd36b' : '#ff8a3d', 'stroke-width': 3, 'stroke-linecap': 'round' }, sp);
@@ -982,9 +988,41 @@
   }
 
   // 교수가 말을 늘어놓는다. 색이 들어간 곳 중 틀린 말에 단서 카드를 끌어다 댄다. 시간 제한은 없다.
+  /* 반박 화면: 실험대·현미경·수집함을 걷어 내고, 커진 말풍선과 단서 줄만 남긴다. 라운드가 끝나면 돌아간다. */
+  function renderDeck() {
+    const box = $('#arenaDeck');
+    box.innerHTML = S.tray.map((id) => cardHTML(id, 'deck-card')).join('');
+    $$('.card', box).forEach((el) => { bindCard(el); bindPeek(el); });
+  }
+  function enterArena() {
+    if (S.arena) return;
+    S.arena = true;
+    glow(null);
+    renderDeck();
+    $('#arena').setAttribute('aria-hidden', 'false');
+    document.body.classList.add('arena');
+  }
+  function exitArena() {
+    if (!S.arena) return;
+    S.arena = false;
+    $('#arenaDeck').classList.remove('call');
+    $('#arena').setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('arena');
+  }
+
   async function debate(i) {
     const R = M.debates[i];
-    S.debate = { i, tries: 0 };
+    enterArena();
+    // 라운드 첫 시작에만 한마디(intro)를 하고, 탭하면 교수의 추측이 뜬다
+    if (R.intro && !(S.debate && S.debate.i === i)) {
+      S.debate = null;
+      await say(R.intro);
+      $('#bubble').classList.add('has-more');
+      await waitTap();
+      $('#bubble').classList.remove('has-more');
+    }
+    const tries = S.debate && S.debate.i === i ? S.debate.tries : 0;
+    S.debate = { i, tries };
     setNote('틀린 말에 단서 대기');
     $('#prof').dataset.expression = 'skeptical'; // 턱을 괴고 추측하는 얼굴
     const bubble = $('#bubble');
@@ -998,7 +1036,7 @@
     placeReply();
     bubble.classList.remove('pop'); void bubble.offsetWidth; bubble.classList.add('pop');
     S.glowKey = 'debate';
-    $('#tray').classList.add('call');
+    $('#arenaDeck').classList.add('call');
   }
   async function debateHit(cardId, li) {
     if (!S.debate) return;
@@ -1018,7 +1056,7 @@
     }
     const i = S.debate.i; const tries = S.debate.tries;
     S.debate = null;
-    $('#tray').classList.remove('call');
+    $('#arenaDeck').classList.remove('call');
     S.glowKey = null;
     $('#bubble').classList.remove('debate');
     if (weakEl) weakEl.classList.add('broken');
@@ -1026,7 +1064,7 @@
     updateSession({ ['debate' + (i + 1) + 'Tries']: tries });
     await sleep(reduced ? 100 : 700);
     $('#prof').dataset.expression = 'surprised';
-    await say(R.hit);
+    await say(line.hit || R.hit);
     whyReply(i);
   }
   // 반박한 뒤 "왜 이 단서가 저 말을 뒤집나?"를 한 줄로. 이 한 줄이 결론 카드가 된다.
@@ -1047,9 +1085,10 @@
         S.concl[id] = sentence;
         S.cards[id] = { kind: 'concl', col: 'mean', title: `결론 ${'①②③'[i]}`, text: sentence, sentence };
         await passQuest(id);
-        if (i === 0) startRound2();
-        else if (i === 1) { setNote('다시 반박하기'); await say(M.lines.r3Do); debate(2); }
-        else startCombine();
+        // 2라운드 다음은 곧바로 3라운드라 반박 화면을 유지한다
+        if (i === 0) { await sleep(reduced ? 100 : 900); exitArena(); startRound2(); }
+        else if (i === 1) { setNote('다시 반박하기'); debate(2); }
+        else { await sleep(reduced ? 100 : 900); exitArena(); startCombine(); }
       }
     });
   }
@@ -1163,7 +1202,7 @@
     S.phase = 'sort';
     S.sortIds = ['cA', 'cB', 'e1', 'e2', 'c1', 'c2', 'c3', 'claim'];
     if (!S.tray.includes('claim')) S.tray.push('claim');
-    S.dimmed = new Set(['n1', 'n2']);
+    S.dimmed = new Set();
     S.placedOut = new Set();
     renderTray();
     const b = $('#board');
@@ -1210,8 +1249,14 @@
     const b = $('#board');
     b.className = 'board big compose';
     const shelf = M.sortCols.map((c) => `<div class="shelf"><div class="shelf-h chalk">${esc(c.label)}</div>${(S.sortPlaced[c.id] || []).map((id) => cardHTML(id, 'shelf-card' + (S.cards[id].kind === 'model' ? ' locked-card' : ''))).join('')}</div>`).join('');
+    // 혼자 힘으로 쓸 때는 카드 대신 단서 그림만 보여 준다(옮겨 적을 글자가 없게)
+    const meet = (svg) => svg.replace('xMidYMid slice', 'xMidYMid meet');
+    const gallery = [['cA', meet(ART.miniPhoto('A'))], ['cB', meet(ART.miniPhoto('B'))], ['e1', meet(ART.miniSlide('closed'))], ['e2', meet(ART.miniSlide('open'))]]
+      .filter(([id]) => S.tray.includes(id))
+      .map(([id, svg]) => `<figure class="own-fig">${svg}<figcaption>${esc(M.ownCaptions[id])}</figcaption></figure>`).join('');
     b.innerHTML = `
       <div class="shelves" id="shelves">${shelf}</div>
+      <div class="own-gallery" id="ownGallery" aria-label="단서 그림">${gallery}</div>
       <div class="sheet">
         <div class="sheet-q"><b>${esc(M.boardQuestion)}</b>${M.dataLines.map((l) => `<div>${esc(l)}</div>`).join('')}</div>
         <div class="sheet-tools">
@@ -1229,6 +1274,11 @@
     const ta = $('#answer');
     ta.addEventListener('input', () => { S.lastInput = now(); $('#finalSubmit').disabled = ta.value.trim().length < 5; });
     ta.addEventListener('blur', () => { S.caret = ta.selectionStart; });
+    // 혼자 힘으로 쓸 때는 붙여넣기와 끌어다 놓기를 막는다
+    const noPaste = (e) => { if (!S.ownMode) return; e.preventDefault(); say(M.lines.ownNoPaste); };
+    ta.addEventListener('paste', noPaste);
+    ta.addEventListener('drop', noPaste);
+    $('#ownGallery').addEventListener('copy', (e) => e.preventDefault());
     $('#ownMode').addEventListener('change', (e) => setOwnMode(e.target.checked));
     $('#hintBook').addEventListener('click', onHintBook);
     $('#finalSubmit').addEventListener('click', submitFinal);
@@ -1249,7 +1299,6 @@
     const c = S.cards[id];
     if (!c) return;
     if (c.kind === 'model') { say(M.lines.modelCardBlocked); return; } // 보완안 4
-    if (c.kind === 'condition') return;
     const ta = $('#answer');
     const sentence = c.sentence || c.text;
     const pos = S.caret ?? ta.value.length;
@@ -1270,13 +1319,13 @@
     if (now() - S.composeStart > 90000 && len < 20) unlockHint('90초·20자 미만');
     else if (now() - S.lastInput > 60000) unlockHint('60초 무입력');
   }
-  async function unlockHint(reason, thenLine) {
+  async function unlockHint(reason, thenLine, lead = []) {
     if (S.hint > 0) return;
     S.hint = 1; S.hintReason = reason; S.hintAt = new Date().toISOString();
     updateSession({ hintLevel: 1, hintReason: reason, hintAt: S.hintAt });
     const hb = $('#hintBook'); hb.classList.remove('locked');
     glow(hb, 'compose');
-    await say(thenLine ? M.lines.hintOpen.concat(thenLine) : M.lines.hintOpen);
+    await say(lead.concat(M.lines.hintOpen, thenLine || []));
   }
   function onHintBook() {
     const hb = $('#hintBook');
@@ -1312,17 +1361,19 @@
       return;
     }
     const r = J.judgeFinal(text);
-    // 보완안 5: 첫 제출 전에 "무엇을 물을 것 같나?"
-    if (!S.predicted) {
+    // 보완안 5: 첫 제출이 부족하면 교수가 "부족하다"고 먼저 말하고, 학생이 꼬투리 잡힐 곳을 고른다
+    let lead = [];
+    if (!S.predicted && !r.pass && r.ask !== 'unclear') {
       S.predicted = true;
       await say(M.lines.predictAsk);
       const choice = await new Promise((res) => openReply({ choices: M.predictOptions.map((o) => ({ id: o.id, text: o.text })), instant: true, onSubmit: ({ choice: c }) => res(c) }));
       closeReply();
       const opt = M.predictOptions.find((o) => o.id === choice);
-      const match = r.pass ? opt.els.length === 0 : opt.els.includes(r.ask);
-      logAttempt({ stage: 'compose', questId: 'predict', choice, input: r.ask || 'pass', pass: match });
+      const match = opt.els.includes(r.ask);
+      logAttempt({ stage: 'compose', questId: 'predict', choice, input: r.ask, pass: match });
       updateSession({ selfPredict: choice, selfPredictMatch: match });
-      if (match && !r.pass) { await say(M.lines.predictMatch); ta.focus(); return; }
+      if (match) { await say(M.lines.predictMatch); ta.focus(); return; }
+      lead = M.lines.predictMiss;
     }
     S.submits++;
     const remain = remainingCardSentences(text);
@@ -1334,9 +1385,9 @@
     $('#prof').dataset.expression = 'skeptical';
     // 반박을 받으면 강의 노트가 열린다(1단계). 1단계를 열고도 다시 반박받으면 2단계.
     // 노트 이야기를 먼저 하고, 교수의 질문이 말풍선에 남게 한다.
-    if (S.hint === 0) { await unlockHint('첫 제출 반박', line); return; }
+    if (S.hint === 0) { await unlockHint('첫 제출 반박', line, lead); return; }
     if (S.hint === 1) { S.hint = 2; updateSession({ hintLevel: 2 }); if (!$('#hintNote').hidden) renderHintNote(); }
-    await say(line);
+    await say(lead.concat(line));
     setNose(S.nose);
   }
 
@@ -1371,7 +1422,7 @@
     const first = S.firstAnswer || '(없음)';
     $('#clearScreen .wrap').innerHTML = `
       <div class="top"><div class="professor-art" data-expression="${type === 'full' ? 'acknowledging' : 'skeptical'}"></div>
-        <div class="say">${type === 'full' ? '…이번엔 내가 졌네.' : '흠, 여기까지는 인정하지.'}</div></div>
+        <div class="say">${type === 'full' ? '…크흠, 콧대가 납작해졌군. 이번엔 내가 졌네.' : '흠, 여기까지는 인정하지.'}</div></div>
       <div class="compare">
         <div class="col"><h3>처음</h3><p>${esc(first)}</p></div>
         <div class="col"><h3>지금</h3><p class="final">${finalHTML}</p></div>
@@ -1380,8 +1431,10 @@
       ${missLine ? `<p class="next-line">${esc(missLine)}</p>` : ''}
       ${own ? `<div class="gift"><img src="assets/steel-wool-keyring.jpg" alt="안경과 나비넥타이를 단 강철솜 키링"><p>“카드 없이 해낸 건 인정하지. 이건… 자네가 가지게.”</p></div>` : (S.ownEver && type !== 'full' ? '<p class="next-line">“다음엔 이걸 줄 수도 있겠군.”</p>' : '')}
       <div class="btns"><button type="button" id="againBtn">처음부터 다시</button></div>`;
-    $('#clearScreen').hidden = false;
     $('#againBtn').addEventListener('click', () => location.reload());
+    // 완전 클리어면 마지막 콧대가 꺾이는 것을 보여 준 뒤 결과를 띄운다
+    if (type === 'full') { setNose(0, 'surprised'); setTimeout(() => { $('#clearScreen').hidden = false; }, reduced ? 200 : 1600); }
+    else $('#clearScreen').hidden = false;
   }
 
   /* ───────── 시작 ───────── */

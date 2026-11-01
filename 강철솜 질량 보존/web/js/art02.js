@@ -26,6 +26,24 @@
     return g + '</g>';
   }
 
+  // 타는 동안의 모습: 강철솜 뒤로 번지는 주황빛(glow), 그 위에서 깜빡이는 불씨(embers), 피어오르는 연기.
+  // arc가 있으면 전극 끝 사이에 튀는 전기 불꽃도 그린다. .burning이 붙었을 때만 보인다.
+  function burnGlow(cx, cy, rx) {
+    const id = `glow-${++serial}`;
+    return `<defs><radialGradient id="${id}"><stop stop-color="#fff0a8"/><stop offset=".35" stop-color="#ffb14a" stop-opacity=".9"/><stop offset=".7" stop-color="#ff7a2e" stop-opacity=".45"/><stop offset="1" stop-color="#ff5a1f" stop-opacity="0"/></radialGradient></defs>
+      <ellipse class="burn-fx fx-glow" cx="${cx}" cy="${cy}" rx="${rx}" ry="${rx * 0.62}" fill="url(#${id})"/>`;
+  }
+  function burnTop(cx, cy, rx, arc) {
+    let g = '<g class="burn-fx">';
+    for (let i = 0; i < 14; i++) {
+      const x = cx + Math.cos(i * 2.39) * rx * (0.25 + (i % 5) * 0.15); const y = cy + Math.sin(i * 2.39) * rx * 0.28;
+      g += `<circle class="fx-ember" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(2.2 + (i % 3) * 1.1).toFixed(1)}" fill="${i % 2 ? '#ffe28a' : '#ff7a2e'}" style="animation-delay:${((i * 0.13) % 0.9).toFixed(2)}s"/>`;
+    }
+    for (let i = 0; i < 3; i++) g += `<circle class="fx-smoke" cx="${cx - 14 + i * 14}" cy="${cy - 10}" r="${7 + i * 2}" fill="#9aa0a3" style="animation-delay:${i * 0.5}s"/>`;
+    if (arc) g += `<path class="fx-arc" d="M${arc[0]} ${arc[1]} l4 -5 l3 7 l4 -6 l3 6 l2 -2" stroke="#fffbe0" stroke-width="2" fill="none" stroke-linejoin="round"/>`;
+    return g + '</g>';
+  }
+
   // 실험실 전자저울: 회백색 몸체, 스테인리스 접시, 앞면 패널(액정 창은 HTML로 겹친다), 버튼 두 개
   function balance() {
     const id = `bal-${++serial}`;
@@ -50,8 +68,10 @@
     return `<svg viewBox="0 0 260 240" aria-hidden="true">${balance()}
       <path d="M78 136 Q130 160 182 136 L176 146 Q130 162 84 146 Z" fill="#f6f4ef" stroke="#c9c4b8" stroke-width="1.5"/>
       <ellipse cx="130" cy="136" rx="52" ry="7" fill="#ebe8e1" stroke="#c9c4b8" stroke-width="1.2"/>
+      ${burnGlow(130, 124, 84)}
       <g class="wool-all">${wool(130, 124, 66, 22, false, 11)}
       <g class="wool-dark" style="opacity:0">${wool(130, 124, 66, 22, true, 11)}</g></g>
+      ${burnTop(130, 124, 60)}
       ${sparks(130, 122)}
     </svg>`;
   }
@@ -62,9 +82,11 @@
       <path d="M113 22 L113 64 Q66 84 70 116 Q76 146 130 146 Q184 146 190 116 Q194 84 147 64 L147 22 Z" fill="rgba(214,240,246,.42)" stroke="#d7eef2" stroke-width="2.4"/>
       <path d="M84 100 Q82 124 102 134" stroke="#fff" stroke-width="3" opacity=".55" fill="none" stroke-linecap="round"/>
       <rect x="105" y="10" width="50" height="18" rx="4" fill="#5b3b28" stroke="#2f1d12" stroke-width="1.5"/>
+      ${burnGlow(130, 118, 80)}
       ${wool(130, 124, 58, 22, false, 23)}
       <g class="wool-dark" style="opacity:0">${wool(130, 124, 58, 22, true, 23)}</g>
       <path d="M122 14 L122 112 M138 14 L138 112" stroke="#b9872f" stroke-width="1.6"/>
+      ${burnTop(130, 124, 54, [120, 112])}
       <path d="M122 14 Q122 2 150 2 Q210 2 260 40" stroke="#c0392b" stroke-width="2.2" fill="none"/>
       <path d="M138 14 Q140 6 160 8 Q215 12 260 60" stroke="#2b2b2b" stroke-width="2.2" fill="none"/>
       ${sparks(130, 120)}
@@ -101,16 +123,6 @@
       <path d="M2 13 L14 5 L40 9 Q43 10 40 12 L14 13 Z" fill="#c0392b" stroke="#6e1f17" stroke-width="1.2"/>
       <path d="M2 13 L14 21 L40 17 Q43 16 40 14 L14 13 Z" fill="#a83226" stroke="#6e1f17" stroke-width="1.2"/>
       <path d="M30 10 L30 16 M34 10 L34 16" stroke="#e8e0d0" stroke-width="1.2"/>
-    </svg>`;
-  }
-
-  function notebook() {
-    return `<svg viewBox="0 0 170 90" aria-hidden="true">
-      <path d="M3 15Q43 3 85 13Q127 3 167 15L166 80Q125 71 85 85Q44 71 4 80Z" fill="#69422b" stroke="#34251b" stroke-width="3"/>
-      <path d="M9 12Q47 2 85 13Q123 2 161 12L160 74Q121 66 85 79Q49 66 10 74Z" fill="#f7edce" stroke="#d3be8f" stroke-width="1.5"/>
-      <path d="M85 13V79" stroke="#b5a077" stroke-width="2"/>
-      <g stroke="#a9a58a" stroke-width="1.2" opacity=".7"><path d="M21 27L70 24M21 35L69 32M21 43L62 40M22 51L69 48M99 26L147 29M99 34L147 37M100 42L142 45M101 51L148 54"/></g>
-      <path d="M132 4h12v24l-6-5-6 5Z" fill="#a95236"/>
     </svg>`;
   }
 
@@ -164,5 +176,5 @@
     </svg>`;
   }
 
-  window.SCIW_ART02 = { wool, deviceA, deviceB, torch, power, clip, notebook, microscope, miniPhoto, miniSlide };
+  window.SCIW_ART02 = { wool, deviceA, deviceB, torch, power, clip, microscope, miniPhoto, miniSlide };
 })();

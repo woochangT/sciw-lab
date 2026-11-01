@@ -30,10 +30,11 @@
         <div id="bench"></div>
         <div id="board" class="board"></div>
         <div id="scope" hidden></div>
+        <div id="arena" aria-hidden="true"><div id="arenaDeck"></div></div>
         <div id="profCol">
           <div id="bubble" role="status" aria-live="polite"><div class="body"></div><span class="more" aria-hidden="true">▶</span></div>
           <div id="reply" hidden></div>
-          <div id="noseMeter" role="progressbar" aria-label="교수의 콧대" aria-valuemin="0" aria-valuemax="4"><div class="nose-track"><i></i><i></i><i></i><i></i></div></div>
+          <div id="noseMeter" role="progressbar" aria-label="교수의 콧대" aria-valuemin="0" aria-valuemax="4"><span class="nose-title">콧대</span><div class="nose-track"><i></i><i></i><i></i><i></i></div><span class="nose-value" id="noseValue" aria-hidden="true">3 / 4</span></div>
           <div id="prof" class="professor-art" role="img" aria-label="콧대 교수"></div>
         </div>
         <div id="pop" hidden></div>
@@ -56,7 +57,7 @@
       <div class="start-story">
         <div class="story-tag">관찰하고, 추리하고, 설명하는 과학 미션</div>
         <div class="story-heading">숫자 너머의<br><em>이유</em>를 찾아라.</div>
-        <p>태웠더니 오히려 무거워진 강철솜.<br>실험의 단서를 모아 콧대 교수에게 도전해 보세요.</p>
+        <p>태웠더니 오히려 무거워진 강철솜.<br>실험의 단서로 교수의 추측을 깨고,<br>높은 콧대를 납작하게 꺾어 보세요.</p>
         <div class="start-dialogue"><div class="hero-quote">“타면 가벼워지는<br>거 아니었나?”</div><div class="hero-prof professor-art" data-expression="skeptical" role="img" aria-label="콧대 교수"></div></div>
       </div>
       <form class="start-card" id="startForm" autocomplete="off">
