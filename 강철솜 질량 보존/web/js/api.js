@@ -7,6 +7,7 @@
 (function () {
   const cfg = window.SCIW_CONFIG || {};
   const URL_ = (cfg.API_URL || '').trim();
+  const JUDGE_URL = (cfg.JUDGE_API_URL || '').trim();
   // 미션 01 큐와 분리해 검증되지 않은 기록이 감자 서버로 전송되는 일을 막는다.
   const QUEUE_KEY = 'sciw_queue_m02_v1';
   const LOCAL_DB_KEY = 'sciw_localdb_v1';
@@ -116,22 +117,30 @@
     logAttempt(attempt) { enqueue({ action: 'logAttempt', attempt }); },
     flush,
 
-    // LLM 판정: timeoutMs 안에 답이 없으면 null
-    async judge(payload, timeoutMs) {
-      if (!URL_ || !cfg.USE_LLM) return null;
+    // AI 장애를 오답/null로 바꾸지 않는다. 기록 주소에는 판정 요청을 보내지 않는다.
+    async judge(payload, timeoutMs = cfg.LLM_TIMEOUT_MS || 65000) {
+      const fail = (code) => Object.assign(new Error(code), { code });
+      if (!cfg.USE_LLM || !JUDGE_URL) throw fail('JUDGE_NOT_CONFIGURED');
+      const input = window.SCIW_RUBRIC02.prepare(payload);
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), timeoutMs);
       try {
-        const res = await fetch(URL_, {
+        const headers = { 'Content-Type': 'text/plain;charset=utf-8' };
+        if (JUDGE_URL.startsWith('/')) headers['X-Sciw-Local'] = 'm02';
+        const res = await fetch(JUDGE_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(Object.assign({ action: 'judge' }, payload)),
+          headers,
+          body: JSON.stringify(Object.assign({ action: 'judgeM02' }, input)),
           signal: ctrl.signal
         });
         const json = await res.json();
-        return json.ok ? json.result : null;
+        if (!res.ok || !json.ok) throw fail(json.code || 'EVALUATION_ERROR');
+        const result = window.SCIW_RUBRIC02.validate(input, json.result.analysis);
+        return Object.assign(result, { model: json.result.model || '', requestId: json.result.requestId || '' });
       } catch (e) {
-        return null;
+        if (e.name === 'AbortError') throw fail('TIMEOUT');
+        if (e.code) throw e;
+        throw fail('EVALUATION_ERROR');
       } finally {
         clearTimeout(t);
       }

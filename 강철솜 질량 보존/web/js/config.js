@@ -8,6 +8,8 @@ window.SCIW_CONFIG = {
   MISSION_ID: 'm02',
   // 미션 02 쓰기 검증 완료. 교사 서버 조회는 별도 인증 설정이 필요하다.
   M02_SERVER_VERIFIED: true,
-  LLM_TIMEOUT_MS: 3000,
+  // 기록 주소와 평가 주소를 분리한다. 로컬 실험 서버가 복사본에서만 아래 설정을 켠다.
+  JUDGE_API_URL: '',
+  LLM_TIMEOUT_MS: 65000,
   USE_LLM: false
 };

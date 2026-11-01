@@ -34,9 +34,9 @@ button:focus-visible, .card:focus-visible, textarea:focus-visible, input:focus-v
 /* 장면 */
 #sceneZone { position: relative; overflow: hidden; }
 #sceneZone::before { content: ''; position: absolute; inset: -20px; background: url('../assets/laboratory-room.png') center / cover; filter: blur(8px) brightness(.55); }
-#stage { position: absolute; width: 1280px; height: 640px; transform-origin: 0 0; background: url('../assets/laboratory-room.png') center / 100% 100%; font-size: 18px; }
-#stage::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 36% 40%, transparent 40%, #0b1b1866 100%); pointer-events: none; transition: background .6s; }
-#stage.spot::after { background: radial-gradient(ellipse at 74% 38%, transparent 30%, #0b1b18aa 85%); }
+#stage { --scene-shade: radial-gradient(ellipse at 36% 40%, transparent 40%, #0b1b1866 100%); position: absolute; width: 1280px; height: 640px; transform-origin: 0 0; background: url('../assets/laboratory-room.png') center / 100% 100%; font-size: 18px; }
+#stage::after { content: ''; position: absolute; inset: 0; background: var(--scene-shade); pointer-events: none; transition: background .6s; }
+#stage.spot { --scene-shade: radial-gradient(ellipse at 74% 38%, transparent 30%, #0b1b18aa 85%); }
 
 
 /* 칠판 */
@@ -177,8 +177,9 @@ button:focus-visible, .card:focus-visible, textarea:focus-visible, input:focus-v
 
 /* 교수 자리 */
 #profCol { position: absolute; right: 0; top: 0; width: 410px; height: 640px; z-index: 6; }
-/* 의자 앞, 책상 뒤에 앉은 자리: 아랫부분은 책상에 가려지듯 흐리게 */
-#prof { position: absolute; right: 6px; bottom: 190px; width: 236px; height: 315px; -webkit-mask-image: linear-gradient(#000 78%, transparent 99%); mask-image: linear-gradient(#000 78%, transparent 99%); filter: drop-shadow(2px 8px 7px #1c211b66); z-index: 1; }
+/* 교수는 불투명하게 그리고, 배경과 같은 좌표의 책상을 앞에 놓아 몸을 가린다. */
+#profCol::before { content: ''; position: absolute; left: 0; right: 0; top: 384px; bottom: 0; z-index: 2; background-image: var(--scene-shade), url('../assets/laboratory-room.png'); background-position: right bottom; background-size: 1280px 640px; background-repeat: no-repeat; pointer-events: none; }
+#prof { position: absolute; right: 6px; bottom: 190px; width: 236px; height: 315px; filter: drop-shadow(2px 8px 7px #1c211b66); z-index: 1; }
 #prof .pf-base, #prof .pf-tip { position: absolute; inset: 0; background: url('../assets/professor-expressions.png') 0 0 / 400% 100% no-repeat; }
 #prof .pf-tipwrap { position: absolute; inset: 0; }
 #prof .pf-tip { transition: transform .7s cubic-bezier(.4, 0, .2, 1); }
@@ -263,6 +264,7 @@ body.arena #bubble { left: -834px; right: 300px; top: 34px; padding: 24px 34px; 
 body.arena #bubble::after { right: -26px; bottom: auto; top: 46%; border: 16px solid transparent; border-left: 28px solid #fffdf6; border-right: 0; }
 /* 교수 자리(profCol)의 빈 부분이 아래 단서 카드를 가리지 않게, 말풍선과 답장만 누를 수 있게 한다 */
 body.arena #profCol { pointer-events: none; }
+body.arena #profCol::before { display: none; }
 body.arena #bubble, body.arena #reply { pointer-events: auto; }
 body.arena .weak { padding: 0 6px; }
 body.arena #bubble .nudge-line { font-size: 18px; }
@@ -388,6 +390,8 @@ body.arena .r-send { font-size: 18px; padding: 10px 22px; }
 .compare h3 { margin: 0 0 6px; font-size: 14px; color: var(--ink-soft); }
 .compare p { margin: 0; font-size: 16px; line-height: 1.7; }
 .final .w { background: linear-gradient(transparent 55%, #ffe17a 55%); }
+.final { white-space: pre-wrap; }
+.final .new-connection { text-decoration: underline; text-decoration-color: #b08021; text-underline-offset: 4px; }
 .final .typed { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 4px; }
 .final .from-card { text-decoration: underline dotted; text-underline-offset: 4px; color: #6b6556; }
 .legend-row { display: flex; gap: 14px; margin-top: 8px; font-size: 12px; color: var(--ink-soft); }
@@ -420,16 +424,16 @@ body.arena .r-send { font-size: 18px; padding: 10px 22px; }
 .scope-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 #scopeWire { fill: none; stroke: #c0392b; stroke-width: 3; stroke-linecap: round; }
 
-/* 단서 획득: 가운데로 날아든 카드에 도장 */
-.acquire { position: fixed; inset: 0; z-index: 950; display: grid; place-items: center; background: radial-gradient(circle, #0b1b18aa, #0b1b18dd); animation: acqIn .25s ease; cursor: pointer; }
+/* 단서 획득: 카드와 도장을 세로로 나란히 놓아 결과 글을 가리지 않는다. */
+.acquire { position: fixed; inset: 0; z-index: 950; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; padding: 30px 24px; overflow: auto; background: radial-gradient(circle, #0b1b18aa, #0b1b18dd); animation: acqIn .25s ease; cursor: pointer; }
 .acquire.out { opacity: 0; transition: opacity .3s; }
-.acq-cards { display: flex; gap: 18px; }
-.acquire .card.acq { width: 300px; min-height: 120px; font-size: 20px; padding: 18px 20px; transform: rotate(-2deg); animation: acqCard .45s cubic-bezier(.2,1.4,.4,1); box-shadow: 0 18px 40px #000a; }
+.acq-cards { display: flex; flex: none; flex-wrap: wrap; justify-content: center; gap: 18px; max-width: 100%; }
+.acquire .card.acq { width: min(300px, calc(100vw - 48px)); min-height: 120px; font-size: 20px; padding: 18px 20px; transform: rotate(-2deg); animation: acqCard .45s cubic-bezier(.2,1.4,.4,1); box-shadow: 0 18px 40px #000a; }
 .acquire .card.acq b { font-size: 14px; }
-.acq-stamp { position: absolute; margin-top: 150px; margin-left: 210px; padding: 6px 18px; border: 4px solid #c0392b; border-radius: 8px; color: #c0392b; font-weight: 900; font-size: 26px; letter-spacing: .12em; background: #fff8ec; transform: rotate(-12deg) scale(1); animation: stamp .35s .35s both cubic-bezier(.3,1.6,.5,1); }
+.acq-stamp { flex: none; padding: 6px 18px; border: 4px solid #c0392b; border-radius: 8px; color: #c0392b; font-weight: 900; font-size: 26px; letter-spacing: .12em; background: #fff8ec; transform: rotate(-8deg); animation: stamp .35s .35s both ease-out; }
 @keyframes acqIn { from { opacity: 0; } }
 @keyframes acqCard { from { transform: translateX(-60vw) rotate(-14deg); } }
-@keyframes stamp { from { transform: rotate(-12deg) scale(2.4); opacity: 0; } }
+@keyframes stamp { from { transform: rotate(-8deg) scale(1.2); opacity: 0; } }
 
 /* 반박: 교수 말 속 단서를 댈 수 있는 곳 */
 #bubble.debate { border: 3px solid #f0a33a; }

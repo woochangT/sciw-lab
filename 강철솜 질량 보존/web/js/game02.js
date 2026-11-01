@@ -8,6 +8,13 @@
   const M = window.SCIW_MISSIONS.m02;
   const J = window.SCIW_JUDGE02;
   const API = window.SCIW_API;
+  const RUBRIC = window.SCIW_RUBRIC02;
+  const USE_AI = Boolean((window.SCIW_CONFIG || {}).USE_LLM);
+  // 평가 서버를 아직 연결하지 않은 규칙 모드는 기존 Q1 질문·시작어를 함께 쓴다.
+  // AI 모드의 질문과 판정 기준은 rubric02.js의 동일한 정의를 사용한다.
+  const STAGES = Object.assign({}, RUBRIC.STAGES, USE_AI ? {} : {
+    Q1: { question: '불이 붙는 동안 플라스크 속 산소는 어디로 갔나?', starter: '산소는 ' }
+  });
   const ART = window.SCIW_ART02;
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -27,6 +34,43 @@
     hint: 0, hintReason: '', submits: 0, predicted: false, cardsOnlyWarned: false,
     composeStart: 0, lastInput: now(), glowKey: null, nudged: {}, sel: null, times: {}, firstSubmitText: ''
   };
+
+  async function evaluateText(stage, text) {
+    // AI 모드에서 장애가 나도 규칙 판정으로 돌아가지 않는다.
+    if (USE_AI) {
+      const displayedPrompt = $('#bubble .body').innerText;
+      await say(['흠…']);
+      const offset = stage === 'final' ? $('#answer').value.indexOf(text) : 0;
+      const started = now();
+      try {
+        const result = await API.judge({ stage, text, initialAnswer: S.firstAnswer,
+          cardSpans: stage === 'final' ? RUBRIC.cardSpans(S.answerOrigins || [], offset, text.length) : [] });
+        return Object.assign(result, { displayedPrompt, canonicalQuestion: STAGES[stage].question });
+      } finally {
+        // 서버를 기다린 시간을 학생의 무입력 시간으로 세지 않는다.
+        if (stage === 'final') S.composeStart += now() - started;
+        S.lastInput = now();
+      }
+    }
+    if (stage === 'first') return { pass: true, diag: J.tagFirst(text) };
+    if (stage === 'final') return J.judgeFinal(text);
+    return stage === 'Q1' ? J.judgeQ1(text) : stage === 'Q2' ? J.judgeQ2('outside', text) : J.judgeQ3(text);
+  }
+  function judgmentRecord(r) {
+    return r.analysis ? { judgedBy: 'openai', rubricVersion: r.rubricVersion, model: r.model, requestId: r.requestId,
+      outcome: r.outcome, displayedPrompt: r.displayedPrompt, canonicalQuestion: r.canonicalQuestion,
+      feedbackQuestion: r.nextQuestion, analysis: r.analysis, highlights: r.highlights } : { judgedBy: 'rule' };
+  }
+  function feedbackLines(stage, followup) {
+    // 보완을 거듭해도 지금 답해야 하는 원래 질문이 함께 보이게 한다.
+    const lines = Array.isArray(followup) ? followup : [followup];
+    return [...new Set([STAGES[stage].question, ...lines].filter(Boolean))];
+  }
+  async function evaluationFailure(error) {
+    const setup = ['JUDGE_NOT_CONFIGURED', 'KEY_NOT_CONFIGURED'].includes(error.code);
+    await say([setup ? '아직 답을 읽을 준비가 안 됐군. 연결 설정을 확인해 주게.' : '지금은 답을 읽지 못했네. 잠시 뒤 다시 제출해 주게.',
+      '자네가 쓴 답은 남겨 두었네. 오답으로 세지 않겠네.']);
+  }
 
   /* ───────── 배치: 1280×640 장면을 화면에 맞추기 ───────── */
   function fit() {
@@ -147,9 +191,9 @@
       html += `<div class="r-choices" role="radiogroup">${cfg.choices.map((c) => `<button type="button" class="r-choice" data-id="${c.id}">${esc(c.text)}</button>`).join('')}</div>`;
     }
     if (cfg.text && cfg.line) {
-      html += `<div class="r-text"><input id="replyText" type="text" maxlength="200" autocomplete="off" aria-label="교수님께 답하기" value="${esc(cfg.starter || '')}"></div>`;
+      html += `<div class="r-text"><input id="replyText" type="text" maxlength="200" autocomplete="off" aria-label="교수님께 답하기" value="${esc(cfg.value ?? cfg.starter ?? '')}"></div>`;
     } else if (cfg.text) {
-      html += `<div class="r-text"><textarea id="replyText" rows="${cfg.rows || 3}" maxlength="400" aria-label="교수님께 답하기">${esc(cfg.starter || '')}</textarea></div>`;
+      html += `<div class="r-text"><textarea id="replyText" rows="${cfg.rows || 3}" maxlength="400" aria-label="교수님께 답하기">${esc(cfg.value ?? cfg.starter ?? '')}</textarea></div>`;
     }
     html += `<button type="button" class="r-send" id="replySend" disabled ${cfg.instant ? 'hidden' : ''}>${esc(cfg.send || '교수님께 말하기')}</button>`;
     box.innerHTML = html;
@@ -160,7 +204,8 @@
     const send = $('#replySend');
     const ta = $('#replyText');
     const ready = () => {
-      const tOk = !cfg.text || (ta.value.replace(cfg.starter || '', '').trim().length >= 2);
+      const typed = ta ? (cfg.starter && ta.value.startsWith(cfg.starter.trim()) ? ta.value.slice(cfg.starter.trim().length) : ta.value).trim() : '';
+      const tOk = !cfg.text || typed.length >= (USE_AI ? 1 : 2);
       const cOk = !cfg.choices || choice;
       send.disabled = !(tOk && cOk);
     };
@@ -176,13 +221,31 @@
       setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 60);
     }
     let finished = false;
-    function finish() {
+    async function finish() {
       if (finished) return;
       finished = true;
       const text = ta ? ta.value.trim() : '';
-      cfg.onSubmit({ choice, text });
+      const controls = Array.from(box.querySelectorAll('input, textarea, button'));
+      controls.forEach((el) => { el.disabled = true; });
+      send.textContent = USE_AI && cfg.text ? '흠…' : (cfg.send || '교수님께 말하기');
+      box.setAttribute('aria-busy', 'true');
+      try {
+        const accepted = await cfg.onSubmit({ choice, text });
+        if (accepted === false) finished = false;
+      } catch (error) {
+        finished = false;
+        await evaluationFailure(error);
+      } finally {
+        box.removeAttribute('aria-busy');
+        if (document.body.contains(send)) {
+          controls.forEach((el) => { el.disabled = false; });
+          send.textContent = cfg.send || '교수님께 말하기';
+          ready();
+        }
+      }
     }
     send.addEventListener('click', finish);
+    ready();
     return { reopen() { finished = false; }, get text() { return ta ? ta.value : ''; } };
   }
   function closeReply() { const b = $('#reply'); b.hidden = true; b.innerHTML = ''; }
@@ -224,7 +287,7 @@
     el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
   }
   setInterval(() => {
-    if (!S.glowKey || !S.started || !$('#catcher').hidden) return;
+    if (!S.glowKey || !S.started || !$('#catcher').hidden || S.submitting || $('#reply').getAttribute('aria-busy') === 'true') return;
     const idle = now() - S.lastInput;
     const key = S.glowKey;
     // 12초 동안 아무것도 안 하면 한마디. 계속 막혀 있으면 20초마다 다시 한다.
@@ -632,15 +695,17 @@
     $('#board').onclick = null;
     glow(null);
     setNote('내 생각 말하기');
-    await say(M.lines.firstAsk);
+    await say([RUBRIC.STAGES.first.question, ...M.lines.firstAsk.slice(1)]);
     openReply({
       text: true, rows: 3, send: '교수님께 말하기',
       onSubmit: async ({ text }) => {
+        const r = await evaluateText('first', text);
+        if (!r.pass) { await say(feedbackLines('first', r.nextQuestion)); return false; }
         S.firstAnswer = text;
-        S.firstTag = J.tagFirst(text);
+        S.firstTag = r.diag;
         closeReply();
-        logAttempt({ stage: 'claim', questId: 'first', input: text, diag: S.firstTag });
-        updateSession({ firstAnswer: text, firstError: S.firstTag });
+        logAttempt(Object.assign({ stage: 'claim', questId: 'first', input: text, diag: S.firstTag }, judgmentRecord(r)));
+        updateSession(Object.assign({ firstAnswer: text, firstError: S.firstTag }, judgmentRecord(r)));
         renderSmallBoard();
         await say(M.lines.firstThanks);
         openClaimBoard();
@@ -1108,20 +1173,29 @@
     blinkOnce($('#stage'));
     updateSession({ ['debate' + (i + 1) + 'Tries']: tries });
     await sleep(reduced ? 100 : 700);
-    await say(line.hit || R.hit);
+    const hitLines = (line.hit || R.hit).slice();
+    // 화면에 묻는 질문과 API 판정 질문을 같은 단계 정의에서 가져온다.
+    hitLines[hitLines.length - 1] = STAGES[R.quest].question;
+    await say(hitLines);
     whyReply(i);
   }
   // 반박한 뒤 "왜 이 단서가 저 말을 뒤집나?"를 한 줄로. 이 한 줄이 결론 카드가 된다.
-  function whyReply(i) {
+  function whyReply(i, value) {
     const R = M.debates[i];
     openReply({
-      line: true, text: true, starter: R.starter || '', send: '말하기',
+      line: true, text: true, starter: STAGES[R.quest].starter, value, send: '말하기',
       onSubmit: async ({ text }) => {
         const qid = R.quest;
-        const r = qid === 'Q1' ? J.judgeQ1(text) : qid === 'Q2' ? J.judgeQ2('outside', text) : J.judgeQ3(text);
-        logAttempt({ stage: 'rebuttal', questId: qid, input: text, diag: r.diag, pass: r.pass });
+        const r = await evaluateText(qid, text);
+        logAttempt(Object.assign({ stage: 'rebuttal', questId: qid, input: text, diag: r.diag, pass: r.pass }, judgmentRecord(r)));
         closeReply();
-        if (!r.pass) { await react(qid, r.diag); whyReply(i); return; }
+        if (!r.pass) {
+          if (USE_AI) {
+            if (r.outcome !== 'clarify') questErr(qid, r.diag);
+            await say(feedbackLines(qid, r.nextQuestion));
+          } else await react(qid, r.diag);
+          whyReply(i, text); return;
+        }
         const id = 'c' + (i + 1);
         let sentence = toSentence(text);
         if (i === 0) sentence = toSentence('마개를 막고 태웠을 때 ' + text);
@@ -1138,13 +1212,16 @@
   }
 
   async function react(qid, diag) {
-    const L = M.questLines[qid];
-    if (diag === 'unclear') { await say(M.lines.unclear); return; }
+    const L = !USE_AI && qid === 'Q1' ? Object.assign({}, M.questLines.Q1, {
+      N1: ['그대로라는 건 나도 보네.', '불이 붙는 동안 산소는 어디로 갔나?'],
+      miss: ['산소가 사라졌나, 아니면 어디로 옮겨 갔나?']
+    }) : M.questLines[qid];
+    if (diag === 'unclear') { await say(feedbackLines(qid, M.lines.unclear)); return; }
     const n = questErr(qid, diag);
     let line = L[diag] || L.miss;
-    if (n >= 3) line = line.concat([M.lines.stuck[qid]]);
-    else if (n >= 2) line = line.concat([M.lines.retry[qid]]);
-    await say(line);
+    if (n >= 3) line = line.concat([!USE_AI && qid === 'Q1' ? '막혀 있으니 산소는 나갈 데가 없었네. 플라스크 안에서 어디에 붙었나?' : M.lines.stuck[qid]]);
+    else if (n >= 2) line = line.concat([!USE_AI && qid === 'Q1' ? '현미경에서 산소가 어디로 움직였는지 다시 보게.' : M.lines.retry[qid]]);
+    await say(feedbackLines(qid, line));
   }
 
   // 반박을 통과하면 콧대가 한 칸 꺾인다. 교수 얼굴로 다가가 코가 줄어드는 것을 보여 준다.
@@ -1322,7 +1399,13 @@
       </div>`;
     $$('#shelves .card').forEach(bindCard);
     const ta = $('#answer');
-    ta.addEventListener('input', () => { S.lastInput = now(); $('#finalSubmit').disabled = ta.value.trim().length < 5; });
+    S.answerSnapshot = ''; S.answerOrigins = [];
+    ta.addEventListener('input', () => {
+      S.answerOrigins = RUBRIC.editOrigins(S.answerSnapshot, ta.value, S.answerOrigins);
+      S.answerSnapshot = ta.value;
+      S.caret = ta.selectionStart;
+      S.lastInput = now(); $('#finalSubmit').disabled = S.submitting || ta.value.trim().length < (USE_AI ? 1 : 5);
+    });
     ta.addEventListener('blur', () => { S.caret = ta.selectionStart; });
     // 혼자 힘으로 쓸 때는 붙여넣기와 끌어다 놓기를 막는다
     const noPaste = (e) => { if (!S.ownMode) return; e.preventDefault(); say(M.lines.ownNoPaste); };
@@ -1345,16 +1428,19 @@
     updateSession({ ownMode: on });
   }
   function insertCard(id) {
-    if (S.phase !== 'compose' || S.ownMode) return;
+    if (S.phase !== 'compose' || S.ownMode || S.submitting) return;
     const c = S.cards[id];
     if (!c) return;
     if (c.kind === 'model') { say(M.lines.modelCardBlocked); return; } // 보완안 4
     const ta = $('#answer');
     const sentence = c.sentence || c.text;
-    const pos = S.caret ?? ta.value.length;
+    const pos = Math.max(0, Math.min(S.caret ?? ta.value.length, ta.value.length));
     const before = ta.value.slice(0, pos); const after = ta.value.slice(pos);
     const sep = before && !/\s$/.test(before) ? ' ' : '';
-    ta.value = before + sep + sentence + (after && !/^\s/.test(after) ? ' ' : '') + after;
+    const tailSep = after && !/^\s/.test(after) ? ' ' : '';
+    ta.value = before + sep + sentence + tailSep + after;
+    S.answerOrigins.splice(pos, 0, ...Array(sep.length).fill('typed'), ...Array(sentence.length).fill(id), ...Array(tailSep.length).fill('typed'));
+    S.answerSnapshot = ta.value;
     S.caret = (before + sep + sentence).length;
     S.inserted.push(sentence);
     ta.dispatchEvent(new Event('input'));
@@ -1364,7 +1450,7 @@
   function typedPart(text) { let t = text; remainingCardSentences(text).forEach((s) => { t = t.split(s).join(''); }); return t; }
 
   function checkHintUnlock() {
-    if (S.phase !== 'compose' || S.hint > 0) return;
+    if (S.phase !== 'compose' || S.hint > 0 || S.submitting) return;
     const len = $('#answer').value.trim().length;
     if (now() - S.composeStart > 90000 && len < 20) unlockHint('90초·20자 미만');
     else if (now() - S.lastInput > 60000) unlockHint('60초 무입력');
@@ -1392,25 +1478,37 @@
   }
 
   async function submitFinal() {
-    if (S.submitting) return;
+    if (S.submitting || S.phase !== 'compose') return;
     S.submitting = true;
     const btn = $('#finalSubmit'); btn.disabled = true;
-    try { await submitFinalInner(); } finally {
+    const ta = $('#answer'); ta.readOnly = true;
+    $('#ownMode').disabled = true;
+    const label = btn.textContent;
+    if (USE_AI) btn.textContent = '흠…';
+    try { await submitFinalInner(); } catch (error) {
+      await evaluationFailure(error);
+    } finally {
       S.submitting = false;
-      if (document.body.contains(btn)) btn.disabled = $('#answer').value.trim().length < 5;
+      ta.readOnly = false; $('#ownMode').disabled = false;
+      btn.textContent = label;
+      if (document.body.contains(btn)) btn.disabled = S.phase !== 'compose' || ta.value.trim().length < (USE_AI ? 1 : 5);
     }
   }
   async function submitFinalInner() {
     const ta = $('#answer');
     const text = ta.value.trim();
-    if (text.length < 5) return;
+    if (text.length < (USE_AI ? 1 : 5)) return;
     // 카드만 늘어놓은 답: 한 번만 묻는다
-    if (!S.ownMode && typedPart(text).replace(/[\s.,·]/g, '').length < 2 && !S.cardsOnlyWarned) {
+    if (!USE_AI && !S.ownMode && typedPart(text).replace(/[\s.,·]/g, '').length < 2 && !S.cardsOnlyWarned) {
       S.cardsOnlyWarned = true;
       await say(M.lines.cardsOnly);
       return;
     }
-    const r = J.judgeFinal(text);
+    const r = await evaluateText('final', text);
+    if (USE_AI && r.outcome === 'clarify') {
+      logAttempt(Object.assign({ stage: 'compose', questId: 'clarify', input: text, diag: r.diag, pass: false }, judgmentRecord(r)));
+      await say(feedbackLines('final', r.nextQuestion)); return;
+    }
     // 보완안 5: 첫 제출이 부족하면 교수가 "부족하다"고 먼저 말하고, 학생이 꼬투리 잡힐 곳을 고른다
     let lead = [];
     if (!S.predicted && !r.pass && r.ask !== 'unclear') {
@@ -1422,16 +1520,16 @@
       const match = opt.els.includes(r.ask);
       logAttempt({ stage: 'compose', questId: 'predict', choice, input: r.ask, pass: match });
       updateSession({ selfPredict: choice, selfPredictMatch: match });
-      if (match) { await say(M.lines.predictMatch); ta.focus(); return; }
+      if (match) { await say(M.lines.predictMatch.concat([RUBRIC.STAGES.final.question])); ta.focus(); return; }
       lead = M.lines.predictMiss;
     }
     S.submits++;
     const remain = remainingCardSentences(text);
     if (S.submits === 1 || !S.firstSubmitText) { S.firstSubmitText = text; updateSession({ firstSubmitBeforeHint: S.hint === 0 ? text : '', firstSubmitDiag: r.diag }); }
-    logAttempt({ stage: 'compose', questId: 'final', input: text, diag: r.diag, pass: r.pass, elements: r.elements, hint: S.hint, own: S.ownMode, cardSentences: remain.length });
+    logAttempt(Object.assign({ stage: 'compose', questId: 'final', input: text, diag: r.diag, pass: r.pass, elements: r.elements, hint: S.hint, own: S.ownMode, cardSentences: remain.length }, judgmentRecord(r)));
     if (r.pass) { finish('full', text, r); return; }
     if (S.submits >= 3) { finish('partial', text, r); return; }
-    const line = M.finalLines[r.ask] || M.lines.unclear;
+    const line = feedbackLines('final', USE_AI ? r.nextQuestion : M.finalLines[r.ask] || M.lines.unclear);
     // 반박을 받으면 강의 노트가 열린다(1단계). 1단계를 열고도 다시 반박받으면 2단계.
     // 노트 이야기를 먼저 하고, 교수의 질문이 말풍선에 남게 한다.
     if (S.hint === 0) { await unlockHint('첫 제출 반박', line, lead); return; }
@@ -1441,12 +1539,7 @@
   }
 
   /* ───────── 클리어 ───────── */
-  function finish(type, text, r) {
-    clearInterval(S.hintTimer);
-    const remain = remainingCardSentences(text);
-    const own = S.ownMode && remain.length === 0 && type === 'full';
-    updateSession({ clearType: type, finalAnswer: text, finalJudgment: r.elements, path: r.path || '', ownReward: own, endedAt: new Date().toISOString() }, true);
-    API.flush();
+  function ruleFeedback(text, remain) {
     const roles = J.sentenceRoles(text);
     // 처음 생각에 이미 있던 연결은 빼고, 새로 생긴 연결만 형광펜으로 칠한다
     const firstRoles = new Set(J.sentenceRoles(S.firstAnswer || '').flatMap((x) => x.roles));
@@ -1467,7 +1560,54 @@
       if (q1b) praise.push(`“${q1b}” — 늘어난 것이 왜 산소인지 실험 상황으로 짚었어요.`);
       else if (q1a) praise.push(`“${q1a}” — 강철솜이 스스로 무거워질 수 없는 까닭을 원리로 짚었어요.`);
     }
-    const missLine = type === 'partial' ? ({ W2a: '다음엔 150.0 g이 \'그대로\'라는 게 무슨 뜻인지도 써 보자.', W2b: '다음엔 늘어난 0.5 g이 무엇의 질량인지도 써 보자.', W1b: '다음엔 그게 왜 산소인지도 써 보자.', W1a: '다음엔 강철솜이 스스로 무거워질 수 없는 까닭도 써 보자.', 'D-B': '다음엔 막아 둔 플라스크 결과도 써 보자.', 'D-A': '다음엔 접시에서 잰 숫자도 써 보자.', C: '다음엔 결국 무슨 일이 일어났는지도 써 보자.' }[r.ask] || '다음엔 숫자가 무슨 뜻인지까지 써 보자.') : '';
+    return { finalHTML, praise };
+  }
+  function aiFeedback(text, r) {
+    // 원문을 바꾸지 않고 겹치는 표시를 한 번만 칠한다. 모델 HTML은 사용하지 않는다.
+    const marks = r.highlights;
+    const cuts = [...new Set([0, text.length, ...marks.flatMap((h) => [h.start, h.end])])].sort((a, b) => a - b);
+    const finalHTML = cuts.slice(0, -1).map((start, i) => {
+      const end = cuts[i + 1];
+      const here = marks.filter((h) => h.start < end && h.end > start);
+      if (!here.length) return esc(text.slice(start, end));
+      const isNew = here.some((h) => h.isNew);
+      const roles = [...new Set(here.flatMap((h) => h.roles))].join(', ');
+      return `<span class="w ${isNew ? 'new-connection' : ''}" title="${esc(roles + (isNew ? ' · 처음 생각에서 새롭게 발전한 연결' : ' · 잘 드러난 연결'))}">${esc(text.slice(start, end))}</span>`;
+    }).join('');
+    const praise = marks.map((h) => {
+      const source = h.source === 'card' ? ' 카드에서 가져온 구절이에요.' : h.source === 'mixed' ? ' 카드 구절과 직접 쓴 부분이 함께 있어요.' : '';
+      const growth = h.isNew ? ' 처음 생각보다 새롭게 드러난 연결이에요.' : '';
+      return `“${h.quote}” — ${h.explanation}${source}${growth}`;
+    });
+    return { finalHTML, praise };
+  }
+  function finish(type, text, r) {
+    S.phase = 'complete';
+    clearInterval(S.hintTimer);
+    const remain = remainingCardSentences(text);
+    const offset = $('#answer').value.indexOf(text);
+    const hasCard = USE_AI ? RUBRIC.cardSpans(S.answerOrigins || [], offset, text.length).length > 0 : remain.length > 0;
+    const own = S.ownMode && !hasCard && type === 'full';
+    updateSession(Object.assign({ clearType: type, finalAnswer: text, finalJudgment: r.elements, path: r.path || '', ownReward: own, endedAt: new Date().toISOString() }, judgmentRecord(r)), true);
+    API.flush();
+    const { finalHTML, praise } = USE_AI ? aiFeedback(text, r) : ruleFeedback(text, remain);
+    // 게임 중 교수의 nextQuestion과 결과 페이지의 안내 문체를 분리한다.
+    const resultNextSteps = {
+      W2a: '다음엔 150.0 g이 그대로인 이유를 플라스크 안 산소의 이동과 연결해 보세요.',
+      W2b: '다음엔 늘어난 0.5 g이 무엇의 질량인지도 써 보세요.',
+      W1b: '다음엔 더해진 물질이 왜 산소인지도 설명해 보세요.',
+      W1a: '다음엔 질량이 저절로 생기지 않는다는 원리를 A의 질량 증가와 연결해 보세요.',
+      'D-B': '다음엔 막아 둔 플라스크 전체의 측정 결과도 써 보세요.',
+      'D-A': '다음엔 실험 A에서 잰 질량과 증가분도 써 보세요.',
+      C: '다음엔 강철솜이 무거워진 까닭을 분명히 설명해 보세요.',
+      E1: '다음엔 반응을 일으키는 열의 역할과 질량이 더해지는 까닭을 구분해 보세요.',
+      E2: '다음엔 산소도 질량이 있다는 점을 반영해 보세요.',
+      E3: '다음엔 저울이 재는 범위를 생각하며 질량 보존을 설명해 보세요.',
+      E4: '다음엔 새 물질이 생기는 것과 질량이 새로 생기는 것을 구분해 보세요.',
+      E5: '다음엔 측정 대상과 전체 질량, 늘어난 부분의 질량을 구분해 보세요.',
+      E6: '다음엔 실험 결과와 설명이 서로 맞는지 확인해 보세요.'
+    };
+    const missLine = type === 'partial' ? (resultNextSteps[r.ask] || '다음엔 숫자가 무슨 뜻인지까지 설명해 보세요.') : '';
     const first = S.firstAnswer || '(없음)';
     $('#clearScreen .wrap').innerHTML = `
       <div class="top"><div class="professor-art" data-expression="${type === 'full' ? 'acknowledging' : 'skeptical'}"></div>
@@ -1478,7 +1618,7 @@
       </div>
       ${praise.length ? `<ul class="praise">${praise.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
       ${missLine ? `<p class="next-line">${esc(missLine)}</p>` : ''}
-      ${own ? `<section class="keyring-reward" aria-label="혼자 힘으로 설명한 연구원에게 주는 강철솜 키링"><img src="assets/steel-wool-keyring.png" width="120" height="180" alt="안경과 나비넥타이를 단 강철솜 키링"><div><div class="reward-label">교수님의 깜짝 선물</div><h3>“카드 없이 해낸 건 인정하지. 이건… 자네가 가지게.”</h3><p>카드 문장에 기대지 않고 자네 말로 끝까지 설명했군!</p><strong>나만의 강철솜 키링 획득</strong></div></section>` : (S.ownEver && type !== 'full' ? '<p class="next-line">“다음엔 이걸 줄 수도 있겠군.”</p>' : '')}
+      ${own ? `<section class="keyring-reward" aria-label="혼자 힘으로 설명한 연구원에게 주는 강철솜 키링"><img src="assets/steel-wool-keyring.png" width="120" height="180" alt="안경과 나비넥타이를 단 강철솜 키링"><div><div class="reward-label">교수님의 깜짝 선물</div><h3>“카드 없이 해낸 건 인정하지. 이건… 자네가 가지게.”</h3><p>카드 문장에 기대지 않고 자신의 말로 끝까지 설명했어요!</p><strong>나만의 강철솜 키링 획득</strong></div></section>` : (S.ownEver && type !== 'full' ? '<p class="next-line">“다음엔 이걸 줄 수도 있겠군.”</p>' : '')}
       <div class="btns"><button type="button" id="againBtn">처음부터 다시</button></div>`;
     $('#againBtn').addEventListener('click', () => location.reload());
     // 완전 클리어면 마지막 콧대가 꺾이는 것을 보여 준 뒤 결과를 띄운다
