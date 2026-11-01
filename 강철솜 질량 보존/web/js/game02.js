@@ -33,7 +33,15 @@
     const zone = $('#sceneZone');
     const s = Math.min(zone.clientWidth / W, zone.clientHeight / H);
     const st = $('#stage');
-    st.style.transform = `scale(${s})`;
+    // 교수 쪽 확대(S.zoom): 그 점을 화면 가운데 쪽으로 끌어오며 키우되, 장면 가장자리가 드러나지 않게 한다
+    let z = '';
+    if (S.zoom) {
+      const { k, x, y } = S.zoom;
+      const cx = Math.min(Math.max(W * 0.55, W - (W - x) * k), x * k);
+      const cy = Math.min(Math.max(H * 0.5, H - (H - y) * k), y * k);
+      z = ` translate(${cx}px, ${cy}px) scale(${k}) translate(${-x}px, ${-y}px)`;
+    }
+    st.style.transform = `scale(${s})${z}`;
     st.style.left = ((zone.clientWidth - W * s) / 2) + 'px';
     st.style.top = ((zone.clientHeight - H * s) / 2) + 'px';
     S.scale = s;
@@ -43,7 +51,24 @@
 
   /* ───────── 교수 ───────── */
   function expr(level) { return level >= 3 ? 'proud' : level === 2 ? 'skeptical' : level === 1 ? 'surprised' : 'acknowledging'; }
-  // 콧대 게이지: 칸이 줄면 꺾이는 연출, 늘면 솟는 연출. 이름과 남은 칸 수를 함께 보여 준다.
+  // 콧대: 교수의 코가 실제로 길어지고 짧아진다(0이면 그림 그대로). 게이지는 남은 칸 수를 함께 보여 준다.
+  const NOSE_LEN = [0, 6, 18, 32, 46];
+  // 교수 얼굴 쪽으로 다가갔다가(zoomProf) 돌아온다(zoomOut). 장면 좌표: 교수 그림 왼쪽 위가 (1038, 135).
+  async function zoomProf(k) {
+    if (reduced) return;
+    $('#bubble').classList.remove('show');
+    S.zoom = { k, x: 1100, y: 225 };
+    $('#stage').classList.add('zooming');
+    fit();
+    await sleep(750);
+  }
+  async function zoomOut() {
+    if (!S.zoom) return;
+    S.zoom = null;
+    fit();
+    await sleep(750);
+    $('#stage').classList.remove('zooming');
+  }
   function setNose(level, face) {
     const prev = S.nose;
     S.nose = Math.max(0, Math.min(4, level));
@@ -55,6 +80,7 @@
       if (was && !on) { el.classList.remove('snap'); void el.offsetWidth; el.classList.add('snap'); }
     });
     $('#noseValue').textContent = `${S.nose} / 4`;
+    $('#noseExt').style.setProperty('--len', NOSE_LEN[S.nose] + 'px');
     meter.setAttribute('aria-valuenow', S.nose);
     meter.setAttribute('aria-valuetext', `콧대 ${S.nose}칸 남음`);
     if (S.nose !== prev) {
@@ -673,8 +699,12 @@
     renderSmallBoard();
     renderTray();
     $('#stage').classList.add('spot');
-    setNose(4);
     setNote('강철솜이 스스로 무거워질까?');
+    // 교수 얼굴로 다가가 콧대가 솟는 것을 보여 준 뒤 반박을 건다
+    await zoomProf(2.2);
+    setNose(4, 'proud');
+    await sleep(reduced ? 200 : 1200);
+    await zoomOut();
     await say(M.lines.rebuttal);
     S.scope.locked = false;
     $('#microscope').classList.add('unlocked');
@@ -1086,9 +1116,9 @@
         S.cards[id] = { kind: 'concl', col: 'mean', title: `결론 ${'①②③'[i]}`, text: sentence, sentence };
         await passQuest(id);
         // 2라운드 다음은 곧바로 3라운드라 반박 화면을 유지한다
-        if (i === 0) { await sleep(reduced ? 100 : 900); exitArena(); startRound2(); }
+        if (i === 0) { exitArena(); startRound2(); }
         else if (i === 1) { setNote('다시 반박하기'); debate(2); }
-        else { await sleep(reduced ? 100 : 900); exitArena(); startCombine(); }
+        else { exitArena(); startCombine(); }
       }
     });
   }
@@ -1104,11 +1134,19 @@
     await say(line);
   }
 
+  // 반박을 통과하면 교수 얼굴로 다가가, 표정이 일그러지며 코가 줄어드는 것을 보여 준다
   async function passQuest(conclId) {
-    setNose(S.nose - 1, 'surprised');
+    await zoomProf(1.7);
+    setNose(S.nose - 1, 'skeptical');
+    await sleep(reduced ? 200 : 1100);
+    await zoomOut();
     await say(M.lines.pass);
     addCard(conclId, $('#reply'));
     setNose(S.nose);
+    // 인정하는 한마디를 읽을 수 있게 탭할 때까지 둔다
+    $('#bubble').classList.add('has-more');
+    await waitTap();
+    $('#bubble').classList.remove('has-more');
   }
 
   /* ───────── 결론 합치기 ───────── */
@@ -1433,7 +1471,15 @@
       <div class="btns"><button type="button" id="againBtn">처음부터 다시</button></div>`;
     $('#againBtn').addEventListener('click', () => location.reload());
     // 완전 클리어면 마지막 콧대가 꺾이는 것을 보여 준 뒤 결과를 띄운다
-    if (type === 'full') { setNose(0, 'surprised'); setTimeout(() => { $('#clearScreen').hidden = false; }, reduced ? 200 : 1600); }
+    if (type === 'full') {
+      (async () => {
+        await zoomProf(2);
+        setNose(0, 'surprised');
+        await sleep(reduced ? 200 : 1400);
+        $('#clearScreen').hidden = false;
+        zoomOut();
+      })();
+    }
     else $('#clearScreen').hidden = false;
   }
 

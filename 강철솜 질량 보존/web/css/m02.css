@@ -179,12 +179,21 @@ button:focus-visible, .card:focus-visible, textarea:focus-visible, input:focus-v
 #profCol { position: absolute; right: 0; top: 0; width: 410px; height: 640px; z-index: 6; }
 /* 의자 앞, 책상 뒤에 앉은 자리: 아랫부분은 책상에 가려지듯 흐리게 */
 #prof { position: absolute; right: 6px; bottom: 190px; width: 236px; height: 315px; -webkit-mask-image: linear-gradient(#000 78%, transparent 99%); mask-image: linear-gradient(#000 78%, transparent 99%); background: url('../assets/professor-expressions.png') 0 0 / 400% 100% no-repeat; filter: drop-shadow(2px 8px 7px #1c211b66); z-index: 1; }
-.professor-art[data-expression=proud] { background-position: 0 0; }
-.professor-art[data-expression=skeptical] { background-position: 33.3333% 0; }
-.professor-art[data-expression=surprised] { background-position: 66.6667% 0; }
-.professor-art[data-expression=acknowledging] { background-position: 100% 0; }
+/* #prof의 background 단축 속성이 표정 위치를 덮지 않도록 #prof에도 같은 규칙을 준다 */
+.professor-art[data-expression=proud], #prof[data-expression=proud] { background-position: 0 0; }
+.professor-art[data-expression=skeptical], #prof[data-expression=skeptical] { background-position: 33.3333% 0; }
+.professor-art[data-expression=surprised], #prof[data-expression=surprised] { background-position: 66.6667% 0; }
+.professor-art[data-expression=acknowledging], #prof[data-expression=acknowledging] { background-position: 100% 0; }
+/* 콧대: 그림 속 코끝에 같은 색 코를 이어 붙이고, 콧대 단계에 따라 길이(--len)를 바꾼다.
+   표정마다 코끝 x(--tx), 이어 붙는 지점의 코 중심 높이(--ty), 기울기(--ang)가 다르다. 원본 543×724를 236×315로 줄인 좌표. */
+#prof .nose-ext { position: absolute; height: 12.5px; width: calc(var(--len, 0px) + 14px); right: calc(236px - var(--tx) - 14px); top: calc(var(--ty) - 6.25px); transform-origin: right center; transform: rotate(var(--ang)); border-radius: 50% 3px 3px 50% / 50% 3px 3px 50%; background: linear-gradient(#f79d73, #ea8252 38%, #d46c44 70%, #b05535); box-shadow: inset 2px 2px 2px #ffd2b455; -webkit-mask-image: linear-gradient(to left, transparent 0, #000 16px); mask-image: linear-gradient(to left, transparent 0, #000 16px); transition: width .7s cubic-bezier(.3, 1.45, .5, 1); }
+#prof .nose-ext[style*="--len: 0px"] { opacity: 0; transition: width .7s cubic-bezier(.3, 1.45, .5, 1), opacity .3s .4s; }
+.professor-art[data-expression=proud] .nose-ext { --tx: 66.9px; --ty: 74.8px; --ang: 14deg; }
+.professor-art[data-expression=skeptical] .nose-ext { --tx: 42.2px; --ty: 98.9px; --ang: 6deg; }
+.professor-art[data-expression=surprised] .nose-ext { --tx: 57.8px; --ty: 96.4px; --ang: 4deg; }
+.professor-art[data-expression=acknowledging] .nose-ext { --tx: 45.6px; --ty: 123.6px; --ang: -5deg; }
+#stage.zooming { transition: transform .7s ease-in-out; }
 #noseMeter { position: absolute; right: 240px; bottom: 200px; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 7px; background: #0f231fe6; border-radius: 14px; border: 2px solid #d7b45e; box-shadow: 0 6px 16px #0007; }
-.nose-title { font-size: 15px; font-weight: 800; color: #f3dba0; letter-spacing: 1px; }
 .nose-value { font-size: 14px; font-weight: 800; color: #f6efd8; font-variant-numeric: tabular-nums; }
 .nose-track { display: flex; flex-direction: column-reverse; gap: 5px; }
 .nose-track i { width: 24px; height: 26px; border-radius: 5px; background: #3a4a44; border: 1px solid #56685f; transition: background .3s; }
