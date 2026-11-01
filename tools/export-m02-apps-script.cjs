@@ -11,4 +11,5 @@ const source = fs.readFileSync(path.join(root, '강철솜 질량 보존/web/js/r
 const rubric = 'var SCIW_RUBRIC02;\n' + source.replace('else root.SCIW_RUBRIC02 = api;', 'else SCIW_RUBRIC02 = api;');
 fs.writeFileSync(path.join(output, 'Rubric.gs'), rubric);
 fs.copyFileSync(path.join(root, 'apps-script/m02-evaluator/Code.gs'), path.join(output, 'Code.gs'));
+fs.copyFileSync(path.join(root, 'apps-script/m02-evaluator/appsscript.json'), path.join(output, 'appsscript.json'));
 console.log('로컬 배포 준비 파일: ' + output + ' (업로드하지 않음)');

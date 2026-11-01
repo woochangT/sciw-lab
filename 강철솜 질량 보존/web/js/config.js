@@ -8,8 +8,8 @@ window.SCIW_CONFIG = {
   MISSION_ID: 'm02',
   // 미션 02 쓰기 검증 완료. 교사 서버 조회는 별도 인증 설정이 필요하다.
   M02_SERVER_VERIFIED: true,
-  // 별도 AI 평가 서버 배포 URL을 넣는다. 비어 있으면 제출 답안을 보존하고 연결 설정을 안내한다.
+  // 미션02 평가 전용 Apps Script. 기존 기록 서버 주소와 분리한다.
   // 로컬 실험 서버는 복사본에서만 이 값을 로컬 평가 주소로 바꾼다.
-  JUDGE_API_URL: '',
+  JUDGE_API_URL: 'https://script.google.com/macros/s/AKfycbxhtRFI4cX2Kq_DiImTX_oEbuSGOOvr7F9Wa_JqJjdVOVYsLSchmHEEI70xKsQYjtr1kA/exec',
   LLM_TIMEOUT_MS: 65000
 };
