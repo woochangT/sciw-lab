@@ -1478,7 +1478,7 @@
       </div>
       ${praise.length ? `<ul class="praise">${praise.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
       ${missLine ? `<p class="next-line">${esc(missLine)}</p>` : ''}
-      ${own ? `<div class="gift"><img src="assets/steel-wool-keyring.jpg" alt="안경과 나비넥타이를 단 강철솜 키링"><p>“카드 없이 해낸 건 인정하지. 이건… 자네가 가지게.”</p></div>` : (S.ownEver && type !== 'full' ? '<p class="next-line">“다음엔 이걸 줄 수도 있겠군.”</p>' : '')}
+      ${own ? `<section class="keyring-reward" aria-label="혼자 힘으로 설명한 연구원에게 주는 강철솜 키링"><img src="assets/steel-wool-keyring.png" width="120" height="180" alt="안경과 나비넥타이를 단 강철솜 키링"><div><div class="reward-label">교수님의 깜짝 선물</div><h3>“카드 없이 해낸 건 인정하지. 이건… 자네가 가지게.”</h3><p>카드 문장에 기대지 않고 자네 말로 끝까지 설명했군!</p><strong>나만의 강철솜 키링 획득</strong></div></section>` : (S.ownEver && type !== 'full' ? '<p class="next-line">“다음엔 이걸 줄 수도 있겠군.”</p>' : '')}
       <div class="btns"><button type="button" id="againBtn">처음부터 다시</button></div>`;
     $('#againBtn').addEventListener('click', () => location.reload());
     // 완전 클리어면 마지막 콧대가 꺾이는 것을 보여 준 뒤 결과를 띄운다

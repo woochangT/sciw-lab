@@ -396,9 +396,16 @@ body.arena .r-send { font-size: 18px; padding: 10px 22px; }
 .lg.from-card { text-decoration: underline dotted; }
 .praise { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.6; }
 .next-line { margin: 0; font-weight: 700; color: #7a3d2a; }
-.gift { display: flex; align-items: center; gap: 16px; background: #fff3d2; border-radius: 12px; padding: 12px; }
-.gift img { width: 120px; height: 120px; object-fit: cover; border-radius: 12px; }
-.gift p { font-family: 'Gaegu', cursive; font-size: 22px; font-weight: 700; margin: 0; }
+/* 혼자 힘으로 완전 클리어했을 때의 선물 (미션 01 감자 키링과 같은 모양) */
+.keyring-reward { display: flex; gap: 16px; align-items: center; padding: 12px 20px 12px 10px; border: 2px solid #dfbd62; border-radius: 16px; background: linear-gradient(125deg, #fff8dc, #ecedcc); color: #355137; box-shadow: 0 8px 25px #10271b55; animation: rewardAppear .6s ease-out; }
+.keyring-reward img { flex: none; width: 120px; height: 180px; object-fit: contain; filter: drop-shadow(0 6px 8px #0004); transform-origin: 50% 6%; animation: keyringSway 3s ease-in-out infinite; }
+.keyring-reward .reward-label { font-size: 15px; font-weight: 800; color: #6f5428; }
+.keyring-reward h3 { font: 700 25px/1.3 'Gaegu', cursive; margin: 6px 0; color: #3c5334; }
+.keyring-reward p { font-size: 16px; line-height: 1.5; margin: 4px 0; }
+.keyring-reward strong { display: block; font-size: 16px; color: #5c642b; margin-top: 6px; }
+@keyframes rewardAppear { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes keyringSway { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+@media (prefers-reduced-motion: reduce) { .keyring-reward, .keyring-reward img { animation: none; } }
 .btns { display: flex; justify-content: flex-end; }
 .btns button { padding: 10px 18px; border-radius: 10px; border: 0; background: var(--accent); color: #fff; font-weight: 800; }
 
