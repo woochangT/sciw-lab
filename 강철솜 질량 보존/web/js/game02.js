@@ -19,7 +19,7 @@
   const nextFrame = (fn) => setTimeout(() => fn(performance.now()), 16);
 
   const S = {
-    stage: 'explore', nose: 3, sessionId: null, classCode: '', studentNo: '',
+    stage: 'explore', nose: 2, sessionId: null, classCode: '', studentNo: '',
     tray: [], cards: Object.assign({}, M.cards), done: {}, firstAnswer: '', firstTag: '',
     claim: null, evidence: [null, null], q: null, errCount: {}, concl: {},
     scope: { mode: 'closed', bonded: { closed: 0, open: 0 }, locked: true },
@@ -51,8 +51,7 @@
 
   /* ───────── 교수 ───────── */
   function expr(level) { return level >= 3 ? 'proud' : level === 2 ? 'skeptical' : level === 1 ? 'surprised' : 'acknowledging'; }
-  // 콧대: 교수의 코가 실제로 길어지고 짧아진다(0이면 그림 그대로). 게이지는 남은 칸 수를 함께 보여 준다.
-  const NOSE_LEN = [0, 6, 18, 32, 46];
+  // 콧대: 미션 01(감자)과 같이 콧대 단계가 교수 그림을 정한다. 3~4 거만, 2 턱 괴기, 1 놀람, 0 웃음.
   // 교수 얼굴 쪽으로 다가갔다가(zoomProf) 돌아온다(zoomOut). 장면 좌표: 교수 그림 왼쪽 위가 (1038, 135).
   async function zoomProf(k) {
     if (reduced) return;
@@ -69,10 +68,10 @@
     await sleep(750);
     $('#stage').classList.remove('zooming');
   }
-  function setNose(level, face) {
+  function setNose(level) {
     const prev = S.nose;
     S.nose = Math.max(0, Math.min(4, level));
-    $('#prof').dataset.expression = face || expr(S.nose);
+    $('#prof').dataset.expression = expr(S.nose);
     const meter = $('#noseMeter');
     $$('#noseMeter i').forEach((el, i) => {
       const was = el.classList.contains('on'); const on = i < S.nose;
@@ -80,7 +79,6 @@
       if (was && !on) { el.classList.remove('snap'); void el.offsetWidth; el.classList.add('snap'); }
     });
     $('#noseValue').textContent = `${S.nose} / 4`;
-    $('#noseExt').style.setProperty('--len', NOSE_LEN[S.nose] + 'px');
     meter.setAttribute('aria-valuenow', S.nose);
     meter.setAttribute('aria-valuetext', `콧대 ${S.nose}칸 남음`);
     if (S.nose !== prev) {
@@ -107,7 +105,6 @@
       bubble.classList.toggle('has-more', more);
       if (more) await waitTap();
     }
-    if (opts.face) $('#prof').dataset.expression = opts.face;
     placeReply();
   }
   // 답장 카드는 교수 얼굴을 가리지 않게 교수 아래 책상 쪽에 둔다 (위치는 CSS의 bottom)
@@ -702,7 +699,7 @@
     setNote('강철솜이 스스로 무거워질까?');
     // 교수 얼굴로 다가가 콧대가 솟는 것을 보여 준 뒤 반박을 건다
     await zoomProf(2.2);
-    setNose(4, 'proud');
+    setNose(4);
     await sleep(reduced ? 200 : 1200);
     await zoomOut();
     await say(M.lines.rebuttal);
@@ -1054,7 +1051,6 @@
     const tries = S.debate && S.debate.i === i ? S.debate.tries : 0;
     S.debate = { i, tries };
     setNote('틀린 말에 단서 대기');
-    $('#prof').dataset.expression = 'skeptical'; // 턱을 괴고 추측하는 얼굴
     const bubble = $('#bubble');
     sayToken++;
     bubble.classList.add('show', 'debate');
@@ -1078,7 +1074,6 @@
     if (!ok) {
       if (weakEl) { weakEl.classList.remove('shake'); void weakEl.offsetWidth; weakEl.classList.add('shake'); }
       const back = line.trueLine || (R.cardLines && R.cardLines[cardId]) || M.lines.debateMiss;
-      $('#prof').dataset.expression = 'skeptical';
       await say(back);
       await sleep(reduced ? 200 : 1400);
       if (S.debate) debate(S.debate.i);
@@ -1093,7 +1088,6 @@
     blinkOnce($('#stage'));
     updateSession({ ['debate' + (i + 1) + 'Tries']: tries });
     await sleep(reduced ? 100 : 700);
-    $('#prof').dataset.expression = 'surprised';
     await say(line.hit || R.hit);
     whyReply(i);
   }
@@ -1130,19 +1124,17 @@
     let line = L[diag] || L.miss;
     if (n >= 3) line = line.concat([M.lines.stuck[qid]]);
     else if (n >= 2) line = line.concat([M.lines.retry[qid]]);
-    $('#prof').dataset.expression = 'skeptical';
     await say(line);
   }
 
-  // 반박을 통과하면 교수 얼굴로 다가가, 표정이 일그러지며 코가 줄어드는 것을 보여 준다
+  // 반박을 통과하면 콧대가 한 칸 꺾인다. 교수 그림이 바뀌는 단계면 얼굴로 다가가 보여 준다.
   async function passQuest(conclId) {
-    await zoomProf(1.7);
-    setNose(S.nose - 1, 'skeptical');
-    await sleep(reduced ? 200 : 1100);
-    await zoomOut();
+    const changes = expr(S.nose - 1) !== expr(S.nose);
+    if (changes) await zoomProf(1.7);
+    setNose(S.nose - 1);
+    if (changes) { await sleep(reduced ? 200 : 1100); await zoomOut(); }
     await say(M.lines.pass);
     addCard(conclId, $('#reply'));
-    setNose(S.nose);
     // 인정하는 한마디를 읽을 수 있게 탭할 때까지 둔다
     $('#bubble').classList.add('has-more');
     await waitTap();
@@ -1420,7 +1412,6 @@
     if (r.pass) { finish('full', text, r); return; }
     if (S.submits >= 3) { finish('partial', text, r); return; }
     const line = M.finalLines[r.ask] || M.lines.unclear;
-    $('#prof').dataset.expression = 'skeptical';
     // 반박을 받으면 강의 노트가 열린다(1단계). 1단계를 열고도 다시 반박받으면 2단계.
     // 노트 이야기를 먼저 하고, 교수의 질문이 말풍선에 남게 한다.
     if (S.hint === 0) { await unlockHint('첫 제출 반박', line, lead); return; }
@@ -1474,7 +1465,7 @@
     if (type === 'full') {
       (async () => {
         await zoomProf(2);
-        setNose(0, 'surprised');
+        setNose(0);
         await sleep(reduced ? 200 : 1400);
         $('#clearScreen').hidden = false;
         zoomOut();
@@ -1503,7 +1494,7 @@
     buildBench();
     renderSmallBoard();
     renderTray();
-    setNose(3);
+    setNose(2);
     fit();
     setStage('explore');
     setNote('두 강철솜 태우기');
