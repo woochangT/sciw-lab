@@ -120,7 +120,7 @@
     // AI 장애를 오답/null로 바꾸지 않는다. 기록 주소에는 판정 요청을 보내지 않는다.
     async judge(payload, timeoutMs = cfg.LLM_TIMEOUT_MS || 65000) {
       const fail = (code) => Object.assign(new Error(code), { code });
-      if (!cfg.USE_LLM || !JUDGE_URL) throw fail('JUDGE_NOT_CONFIGURED');
+      if (!JUDGE_URL) throw fail('JUDGE_NOT_CONFIGURED');
       const input = window.SCIW_RUBRIC02.prepare(payload);
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), timeoutMs);

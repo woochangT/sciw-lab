@@ -36,7 +36,7 @@ function snapshot() {
     const file = path.join(DST, mission, 'web/js/config.js');
     let cfg = fs.readFileSync(file, 'utf8').replace(/\bAPI_URL:\s*'[^']*'/g, "API_URL: ''");
     if (mission === '강철솜 질량 보존') {
-      cfg += "\nObject.assign(window.SCIW_CONFIG, { API_URL: '', USE_LLM: true, JUDGE_API_URL: '/api/m02/judge', LLM_TIMEOUT_MS: 65000 });\n";
+      cfg += "\nObject.assign(window.SCIW_CONFIG, { API_URL: '', JUDGE_API_URL: '/api/m02/judge', LLM_TIMEOUT_MS: 65000 });\n";
     }
     fs.writeFileSync(file, cfg);
   }
