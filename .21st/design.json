@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "project": {
+    "name": "서술 실험실",
+    "productType": "Science reasoning game and teacher evidence dashboard",
+    "stack": [
+      "HTML",
+      "CSS",
+      "vanilla JavaScript",
+      "SVG"
+    ]
+  },
+  "sources": {
+    "tokens": [
+      "teacher/style.css",
+      "ui/intro.css"
+    ],
+    "components": [
+      "teacher/model.js",
+      "teacher/app.js"
+    ],
+    "assets": [],
+    "instructions": []
+  },
+  "design": {
+    "colorMode": "light",
+    "colors": {
+      "ink": "#203f33",
+      "forest": "#183e32",
+      "paper": "#f5f6ef",
+      "lime": "#d7edb4",
+      "muted": "#7c8779"
+    },
+    "typography": {
+      "sans": "Pretendard, system-ui",
+      "mono": "ui-monospace"
+    },
+    "spacing": {},
+    "radius": {},
+    "shadows": {},
+    "motion": {
+      "charts": "staggered grow, 900ms ease-out",
+      "dialog": "300ms slide",
+      "accessibility": "prefers-reduced-motion"
+    },
+    "density": "comfortable compact"
+  },
+  "components": {
+    "installed": [],
+    "preferredPrimitives": [],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [
+      "m02-only teacher views",
+      "Explicit demo data",
+      "No ability scores or ranks",
+      "False and unobserved must differ",
+      "Keep private source files out of repository"
+    ],
+    "avoid": [
+      "Framework migration",
+      "Automatic teacher prescriptions",
+      "Student data in design-service requests"
+    ]
+  },
+  "decisions": [
+    {
+      "date": "2026-11-01",
+      "decision": "Forest-green laboratory identity, warm paper, olive chart bars, restrained copper accents; explicit user request for intuitive visualization and animation."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "Adapt 21st Bar Chart (28571) grow/stagger/grid behavior in native CSS; inspect Radar Chart (29837) but do not introduce a proficiency radar."
+    }
+  ],
+  "evidence": [],
+  "generatedAt": "2026-11-01T08:16:41.063Z"
+}
