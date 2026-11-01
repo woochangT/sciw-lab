@@ -7,17 +7,19 @@
       "HTML",
       "CSS",
       "vanilla JavaScript",
-      "SVG"
+      "Python local read-only sheet bridge"
     ]
   },
   "sources": {
     "tokens": [
-      "teacher/style.css",
-      "index.html"
+      "index.html",
+      "intro/enhancements.css",
+      "teacher/style.css"
     ],
     "components": [
+      "teacher/app.js",
       "teacher/model.js",
-      "teacher/app.js"
+      "scripts/local_server.py"
     ],
     "assets": [
       "intro/lab-room.webp",
@@ -29,16 +31,18 @@
   "design": {
     "colorMode": "mixed",
     "colors": {
-      "ink": "#203f33",
-      "forest": "#183e32",
-      "paper": "#f5f6ef",
-      "lime": "#d7edb4",
-      "muted": "#7c8779"
+      "ink": "#2b2a28",
+      "board": "#2f5446",
+      "boardDeep": "#1f3a30",
+      "wood": "#8a6a45",
+      "chalk": "#f6f3ea",
+      "paper": "#fffdf8",
+      "brass": "#c99a3e"
     },
     "typography": {
       "sans": "Pretendard, system-ui",
       "mono": "ui-monospace",
-      "display": "Gaegu (upstream intro)"
+      "display": "Gaegu"
     },
     "spacing": {},
     "radius": {},
@@ -62,7 +66,10 @@
       "No ability scores or ranks",
       "False and unobserved must differ",
       "Keep private source files out of repository",
-      "Use the current main intro and mission start screens as the baseline; preserve teammate design and both mission entry points"
+      "Preserve Woochang main intro layout, background, two silhouette mission cards; apply additive motion and teacher-link improvements only",
+      "Teacher first screen: participation, final-answer present, final-answer absent; plain Korean labels and visible answer actions",
+      "Default to live connected sheet; never silently replace failed live reads with demo data",
+      "Separate test data from real classroom counts; QA remains excluded"
     ],
     "avoid": [
       "Framework migration",
@@ -82,6 +89,10 @@
     {
       "date": "2026-11-01",
       "decision": "User correction: start from woochangT main merge d4ae232 (PR #4). Restore its intro, mission selector assets and mission 02 start screen exactly. Retain only teacher dashboard improvements on that baseline."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "User found the analytics UI unclear. Replace sidebar charts/codes with a lab chalkboard and pinned action notes, 3-step navigation, raw answer comparison, collapsed event details. Connect the existing link-readable sheet through a loopback-only read server."
     }
   ],
   "evidence": [],

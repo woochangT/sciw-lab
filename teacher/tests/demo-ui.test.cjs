@@ -37,3 +37,9 @@ test('synthetic classroom exposes 24 unique students and 20 first final submissi
 });
 
 test('a conflicting normalized number is held for review rather than assigned to a different student',()=>{const a=M.analyze({sessions:[session('x','2',{studentNoNormalized:'3'})],attempts:[]},'A');assert.equal(a.stats.N,0);assert.equal(a.review.length,1)});
+
+test('sheet test mode is explicit and still cannot include automated QA in class counts',()=>{
+ const db={sessions:[session('sample','2',{classCode:'test'}),session('qa_auto','3',{classCode:'test'})],attempts:[]};
+ assert.equal(M.analyze(db,'test').stats.N,0);
+ assert.equal(M.analyze(db,'test','latest',{includeTests:true}).stats.N,1);
+});

@@ -1,0 +1,73 @@
+import csv
+import io
+import json
+import unittest
+from local_server import HEADERS, parse_records, catalog
+
+def make_row(kind, record, id=None):
+    return [kind,id or record.get('attemptId',record.get('sessionId')),record.get('sessionId'),record.get('classCode'),record.get('studentNo'),'m02','','',json.dumps(record)]
+
+def csv_text(rows):
+    out=io.StringIO(); writer=csv.writer(out);writer.writerow(HEADERS);writer.writerows(rows);return out.getvalue()
+
+class SheetParsingTests(unittest.TestCase):
+    def test_multiline_answers_remain_original_and_json_fields_are_decoded(self):
+        record={'sessionId':'s','classCode':'A','studentNo':'02','missionId':'m02','finalAnswer':'산소가 들어왔다.\n질량이 늘었다.','finalJudgment':'{"C":true}'}
+        data=parse_records(csv_text([make_row('session',record)]))
+        self.assertEqual(data['sessions'][0]['finalAnswer'],record['finalAnswer'])
+        self.assertTrue(data['sessions'][0]['finalJudgment']['C'])
+    def test_catalog_separates_test_classes_and_never_lists_automated_qa(self):
+        records=[{'sessionId':'s','classCode':'A','studentNo':'02'},{'sessionId':'t','classCode':'A','studentNo':'2'},{'sessionId':'z','classCode':'test','studentNo':'1'},{'sessionId':'qa_run','classCode':'A','studentNo':'9'},{'sessionId':'qa2','classCode':'QA_RUN','studentNo':'1'}]
+        data={'sessions':records,'fetchedAt':'now','sheetUrl':'url','invalidRows':0}
+        groups=catalog(data)['classes']
+        self.assertEqual(len(groups),2)
+        self.assertEqual(groups[0],{'classCode':'A','isTest':False,'plays':2,'numbers':1})
+        self.assertTrue(groups[1]['isTest'])
+    def test_invalid_rows_are_not_misattributed_to_another_class(self):
+        s={'sessionId':'s','classCode':'A','studentNo':'1','missionId':'m02'}
+        row=make_row('session',s);row[3]='B'
+        data=parse_records(csv_text([row]))
+        self.assertEqual(data['sessions'],[])
+        self.assertEqual(data['invalidRows'],1)
+    def test_unknown_sheet_schema_is_rejected(self):
+        with self.assertRaises(ValueError):parse_records('A,B\n1,2')
+    def test_duplicate_record_ids_do_not_multiply_students(self):
+        s={'sessionId':'s','classCode':'A','studentNo':'1','missionId':'m02'}
+        data=parse_records(csv_text([make_row('session',s),make_row('session',s)]))
+        self.assertEqual(len(data['sessions']),1)
+        self.assertEqual(data['invalidRows'],1)
+
+
+class LocalEndpointTests(unittest.TestCase):
+    def setUp(self):
+        import threading
+        from functools import partial
+        from http.server import ThreadingHTTPServer
+        from local_server import Handler
+        class Reader:
+            def read(self, refresh=False):
+                sessions=[{'sessionId':'a','classCode':'A','studentNo':'1'},{'sessionId':'b','classCode':'B','studentNo':'2'},{'sessionId':'test-play','classCode':'test','studentNo':'2'},{'sessionId':'qa_auto','classCode':'test','studentNo':'9'}]
+                return {'sessions':sessions,'attempts':[{'attemptId':'aa','sessionId':'a'},{'attemptId':'bb','sessionId':'b'}],'invalidRows':0,'fetchedAt':'now','sheetUrl':'url'}
+        self.server=ThreadingHTTPServer(('127.0.0.1',0),partial(Handler,reader=Reader()))
+        self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start()
+        self.base='http://127.0.0.1:'+str(self.server.server_port)
+    def tearDown(self):
+        self.server.shutdown();self.server.server_close();self.thread.join()
+    def request(self,path,**kwargs):
+        import urllib.request
+        with urllib.request.urlopen(urllib.request.Request(self.base+path,**kwargs)) as r:return json.load(r)
+    def test_class_queries_never_return_another_class_or_its_attempts(self):
+        value=self.request('/api/sheet/class?classCode=A')
+        self.assertEqual([s['sessionId'] for s in value['sessions']],['a'])
+        self.assertEqual([a['attemptId'] for a in value['attempts']],['aa'])
+    def test_test_records_require_explicit_mode_and_qa_never_appears(self):
+        self.assertEqual(self.request('/api/sheet/class?classCode=test')['sessions'],[])
+        value=self.request('/api/sheet/class?classCode=test&includeTests=1')
+        self.assertEqual([s['sessionId'] for s in value['sessions']],['test-play'])
+    def test_other_web_origins_cannot_read_the_local_bridge(self):
+        import urllib.error
+        with self.assertRaises(urllib.error.HTTPError) as caught:self.request('/api/sheet/classes',headers={'Origin':'https://example.invalid'})
+        self.assertEqual(caught.exception.code,403)
+        caught.exception.close()
+
+if __name__=='__main__':unittest.main()

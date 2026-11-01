@@ -1,7 +1,9 @@
-# 서술 실험실 design context
+# Current design: 선생님의 수업 기록장
 
-Static HTML/CSS/JavaScript. Forest-green ink, warm paper, olive marks and copper accents. Typography: Pretendard with system fallback. The intro uses the main-branch laboratory background and two silhouette keyring mission cards; the teacher dashboard presents observed evidence, raw answers and teacher-written questions, never inferred ability scores. Motion respects reduced-motion preferences.
+Keep the main d4ae232 / PR #4 intro: laboratory background, framed chalk sign, potato/steel-wool silhouette keyrings and two mission entries. Add only subtle entry/sway motion and a teacher-recordbook link. Student mission starts remain the upstream version.
 
-21st references: Bar Chart by arihantcodes_1f7b8c4d (demo 28571), Radar Chart by the same author (29837). Bar growth, stagger and hover emphasis were adapted for the native static stack; the radar was not used because the product does not define ability scores. Cinematic Orbit Hero (32357) was metadata-only; code retrieval was unavailable after the free quota. No hosted generation or private PRD upload was used.
+The teacher page uses that same lab background, wood-framed chalkboard, Gaegu display writing and warm pinned notes. Its default is the real connected Google Sheet. Primary actions use plain Korean: see class participation, read student answers, leave teaching notes. Participation/answer-present/answer-absent are clickable filters. Put raw first/final answers before event and keyword judgment details. Keep test data and automated QA separate from classroom figures.
 
-User correction (2026-11-01): the intro and mission 02 start screen must use upstream main d4ae232 / PR #4 exactly. The independent flask landing and entry overrides were removed. Teacher dashboard additions remain separate.
+21st references: inspected Bar Chart (28571) and Radar Chart (29837) earlier; the radar was not used. Current simplification was grounded in Onboarding Checklist search results 5587, 26526, 29442 (metadata only) to make the next action explicit. No additional component code retrieval, hosted generation or private data upload was used.
+
+Colors match the main intro: ink #2b2a28, board #2f5446/#1f3a30, wood #8a6a45, chalk #f6f3ea, paper #fffdf8, brass #c99a3e. Motion: small keyring sway, paper entrance and dialog entrance; reduced-motion disables each.

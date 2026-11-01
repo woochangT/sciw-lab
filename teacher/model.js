@@ -18,7 +18,7 @@
   function observed(data,s,stage){return s.stage===stage||attemptsFor(data,s.sessionId).some(a=>a.stage===stage||(a.eventCode||'').startsWith('m02.'+stage+'.'))}
   function evidence(data,s,stage){const as=attemptsFor(data,s.sessionId).filter(a=>a.stage===stage||(a.eventCode||'').startsWith('m02.'+stage+'.'));if(as.some(a=>a.eventStatus==='opened')&&!as.some(a=>a.input||a.choice||a.eventStatus&&a.eventStatus!=='opened'))return '기회 제시';if(as.length)return '행동 기록';if(s.stage===stage)return '기회 제시';return '미관찰'}
   function analyze(db,classCode,mode='first',options={}){
-    const scoped=select(db,classCode,'m02'), unique=new Map();scoped.sessions.forEach(s=>{if(!test(s))unique.set(s.sessionId,s)});
+    const scoped=select(db,classCode,'m02'), unique=new Map();scoped.sessions.forEach(s=>{if(!test(s)||(options.includeTests&&!/^QA_/i.test(String(s.classCode||''))&&!/^qa_/i.test(String(s.sessionId||''))))unique.set(s.sessionId,s)});
     const review=[...unique.values()].filter(s=>!number(s)), sessions=[...unique.values()].filter(s=>number(s));
     const ids=new Set(sessions.map(s=>s.sessionId)), attempts=[...new Map(scoped.attempts.filter(a=>ids.has(a.sessionId)).map(a=>[a.attemptId,a])).values()];
     const data={sessions,attempts},groups=new Map();ordered(sessions).forEach(s=>{const key=number(s);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(s)});
