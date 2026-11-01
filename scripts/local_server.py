@@ -21,6 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SHEET_ID = '1oA71tk0hqCXC0ImV3c5MZq938hZFKcj2XkJnB3XNnAU'
+MISSIONS = {'m01':{'name':'감자 삼투','gid':'807310001'}, 'm02':{'name':'강철솜 질량 보존','gid':'807310002'}}
 SHEET_URL = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit#gid=807310002'
 HEADERS = ['recordType','recordId','sessionId','classCode','studentNo','missionId','createdAt','updatedAt','payload']
 SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxS7kGYURyYRhRZHWZZw0B0sChUE5UAFP3TqUhxLcAMDty_1OGk0OrxVQzKv2RdhCG4/exec'
@@ -35,10 +36,10 @@ def automated(record):
 def test_record(record):
     return flag(record.get('isTest')) or bool(re.match(r'^TEST', str(record.get('classCode','')), re.I)) or bool(re.match(r'^TEST', str(record.get('studentNo','')), re.I))
 
-def parse_records(text):
+def parse_records(text, mission_id='m02'):
     reader = csv.DictReader(io.StringIO(text))
     if reader.fieldnames != HEADERS:
-        raise ValueError('강철솜 탭의 제목 행을 확인해 주세요. 기존 9개 열이 필요합니다.')
+        raise ValueError('미션 탭의 제목 행을 확인해 주세요. 기존 9개 열이 필요합니다.')
     sessions, attempts, seen, invalid = [], [], set(), 0
     for row in reader:
         if not row.get('recordId'):
@@ -51,8 +52,9 @@ def parse_records(text):
             record = json.loads(row['payload'])
             if not isinstance(record, dict):
                 raise ValueError()
-            if record.get('missionId', row['missionId']) != 'm02':
-                continue
+            if row['missionId'] != mission_id or record.get('missionId', row['missionId']) != mission_id:
+                raise ValueError('미션 탭과 기록이 일치하지 않습니다.')
+            record['missionId'] = mission_id
             key = (kind, row['recordId'])
             if key in seen:
                 raise ValueError('동일 ID의 기록이 둘 이상입니다.')
@@ -79,41 +81,64 @@ class SheetReader:
         with self.lock:
             if not refresh and self.cached and time.monotonic()-self.loaded_at < 12:
                 return self.cached
-            query = urllib.parse.urlencode({'tqx':'out:csv','headers':'1','gid':'807310002','range':'A1:I10000'})
-            request = urllib.request.Request(f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?{query}', headers={'User-Agent':'SciwLab-LocalPreview/1.0'})
-            try:
-                with urllib.request.urlopen(request, timeout=20) as response:
-                    if 'text/csv' not in response.headers.get('Content-Type',''):
-                        raise ValueError('시트 접근 권한을 확인해 주세요. 로그인 응답이 반환됐습니다.')
-                    text = response.read(8_000_001)
-                    if len(text)>8_000_000:
-                        raise ValueError('기록이 너무 많아 조회를 멈췄습니다.')
-                data = parse_records(text.decode('utf-8-sig'))
-            except (OSError, ValueError) as exc:
-                raise ValueError('Google 시트에서 기록을 읽지 못했습니다. 연결 또는 시트 공유 상태를 확인해 주세요.') from exc
+            data={'sessions':[], 'attempts':[], 'invalidRows':0}
+            for mission_id, mission in MISSIONS.items():
+                query = urllib.parse.urlencode({'tqx':'out:csv','headers':'1','gid':mission['gid'],'range':'A:I'})
+                request = urllib.request.Request(f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?{query}', headers={'User-Agent':'SciwLab-LocalPreview/2.0'})
+                try:
+                    with urllib.request.urlopen(request, timeout=20) as response:
+                        if 'text/csv' not in response.headers.get('Content-Type',''):
+                            raise ValueError('시트 접근 권한을 확인해 주세요.')
+                        text=response.read(8_000_001)
+                        if len(text)>8_000_000:raise ValueError('기록이 너무 많습니다.')
+                    part=parse_records(text.decode('utf-8-sig'),mission_id)
+                    data['sessions'].extend(part['sessions']);data['attempts'].extend(part['attempts']);data['invalidRows']+=part['invalidRows']
+                except (OSError,ValueError) as exc:
+                    raise ValueError(mission['name']+' 시트에서 기록을 읽지 못했습니다. 연결 또는 공유 상태를 확인해 주세요.') from exc
             data['fetchedAt'] = dt.datetime.now(dt.timezone.utc).isoformat()
             data['sheetUrl'] = SHEET_URL
             self.cached = data
             self.loaded_at = time.monotonic()
             return data
 
+def class_identity(code):
+    # Only explicit grade/class forms are interpreted. Never invent a grade for test/A/etc.
+    match=re.fullmatch(r'\s*(\d{1,2})\s*(?:학년|[-_/])\s*(\d{1,3})\s*반?\s*',code)
+    if match and 1<=int(match[1])<=12 and 1<=int(match[2])<=99:
+        grade,room=map(int,match.groups())
+        return {'classKey':f'g:{grade}:r:{room}','grade':grade,'classNo':room,'label':f'{grade}학년 {room}반'}
+    return {'classKey':'code:'+code,'grade':None,'classNo':None,'label':code}
+
+def natural_key(value):
+    return [(0,int(p)) if p.isdigit() else (1,p.casefold()) for p in re.split(r'(\d+)',value)]
+
 def catalog(data):
-    groups = {}
+    groups={}
     for session in data['sessions']:
-        if automated(session):
-            continue
-        name = str(session.get('classCode',''))
-        if not name.strip():
-            continue
-        key = (name, test_record(session))
-        group = groups.setdefault(key, {'classCode':name,'isTest':key[1],'plays':0,'numbers':set()})
-        group['plays'] += 1
-        number = str(session.get('studentNoNormalized') or session.get('studentNo','')).strip()
-        if number.isdecimal() and int(number)>0:
-            group['numbers'].add(str(int(number)))
-    classes = [{**g,'numbers':len(g['numbers'])} for g in groups.values()]
-    classes.sort(key=lambda g:(g['isTest'],g['classCode']))
+        if automated(session):continue
+        name=str(session.get('classCode',''))
+        if not name.strip():continue
+        identity=class_identity(name);key=(identity['classKey'],test_record(session))
+        group=groups.setdefault(key,{**identity,'classCode':name,'classCodes':set(),'isTest':key[1],'plays':0,'numbers':set(),'byMission':{}})
+        group['classCodes'].add(name);group['plays']+=1
+        mission=session.get('missionId','m02')
+        stat=group['byMission'].setdefault(mission,{'plays':0,'numbers':set()});stat['plays']+=1
+        number=str(session.get('studentNo','')).strip()
+        declared=str(session.get('studentNoNormalized') or number).strip()
+        if re.fullmatch(r'\d{1,6}',number) and int(number)>0 and declared.isdecimal() and int(declared)==int(number):
+            group['numbers'].add(str(int(number)));stat['numbers'].add(str(int(number)))
+    classes=[]
+    for group in groups.values():
+        classes.append({**group,'numbers':len(group['numbers']),'classCodes':sorted(group['classCodes'],key=natural_key),'byMission':{m:{**v,'numbers':len(v['numbers'])} for m,v in group['byMission'].items()}})
+    classes.sort(key=lambda g:(g['isTest'],g['grade'] is None,g['grade'] or 0,g['classNo'] or 0,natural_key(g['label'])))
     return {'ok':True,'classes':classes,'fetchedAt':data['fetchedAt'],'sheetUrl':data['sheetUrl'],'invalidRows':data['invalidRows']}
+
+def class_scope(data, name, class_key, include, mission):
+    group=next((c for c in catalog(data)['classes'] if c['classKey']==class_key and c['isTest']==include),None) if class_key else None
+    codes=group['classCodes'] if group else ([name] if not class_key and name else [])
+    sessions=[s for s in data['sessions'] if str(s.get('classCode','')) in codes and s.get('missionId','m02')==mission and not automated(s) and (test_record(s) if include else not test_record(s))]
+    ids={s.get('sessionId') for s in sessions}
+    return {**data,'sessions':sessions,'attempts':[a for a in data['attempts'] if a.get('sessionId') in ids and a.get('missionId',mission)==mission and ('classCode' not in a or str(a['classCode']) in codes)], 'classCodes':codes,'classKey':class_key or (class_identity(name)['classKey'] if name else ''),'classLabel':group['label'] if group else name,'missionId':mission,'isTest':include,'sheetUrl':f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit#gid={MISSIONS[mission]["gid"]}'}
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, reader, **kwargs):
@@ -148,17 +173,21 @@ class Handler(SimpleHTTPRequestHandler):
             body=json.loads(self.rfile.read(size))
             if not isinstance(body,dict):
                 raise ValueError('잘못된 분석 요청입니다.')
-            name=body.get('classCode')
+            name=body.get('classCode','')
+            class_key=body.get('classKey','')
+            mission=body.get('missionId','m02')
+            regenerate=body.get('regenerate',False)
             mode=body.get('mode','latest')
             include=body.get('includeTests',False)
-            if not isinstance(name,str) or not name or len(name)>20 or mode not in ('first','latest') or not isinstance(include,bool):
+            if not isinstance(name,str) or len(name)>20 or not isinstance(class_key,str) or len(class_key)>100 or not (name or class_key) or mission not in MISSIONS or mode not in ('first','latest') or not isinstance(include,bool) or not isinstance(regenerate,bool):
                 raise ValueError('반과 분석할 판을 확인해 주세요.')
             data=self.reader.read(True)
             # Recompute from the sheet. Never trust browser-supplied answers/counts.
-            evidence=build_evidence(data,name,mode,include)
+            scoped=class_scope(data,name,class_key,include,mission)
+            evidence=build_evidence(scoped,name,mode,include,mission)
             if not evidence['participants']:
                 raise ValueError('분석할 참여 기록이 없습니다.')
-            request=urllib.request.Request(SCRIPT_URL,data=json.dumps({'action':'analyzeClass','evidence':evidence},ensure_ascii=False).encode(),headers={'Content-Type':'text/plain;charset=utf-8'})
+            request=urllib.request.Request(SCRIPT_URL,data=json.dumps({'action':'analyzeClass','evidence':evidence,'regenerate':regenerate},ensure_ascii=False).encode(),headers={'Content-Type':'text/plain;charset=utf-8'})
             with urllib.request.urlopen(request,timeout=115) as response:
                 raw=response.read(150001)
                 if len(raw)>150000:
@@ -166,7 +195,7 @@ class Handler(SimpleHTTPRequestHandler):
                 value=json.loads(raw)
             if not value.get('ok'):
                 raise ValueError(value.get('error','OpenAI 분석을 완료하지 못했습니다.'))
-            self.json({'ok':True,'analysis':value['analysis'],'basis':{k:v for k,v in evidence.items() if k!='samples'},'fetchedAt':data['fetchedAt'],'classCode':name})
+            self.json({'ok':True,'analysis':value['analysis'],'basis':evidence,'fetchedAt':data['fetchedAt'],'classCode':name,'classKey':scoped['classKey'],'missionId':mission})
         except (ValueError,KeyError,TypeError) as exc:
             self.json({'ok':False,'error':str(exc)},400)
         except (OSError,subprocess.SubprocessError):
@@ -187,13 +216,13 @@ class Handler(SimpleHTTPRequestHandler):
                     self.json(catalog(data))
                     return
                 name=query.get('classCode',[''])[0]
-                if not name or len(name)>20:
+                class_key=query.get('classKey',[''])[0]
+                mission=query.get('missionId',['m02'])[0]
+                if len(name)>20 or len(class_key)>100 or not (name or class_key) or mission not in MISSIONS:
                     self.json({'ok':False,'error':'반을 선택해 주세요.'},400)
                     return
                 include=query.get('includeTests')==['1']
-                sessions=[s for s in data['sessions'] if str(s.get('classCode',''))==name and not automated(s) and (test_record(s) if include else not test_record(s))]
-                ids={s.get('sessionId') for s in sessions}
-                self.json({'ok':True,'sessions':sessions,'attempts':[a for a in data['attempts'] if a.get('sessionId') in ids], 'fetchedAt':data['fetchedAt'],'sheetUrl':data['sheetUrl'],'isTest':bool(sessions) and all(test_record(s) for s in sessions)})
+                self.json({'ok':True,**class_scope(data,name,class_key,include,mission)})
             except ValueError as exc:
                 self.json({'ok':False,'error':str(exc)},502)
             return
@@ -219,8 +248,8 @@ def main():
     print(f'Sciw Lab + sheet connection: http://127.0.0.1:{args.port}',flush=True)
     server.serve_forever()
 
-def build_evidence(data, name, mode, include):
-    result=subprocess.run(['node',str(ROOT/'teacher/analysis-input.cjs')],input=json.dumps({'db':data,'classCode':name,'mode':mode,'includeTests':include},ensure_ascii=False),capture_output=True,text=True,timeout=10,cwd=ROOT)
+def build_evidence(data, name, mode, include, mission='m02'):
+    result=subprocess.run(['node',str(ROOT/'teacher/analysis-input.cjs')],input=json.dumps({'db':data,'classCode':name,'mode':mode,'includeTests':include,'missionId':mission},ensure_ascii=False),capture_output=True,text=True,timeout=10,cwd=ROOT)
     if result.returncode:
         raise ValueError('분석 자료를 구성하지 못했습니다.')
     return json.loads(result.stdout)

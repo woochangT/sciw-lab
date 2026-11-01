@@ -12,7 +12,7 @@ test('test plays are explicit, sample cap applies and contact strings are remove
 });
 function backend(options={}){
  let calls=0,lastRequest;const cache=new Map(),props=new Map([['OPENAI-API-KEY','test-only-placeholder']]);
- let response={summary:'테스트 결과',observations:[],questions:[],activities:[],limitations:[]};
+ let response={headline:'확인할 개념',teachingFocus:'학생의 말을 근거로 다음 질문을 선택합니다.',summary:'테스트 결과',observations:[],questions:[],activities:[],limitations:[]};
  const sandbox={PropertiesService:{getScriptProperties:()=>({getProperty:k=>props.get(k),setProperty:(k,v)=>props.set(k,v)})},CacheService:{getScriptCache:()=>({get:k=>cache.get(k),put:(k,v)=>cache.set(k,v),remove:k=>cache.delete(k)})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},Utilities:{DigestAlgorithm:{SHA_256:'sha256'},computeDigest:(_,s)=>[...crypto.createHash('sha256').update(s).digest()]},UrlFetchApp:{fetch:(url,req)=>{calls++;lastRequest=JSON.parse(req.payload);return {getResponseCode:()=>options.http||200,getContentText:()=>JSON.stringify(options.response||{model:'gpt-6-luna',status:'completed',output:[{type:'reasoning'},{type:'message',content:[{type:'output_text',text:JSON.stringify(response)}]}]})}}}};
  vm.createContext(sandbox);vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8'),sandbox);
  return {sandbox,props,cache,get calls(){return calls},get request(){return lastRequest}};
@@ -31,3 +31,6 @@ test('incomplete and refused Responses never become cached teaching suggestions'
   const b=backend({response});assert.throws(()=>b.sandbox.analyzeClass_({evidence:evidence()}),/분석/);assert.equal(b.calls,1);assert.equal(b.cache.size,0);
  }
 });
+
+test('explicit regeneration bypasses cache; ordinary reads reuse it',()=>{const b=backend(),e=evidence();b.sandbox.analyzeClass_({evidence:e});b.sandbox.analyzeClass_({evidence:e});assert.equal(b.calls,1);b.sandbox.analyzeClass_({evidence:e,regenerate:true});assert.equal(b.calls,2)});
+test('games and class aliases remain separate in evidence and prompt',()=>{const db={classCodes:['3-2','3학년 2반'],sessions:[session('steel','1',{classCode:'3-2',finalAnswer:'산소'}),session('potato','2',{classCode:'3학년 2반',missionId:'m01',finalAnswer:'물이 이동'}),session('other','3',{classCode:'3-3',missionId:'m01',finalAnswer:'다른 반'})],attempts:[]};const e=build(db,'','latest',false,'m01');assert.equal(e.participants,1);assert.equal(e.samples[0].final,'물이 이동');const b=backend();b.sandbox.analyzeClass_({evidence:e});assert.match(b.request.instructions,/반투과성/);assert.doesNotMatch(b.request.instructions,/강철솜의 열린 실험/)});

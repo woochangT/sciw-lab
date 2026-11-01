@@ -21,7 +21,7 @@ class SheetParsingTests(unittest.TestCase):
         data={'sessions':records,'fetchedAt':'now','sheetUrl':'url','invalidRows':0}
         groups=catalog(data)['classes']
         self.assertEqual(len(groups),2)
-        self.assertEqual(groups[0],{'classCode':'A','isTest':False,'plays':2,'numbers':1})
+        self.assertEqual({k:groups[0][k] for k in ('classCode','isTest','plays','numbers')},{'classCode':'A','isTest':False,'plays':2,'numbers':1})
         self.assertTrue(groups[1]['isTest'])
     def test_invalid_rows_are_not_misattributed_to_another_class(self):
         s={'sessionId':'s','classCode':'A','studentNo':'1','missionId':'m02'}
@@ -101,3 +101,41 @@ class LocalEndpointTests(unittest.TestCase):
                 self.assertNotIn(key,json.dumps(body))
 
 if __name__=='__main__':unittest.main()
+
+class ClassSelectionTests(unittest.TestCase):
+    def test_grade_room_sort_and_aliases_merge_without_inventing_unknown_grades(self):
+        from local_server import catalog
+        sessions=[{'sessionId':str(i),'classCode':c,'studentNo':'02','missionId':'m02'} for i,c in enumerate(['3-2','1-10','1-2','3학년 2반','A','test'])]
+        data={'sessions':sessions,'attempts':[],'fetchedAt':'now','sheetUrl':'url','invalidRows':0}
+        rows=catalog(data)['classes']
+        self.assertEqual([r['label'] for r in rows],['1학년 2반','1학년 10반','3학년 2반','A','test'])
+        self.assertEqual(rows[2]['classCodes'],['3-2','3학년 2반'])
+        self.assertEqual(rows[2]['numbers'],1)
+        self.assertIsNone(rows[3]['grade'])
+    def test_selected_class_key_isolates_aliases_and_game(self):
+        from local_server import class_scope
+        sessions=[{'sessionId':'a','classCode':'3-2','studentNo':'1','missionId':'m01'},{'sessionId':'b','classCode':'3학년 2반','studentNo':'2','missionId':'m01'},{'sessionId':'c','classCode':'3-2','studentNo':'1','missionId':'m02'},{'sessionId':'d','classCode':'3-3','studentNo':'1','missionId':'m01'}]
+        data={'sessions':sessions,'attempts':[{'sessionId':s['sessionId'],'classCode':s['classCode'],'missionId':s['missionId']} for s in sessions],'fetchedAt':'now','sheetUrl':'url','invalidRows':0}
+        scoped=class_scope(data,'','g:3:r:2',False,'m01')
+        self.assertEqual([s['sessionId'] for s in scoped['sessions']],['a','b'])
+        self.assertEqual([a['sessionId'] for a in scoped['attempts']],['a','b'])
+        self.assertEqual(class_scope(data,'','missing',False,'m01')['sessions'],[])
+
+class MultiMissionReaderTests(unittest.TestCase):
+    def test_reader_loads_both_tabs_and_never_silently_truncates_at_10000_rows(self):
+        from local_server import SheetReader
+        from unittest.mock import patch,MagicMock
+        import urllib.parse
+        requested=[]
+        def read(request,timeout):
+            query=urllib.parse.parse_qs(urllib.parse.urlsplit(request.full_url).query)
+            requested.append(query)
+            mission='m01' if query['gid']==['807310001'] else 'm02'
+            record={'sessionId':mission,'classCode':'3-2','studentNo':'1','missionId':mission}
+            row=make_row('session',record);row[5]=mission
+            response=MagicMock();response.__enter__.return_value=response;response.headers={'Content-Type':'text/csv'};response.read.return_value=csv_text([row]).encode()
+            return response
+        with patch('local_server.urllib.request.urlopen',side_effect=read):data=SheetReader().read()
+        self.assertEqual({s['missionId'] for s in data['sessions']},{'m01','m02'})
+        self.assertEqual(len(requested),2)
+        self.assertTrue(all(q['range']==['A:I'] for q in requested))
