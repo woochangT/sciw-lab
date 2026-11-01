@@ -93,6 +93,10 @@
     {
       "date": "2026-11-01",
       "decision": "User found the analytics UI unclear. Replace sidebar charts/codes with a lab chalkboard and pinned action notes, 3-step navigation, raw answer comparison, collapsed event details. Connect the existing link-readable sheet through a loopback-only read server."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "User requested class-level Sonnet medium comments instead of a prominent manual memo. Put AI observations, classroom questions and short activities in step 3; preserve manual notes in a collapsed optional area."
     }
   ],
   "evidence": [],

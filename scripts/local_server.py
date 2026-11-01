@@ -10,6 +10,7 @@ import datetime as dt
 import io
 import json
 import re
+import subprocess
 import threading
 import time
 import urllib.parse
@@ -22,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SHEET_ID = '1oA71tk0hqCXC0ImV3c5MZq938hZFKcj2XkJnB3XNnAU'
 SHEET_URL = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit#gid=807310002'
 HEADERS = ['recordType','recordId','sessionId','classCode','studentNo','missionId','createdAt','updatedAt','payload']
+SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxS7kGYURyYRhRZHWZZw0B0sChUE5UAFP3TqUhxLcAMDty_1OGk0OrxVQzKv2RdhCG4/exec'
 JSON_FIELDS = ('stageTimes','clueCards','modelCards','questPassed','finalJudgment','errorCounts','hintMax','judgment','extra')
 
 def flag(value):
@@ -131,6 +133,44 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('Content-Length',str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+    def do_POST(self):
+        # AI requests must come from the local UI, not a cross-site form or fetch.
+        if not self.local_request() or self.headers.get('Origin') != 'http://'+self.headers.get('Host',''):
+            self.json({'ok':False,'error':'로컬 수업 화면에서 요청해 주세요.'},403)
+            return
+        if self.path != '/api/sheet/analysis':
+            self.json({'ok':False,'error':'지원하지 않는 요청'},404)
+            return
+        try:
+            size=int(self.headers.get('Content-Length','0'))
+            if size<1 or size>1024 or self.headers.get('Content-Type','').split(';')[0]!='application/json':
+                raise ValueError('잘못된 분석 요청입니다.')
+            body=json.loads(self.rfile.read(size))
+            if not isinstance(body,dict):
+                raise ValueError('잘못된 분석 요청입니다.')
+            name=body.get('classCode')
+            mode=body.get('mode','latest')
+            include=body.get('includeTests',False)
+            if not isinstance(name,str) or not name or len(name)>20 or mode not in ('first','latest') or not isinstance(include,bool):
+                raise ValueError('반과 분석할 판을 확인해 주세요.')
+            data=self.reader.read(True)
+            # Recompute from the sheet. Never trust browser-supplied answers/counts.
+            evidence=build_evidence(data,name,mode,include)
+            if not evidence['participants']:
+                raise ValueError('분석할 참여 기록이 없습니다.')
+            request=urllib.request.Request(SCRIPT_URL,data=json.dumps({'action':'analyzeClass','evidence':evidence},ensure_ascii=False).encode(),headers={'Content-Type':'text/plain;charset=utf-8'})
+            with urllib.request.urlopen(request,timeout=115) as response:
+                raw=response.read(150001)
+                if len(raw)>150000:
+                    raise ValueError('분석 응답이 너무 큽니다.')
+                value=json.loads(raw)
+            if not value.get('ok'):
+                raise ValueError(value.get('error','Claude 분석을 완료하지 못했습니다.'))
+            self.json({'ok':True,'analysis':value['analysis'],'basis':{k:v for k,v in evidence.items() if k!='samples'},'fetchedAt':data['fetchedAt'],'classCode':name})
+        except (ValueError,KeyError,TypeError) as exc:
+            self.json({'ok':False,'error':str(exc)},400)
+        except (OSError,subprocess.SubprocessError):
+            self.json({'ok':False,'error':'Claude 분석 서버에 연결하지 못했습니다. 잠시 후 다시 요청해 주세요.'},502)
     def do_GET(self):
         if not self.local_request():
             self.json({'ok':False,'error':'로컬 미리보기에서만 사용할 수 있습니다.'},403)
@@ -178,6 +218,12 @@ def main():
     server=ThreadingHTTPServer(('127.0.0.1',args.port),partial(Handler,reader=SheetReader()))
     print(f'Sciw Lab + sheet connection: http://127.0.0.1:{args.port}',flush=True)
     server.serve_forever()
+
+def build_evidence(data, name, mode, include):
+    result=subprocess.run(['node',str(ROOT/'teacher/analysis-input.cjs')],input=json.dumps({'db':data,'classCode':name,'mode':mode,'includeTests':include},ensure_ascii=False),capture_output=True,text=True,timeout=10,cwd=ROOT)
+    if result.returncode:
+        raise ValueError('분석 자료를 구성하지 못했습니다.')
+    return json.loads(result.stdout)
 
 if __name__=='__main__':
     main()

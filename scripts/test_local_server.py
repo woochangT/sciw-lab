@@ -47,6 +47,7 @@ class LocalEndpointTests(unittest.TestCase):
         class Reader:
             def read(self, refresh=False):
                 sessions=[{'sessionId':'a','classCode':'A','studentNo':'1'},{'sessionId':'b','classCode':'B','studentNo':'2'},{'sessionId':'test-play','classCode':'test','studentNo':'2'},{'sessionId':'qa_auto','classCode':'test','studentNo':'9'}]
+                for s in sessions:s.update(missionId='m02',firstAnswer='산소와 철의 결합')
                 return {'sessions':sessions,'attempts':[{'attemptId':'aa','sessionId':'a'},{'attemptId':'bb','sessionId':'b'}],'invalidRows':0,'fetchedAt':'now','sheetUrl':'url'}
         self.server=ThreadingHTTPServer(('127.0.0.1',0),partial(Handler,reader=Reader()))
         self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start()
@@ -69,5 +70,34 @@ class LocalEndpointTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as caught:self.request('/api/sheet/classes',headers={'Origin':'https://example.invalid'})
         self.assertEqual(caught.exception.code,403)
         caught.exception.close()
+    def test_analysis_requires_same_origin_and_rejects_untrusted_request_shape(self):
+        import urllib.error
+        for payload,headers,status in [
+            ({'classCode':'A'}, {'Origin':'https://example.invalid','Content-Type':'application/json'},403),
+            ({'classCode':'A'}, {'Content-Type':'application/json'},403),
+            ({'classCode':'A','mode':'all'}, {'Origin':self.base,'Content-Type':'application/json'},400),
+            ({'classCode':'A','includeTests':'false'}, {'Origin':self.base,'Content-Type':'application/json'},400),
+        ]:
+            with self.assertRaises(urllib.error.HTTPError) as caught:
+                self.request('/api/sheet/analysis',data=json.dumps(payload).encode(),headers=headers)
+            self.assertEqual(caught.exception.code,status)
+            caught.exception.close()
+    def test_analysis_rebuilds_only_selected_class_and_passes_no_identifiers_to_script(self):
+        from unittest.mock import patch,MagicMock
+        import http.client
+        upstream=MagicMock()
+        upstream.__enter__.return_value.read.return_value=json.dumps({'ok':True,'analysis':{'model':'claude-sonnet-5-5','effort':'medium','result':{'summary':'합성 테스트 응답'}}}).encode()
+        with patch('local_server.urllib.request.urlopen',return_value=upstream) as fetch:
+            connection=http.client.HTTPConnection('127.0.0.1',self.server.server_port)
+            connection.request('POST','/api/sheet/analysis',json.dumps({'classCode':'A','mode':'latest','evidence':{'participants':999}}),{'Origin':self.base,'Content-Type':'application/json'})
+            response=connection.getresponse();value=json.loads(response.read());connection.close()
+            self.assertEqual(response.status,200)
+            self.assertEqual(value['basis']['participants'],1)
+            self.assertEqual(value['classCode'],'A')
+            body=json.loads(fetch.call_args.args[0].data)
+            self.assertEqual(body['action'],'analyzeClass')
+            self.assertEqual(body['evidence']['participants'],1)
+            for key in ('sessionId','classCode','studentNo'):
+                self.assertNotIn(key,json.dumps(body))
 
 if __name__=='__main__':unittest.main()
