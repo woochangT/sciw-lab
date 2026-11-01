@@ -86,7 +86,7 @@ class LocalEndpointTests(unittest.TestCase):
         from unittest.mock import patch,MagicMock
         import http.client
         upstream=MagicMock()
-        upstream.__enter__.return_value.read.return_value=json.dumps({'ok':True,'analysis':{'model':'claude-sonnet-5-5','effort':'medium','result':{'summary':'합성 테스트 응답'}}}).encode()
+        upstream.__enter__.return_value.read.return_value=json.dumps({'ok':True,'analysis':{'model':'gpt-6-luna','effort':'medium','result':{'summary':'합성 테스트 응답'}}}).encode()
         with patch('local_server.urllib.request.urlopen',return_value=upstream) as fetch:
             connection=http.client.HTTPConnection('127.0.0.1',self.server.server_port)
             connection.request('POST','/api/sheet/analysis',json.dumps({'classCode':'A','mode':'latest','evidence':{'participants':999}}),{'Origin':self.base,'Content-Type':'application/json'})

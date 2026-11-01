@@ -9,3 +9,5 @@ The teacher page uses that same lab background, wood-framed chalkboard, Gaegu di
 Colors match the main intro: ink #2b2a28, board #2f5446/#1f3a30, wood #8a6a45, chalk #f6f3ea, paper #fffdf8, brass #c99a3e. Motion: small keyring sway, paper entrance and dialog entrance; reduced-motion disables each.
 
 2026-11-01 follow-up: replace the third manual-note step with an AI teaching assistant. Reuse the existing paper/board primitives; show observation plus evidence/alternative, ready-to-say questions and optional short activities. Manual plans remain collapsed underneath. Claude analysis runs only on demand; keep test/limited-record caveats visible and do not fabricate a result when no API key is configured.
+
+2026-11-01 model correction: user selected GPT-6 Luna medium using the existing OpenAI key. Update the teacher badge and transmission copy to OpenAI; keep all class-scoped teaching UI unchanged.

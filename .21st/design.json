@@ -97,6 +97,10 @@
     {
       "date": "2026-11-01",
       "decision": "User requested class-level Sonnet medium comments instead of a prominent manual memo. Put AI observations, classroom questions and short activities in step 3; preserve manual notes in a collapsed optional area."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "User switched the class analysis provider to GPT-6 Luna medium with the existing OpenAI Script Property. Keep the lab identity and class analysis hierarchy."
     }
   ],
   "evidence": [],

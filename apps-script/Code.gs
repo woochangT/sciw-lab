@@ -457,10 +457,10 @@ function testJudgeM02() {
 function analyzeClass_(body) {
   const evidence = validateClassEvidence_(body.evidence);
   const props = PropertiesService.getScriptProperties();
-  const key = props.getProperty('ANTHROPIC_API_KEY');
-  if (!key) throw new Error('Claude 연결 키가 설정되지 않았습니다.');
-  const model = 'claude-sonnet-5-5';
-  const fingerprint = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, 'class-comment-v1:'+JSON.stringify(evidence)).map(x=>('0'+((x+256)%256).toString(16)).slice(-2)).join('');
+  const key = props.getProperty('OPENAI-API-KEY') || props.getProperty('OPENAI_API_KEY');
+  if (!key) throw new Error('OpenAI 연결 키가 설정되지 않았습니다.');
+  const model = 'gpt-6-luna';
+  const fingerprint = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, 'class-comment-v2-luna:'+JSON.stringify(evidence)).map(x=>('0'+((x+256)%256).toString(16)).slice(-2)).join('');
   const cache = CacheService.getScriptCache(), cacheKey='class-comment:'+fingerprint;
   const cached=cache.get(cacheKey); if(cached) return Object.assign(JSON.parse(cached),{cached:true});
   const lock=LockService.getScriptLock(); lock.waitLock(5000);
@@ -487,13 +487,21 @@ function analyzeClass_(body) {
     'summary 2문장 이내, 각 필드는 200자 이내로 쓰고 관측되지 않은 수치나 사실을 만들지 않는다.'
   ].join('\n');
   try {
-    const res=UrlFetchApp.fetch('https://api.anthropic.com/v1/messages',{method:'post',contentType:'application/json',headers:{'x-api-key':key,'anthropic-version':'2026-10-21'},payload:JSON.stringify({model:model,max_tokens:6000,output_config:{effort:'medium',format:{type:'json_schema',schema:schema}},system:system,messages:[{role:'user',content:JSON.stringify(evidence)}]}),muteHttpExceptions:true});
-    if(res.getResponseCode()!==200) throw new Error('Claude 분석 연결 실패 (HTTP '+res.getResponseCode()+'). 잠시 후 다시 요청해 주세요.');
+    const res=UrlFetchApp.fetch('https://api.openai.com/v1/responses',{method:'post',contentType:'application/json',headers:{Authorization:'Bearer '+key},payload:JSON.stringify({model:model,store:false,max_output_tokens:6000,reasoning:{effort:'medium'},text:{format:{type:'json_schema',name:'class_teaching_comment',strict:true,schema:schema}},instructions:system,input:JSON.stringify(evidence)}),muteHttpExceptions:true});
+    const status=res.getResponseCode();
+    if(status!==200) {
+      if(status===401) throw new Error('OpenAI 연결 키를 확인해 주세요.');
+      if(status===403||status===404) throw new Error('현재 OpenAI 키의 GPT-6 Luna 사용 권한을 확인해 주세요. (HTTP '+status+')');
+      if(status===429) throw new Error('OpenAI 사용 한도 또는 요청량 제한에 도달했습니다. 계정 한도를 확인하거나 잠시 후 다시 요청해 주세요.');
+      throw new Error('OpenAI 분석 연결 실패 (HTTP '+status+'). 잠시 후 다시 요청해 주세요.');
+    }
     const msg=JSON.parse(res.getContentText());
-    if(msg.stop_reason!=='end_turn') throw new Error('분석이 완성되지 않았습니다. 다시 요청해 주세요.');
-    const block=(msg.content||[]).find(b=>b.type==='text');
-    if(!block) throw new Error('분석 응답이 비어 있습니다.');
-    const result=JSON.parse(block.text);
+    if(msg.status!=='completed') throw new Error('분석이 완성되지 않았습니다. 다시 요청해 주세요.');
+    const content=(msg.output||[]).filter(item=>item.type==='message').reduce((all,item)=>all.concat(item.content||[]),[]);
+    if(content.some(block=>block.type==='refusal')) throw new Error('이 기록의 분석을 생성하지 못했습니다.');
+    const output=content.filter(block=>block.type==='output_text').map(block=>block.text).join('');
+    if(!output) throw new Error('분석 응답이 비어 있습니다.');
+    const result=JSON.parse(output);
     if(typeof result.summary!=='string'||!['observations','questions','activities','limitations'].every(k=>Array.isArray(result[k]))) throw new Error('분석 응답 형식이 맞지 않습니다.');
     const out={result:result,model:msg.model||model,effort:'medium',generatedAt:new Date().toISOString(),fingerprint:fingerprint,cached:false};
     cache.put(cacheKey,JSON.stringify(out),3600);

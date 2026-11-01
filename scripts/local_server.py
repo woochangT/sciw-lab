@@ -165,12 +165,12 @@ class Handler(SimpleHTTPRequestHandler):
                     raise ValueError('분석 응답이 너무 큽니다.')
                 value=json.loads(raw)
             if not value.get('ok'):
-                raise ValueError(value.get('error','Claude 분석을 완료하지 못했습니다.'))
+                raise ValueError(value.get('error','OpenAI 분석을 완료하지 못했습니다.'))
             self.json({'ok':True,'analysis':value['analysis'],'basis':{k:v for k,v in evidence.items() if k!='samples'},'fetchedAt':data['fetchedAt'],'classCode':name})
         except (ValueError,KeyError,TypeError) as exc:
             self.json({'ok':False,'error':str(exc)},400)
         except (OSError,subprocess.SubprocessError):
-            self.json({'ok':False,'error':'Claude 분석 서버에 연결하지 못했습니다. 잠시 후 다시 요청해 주세요.'},502)
+            self.json({'ok':False,'error':'OpenAI 분석 서버에 연결하지 못했습니다. 잠시 후 다시 요청해 주세요.'},502)
     def do_GET(self):
         if not self.local_request():
             self.json({'ok':False,'error':'로컬 미리보기에서만 사용할 수 있습니다.'},403)

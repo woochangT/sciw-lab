@@ -16,10 +16,10 @@
 
 ## 반별 AI 수업 도우미
 
-- Apps Script `analyzeClass` → Anthropic Messages API. 모델은 `claude-sonnet-5-5`, `output_config.effort: medium`, 엄격한 JSON Schema 출력. 학생 판정용 `judge_`의 기존 모델·설정과 분리한다. [Anthropic 공식 설정 예시](https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide).
-- `ANTHROPIC_API_KEY`는 Apps Script의 스크립트 속성에만 등록한다. `OPENAI-API-KEY`와 다른 서비스의 키다. 정적 파일·브라우저·로컬 서버·Git에 API 키를 넣지 않는다. 키가 없거나 호출이 실패하면 오류를 표시하며 분석 결과를 만들어내지 않는다.
+- Apps Script `analyzeClass` → OpenAI Responses API. 모델은 `gpt-6-luna`, `reasoning.effort: medium`, `store: false`, 엄격한 JSON Schema 출력. 학생 판정용 `judge_`의 기존 모델·설정과 분리한다. [OpenAI 공식 모델 문서](https://developers.openai.com/api/docs/models/gpt-6-luna).
+- 기존 스크립트 속성 `OPENAI-API-KEY`를 사용한다. 표준 이름 `OPENAI_API_KEY`도 지원한다. 키는 Apps Script의 스크립트 속성에만 둔다. 정적 파일·브라우저·로컬 서버·Git에 API 키를 넣지 않는다. 키가 없거나 호출이 실패하면 오류를 표시하며 분석 결과를 만들어내지 않는다.
 - 로컬 `POST /api/sheet/analysis`는 같은 Origin만 허용한다. 클라이언트가 보낸 답안/집계를 신뢰하지 않고 시트를 다시 읽고 `teacher/model.js`와 동일한 정규화·반·시험/QA 분리·처음/최근 판 규칙으로 자료를 구성한다. Node.js가 설치되어 있어야 한다.
-- Claude에 반 코드/번호/세션 ID를 전달하지 않는다. 집계와 최대 24개 판의 처음/최종 답안 발췌(각 400자)를 전송한다. 이메일/전화 패턴은 지운다. 자유서술의 모든 개인 정보를 자동 익명화한다고 보장하지 않는다. 표본을 제한하면 번호 순서상 균등 간격으로 선택하며, 이를 전체 답안 경향으로 일반화하지 않도록 프롬프트와 UI에 명시한다.
+- OpenAI에 반 코드/번호/세션 ID를 전달하지 않는다. 집계와 최대 24개 판의 처음/최종 답안 발췌(각 400자)를 전송한다. 이메일/전화 패턴은 지운다. 자유서술의 모든 개인 정보를 자동 익명화한다고 보장하지 않는다. 표본을 제한하면 번호 순서상 균등 간격으로 선택하며, 이를 전체 답안 경향으로 일반화하지 않도록 프롬프트와 UI에 명시한다.
 - API는 **입력만 분석**하며 시트 기록을 조회/반환하지 않는다. 기존 `classData`의 교사 인증은 유지한다. 이 action도 기존 학생 `judge`와 같이 공개 웹앱에 있으므로, 비용 보호를 위해 프로젝트 전체 UTC 기준 6회/시간·20회/일을 강제하고 같은 자료는 최대 1시간 ScriptCache에 보관한다. 화면 갱신으로 AI를 자동 호출하지 않는다. 교사별 보장된 호출 권한이 필요하면 기존 교사 인증을 설정해 이 action에도 적용해야 한다.
 - 테스트/5개 미만 기록의 학급 일반화 금지, 미제출을 오개념으로 판단 금지, 학생 능력 점수·순위·자동 수업 처방 금지. AI의 관찰과 대안 해석을 구분하고 선생님이 원문을 확인해 질문/활동을 선택한다.
 - 로컬 메모는 브라우저 저장, AI 결과는 페이지 메모리와 서버의 단기 캐시다. 시트의 원문/판정을 덮어쓰지 않는다. 반/시험 보기/처음·최근 판별로 결과를 분리한다.
@@ -34,9 +34,9 @@
 
 ## 검증
 
-2026-11-01 Apps Script **버전 3**를 기존 URL에 반영했다. 실제 로컬 화면 → 시트 → 분석 API 호출은 `ANTHROPIC_API_KEY` 미설정 오류까지 확인했다. 등록 속성 이름은 `OPENAI-API-KEY` 하나였으며 키의 전체 값은 출력/복사하지 않았다. Sonnet의 실제 생성 응답은 Claude 키를 운영자가 등록한 뒤 검증해야 한다. 성공 출력 파싱/캐시/예산 및 HTTP 집계 재구성은 합성·모의 응답으로 검사했다.
+2026-11-01 사용자 선택으로 반별 분석을 GPT-6 Luna medium으로 전환하고, Apps Script **버전 4**를 기존 URL에 반영했다. 기존 `OPENAI-API-KEY`를 서버 안에서 사용했으며 키의 전체 값은 출력/복사하지 않았다. 실제 시트의 test 반 1개 번호/1판을 분석한 응답이 `model: gpt-6-luna`, `effort: medium`, `cached: false`로 성공했다(2026-11-01 19:13 KST). 호출 자료는 최신 판, 최종 답안 1개, 발췌 1개, 명시 힌트 열람 1개였다. 이는 테스트 기록의 기능 확인이며 학급 경향 검증이 아니다. 출력 파싱·캐시·예산·불완전/거절 응답 및 HTTP 집계 재구성은 합성·모의 응답으로도 검사했다. 앞선 버전 3의 Claude 키 미설정은 현재 반별 분석 경로에는 적용되지 않는다.
 
-`node --test teacher/tests/*.cjs '감자 삼투/web/tests/'*.cjs '강철솜 질량 보존/web/tests/'*.cjs` — 56개 통과.
+`node --test teacher/tests/*.cjs '감자 삼투/web/tests/'*.cjs '강철솜 질량 보존/web/tests/'*.cjs` — 57개 통과.
 
 `python3 -m unittest discover -s scripts -p 'test_*.py'` — 10개 통과. CSV 줄바꿈/JSON 복원, 반 분리, 시험 보기 명시, QA 제외, 다른 Origin 거부를 확인했다. 로컬 API에서 실제 test 세션 1건과 시도 36건을 불러오고 브라우저에서 처음/최종 답안과 3회 제출을 확인했다.
 
