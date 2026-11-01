@@ -7,9 +7,19 @@
       "runtimeArgs": [
         "C:/Users/wooch/OneDrive/Desktop/edu_sciw_v1/.claude/devserver.py",
         "8782",
-        "C:/Users/wooch/OneDrive/Desktop/edu_sciw_v1/감자 삼투/web"
+        "C:/Users/wooch/OneDrive/Desktop/edu_sciw_v1/\uac10\uc790 \uc0bc\ud22c/web"
       ],
       "port": 8782
+    },
+    {
+      "name": "steel-wool",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "C:/Users/wooch/OneDrive/Desktop/edu_sciw_v1/.claude/devserver.py",
+        "8783",
+        "C:/Users/wooch/OneDrive/Desktop/edu_sciw_v1"
+      ],
+      "port": 8783
     }
   ]
 }

@@ -1,12 +1,174 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f6f7f1"><title>서술 실험실 — 관찰을 생각으로, 생각을 글로</title><link rel="icon" href="ui/brand.svg" type="image/svg+xml"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"><link rel="stylesheet" href="ui/intro.css"></head>
-<body><a class="skip" href="#main">본문으로 건너뛰기</a>
-<header class="landing-nav"><a class="wordmark" href="index.html"><img src="ui/brand.svg" alt="" width="40" height="40"><span>서술 실험실<small>SCIENCE, IN YOUR WORDS.</small></span></a><nav aria-label="메인 메뉴"><a href="#how">실험실 소개</a><a href="teacher.html">선생님을 위한 공간 <span>↗</span></a></nav><a class="nav-button" href="강철솜 질량 보존/web/index.html">미션 시작하기 <span>→</span></a></header>
-<main id="main"><section class="hero"><div class="hero-copy"><div class="eyebrow"><span class="signal"></span>질문에서 시작되는 과학</div><h1>관찰을 <span>생각</span>으로,<br>생각을 <span class="underline">나의 글</span>로.</h1><p class="hero-description">실험의 단서를 모으고, 교수의 주장에 도전하세요.<br>정답 너머의 ‘왜’를 발견하는 작은 과학 실험실.</p><div class="hero-actions"><a class="primary" href="강철솜 질량 보존/web/index.html">실험실 들어가기 <span>↗</span></a><a class="secondary" href="teacher.html">교사용 대시보드 <span>→</span></a></div><div class="hero-meta"><span><i>01</i> 관찰하고</span><span><i>02</i> 연결하고</span><span><i>03</i> 설명해요</span></div></div>
-<div class="lab-art" aria-label="강철솜의 질량 변화를 살펴보는 실험 미리보기"><div class="art-grid"></div><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="specimen-tag"><span class="signal"></span>MISSION 02 <b>관찰 중</b></div><div class="float-note note-oxygen"><span class="mini-molecule"><i></i><i></i></span><div><small>보이지 않던 연결</small><strong>산소 + 철 → ?</strong></div></div><div class="float-note note-evidence"><span class="note-icon">D</span><div><small>DATA / 관찰한 사실</small><strong>질량이 0.5 g 늘었다.</strong></div></div>
-<svg class="experiment-svg" viewBox="0 0 420 400" role="img" aria-label="강철솜이 들어 있는 투명한 플라스크"><defs><linearGradient id="glass" x1="0" x2="1"><stop stop-color="#fff" stop-opacity=".9"/><stop offset=".4" stop-color="#dcece3" stop-opacity=".3"/><stop offset="1" stop-color="#84b4a0" stop-opacity=".5"/></linearGradient><linearGradient id="steel" x2="1" y2="1"><stop stop-color="#9caaa1"/><stop offset="1" stop-color="#334f43"/></linearGradient><filter id="shadow"><feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#184f3b" flood-opacity=".15"/></filter></defs><ellipse cx="210" cy="347" rx="115" ry="15" fill="#bfd2bf" opacity=".5"/><g filter="url(#shadow)"><path d="M177 74h66v101l64 132q9 24-20 25H133q-29-1-20-25l64-132Z" fill="url(#glass)" stroke="#719c86" stroke-width="2.5"/><ellipse cx="210" cy="75" rx="33" ry="7" fill="#d4e8da" stroke="#719c86" stroke-width="2"/><path d="M189 104v76l-57 124" fill="none" stroke="#fff" stroke-width="8" opacity=".8" stroke-linecap="round"/><path d="M148 270h126l19 39q4 10-10 10H137q-14 0-10-10Z" fill="#b2c99d" opacity=".55"/><g id="steelWool" stroke="url(#steel)" stroke-width="3" fill="none"><path d="M164 290q-20-24 0-33t50 3 35 12-33 23-40-5 20-24 36 13-14 23-41-24 23-23 34 23-42 13 16-28 25 13-35 22-8-25 40 6"/><path d="M151 279q20-29 65 0t42 12-34-37-47 13 42 31 27-30-57 0 5 29 51-15-35-24"/></g><g stroke="#7d9b89" opacity=".6"><path d="M254 224h17m-12 20h21m-15 20h23"/></g></g><g class="oxygen-travel"><circle cx="310" cy="170" r="13" fill="#82bd8e"/><circle cx="328" cy="170" r="13" fill="#bad49b"/><text x="319" y="175" fill="#285d44" font-size="13" font-family="system-ui" text-anchor="middle">O₂</text></g><path class="reaction-arrow" d="M320 200q-2 33-48 40" fill="none" stroke="#b87840" stroke-width="2" stroke-dasharray="4 6"/></svg>
-<div class="scale"><span>실험 A · 열린 공간</span><strong id="mass" aria-live="polite">2.0 <small>g</small></strong><span class="scale-label">강철솜의 질량</span><div class="scale-line"></div></div><button class="ignite" id="ignite"><span>✦</span> 강철솜 태워보기 <span>↗</span></button><span class="art-caption">A SMALL EXPERIMENT. A BIG WHY.</span></div></section>
-<section class="mission-strip"><div><span class="mission-number">02</span><div><span class="eyebrow">지금 열려 있는 실험</span><h2>태웠는데, 왜 더 무거워졌을까?</h2></div></div><p>강철솜과 산소, 그리고 질량 보존.<br>두 실험의 숫자를 하나의 설명으로 연결해 보세요.</p><a href="강철솜 질량 보존/web/index.html" aria-label="미션 02 시작">↗</a></section>
-<section class="how" id="how"><div class="section-heading"><div><span class="eyebrow">A LITTLE LESS MEMORIZING, A LITTLE MORE REASONING.</span><h2>생각이 자라는 세 번의 연결.</h2></div><p>자료를 읽는 것에서 끝나지 않도록.<br>나만의 설명을 만드는 과정을 함께합니다.</p></div><div class="steps"><article><span class="step-index">01 / OBSERVE</span><div class="step-art dots-art"><i></i><i></i><i></i><i></i><span>2.0 → 2.5 g</span></div><h3>먼저, 직접 관찰해요.</h3><p>실험을 조작하고 숫자의 변화를 살펴요.<br>눈에 보이는 사실이 첫 번째 단서가 됩니다.</p></article><article><span class="step-index">02 / CONNECT</span><div class="step-art connect-art"><b>D</b><span>⟶</span><b>W</b><span>⟶</span><b>C</b></div><h3>단서 사이의 이유를 찾아요.</h3><p>자료와 과학 원리를 연결해요.<br>교수의 추측을 반박하며 생각을 다듬습니다.</p></article><article><span class="step-index">03 / EXPLAIN</span><div class="step-art writing-art"><i></i><i></i><i></i><span>나의 설명 <b>✓</b></span></div><h3>마지막엔, 내 말로 설명해요.</h3><p>처음의 생각이 어떻게 바뀌었는지.<br>나의 문장으로 실험의 ‘왜’를 완성합니다.</p></article></div></section>
-<section class="teacher-invite"><div><span class="eyebrow">FOR TEACHERS</span><h2>정답 뒤의 생각까지,<br>함께 들여다보세요.</h2><p>관찰에서 서술까지 이어진 기록으로<br>다음 수업의 좋은 질문을 찾아보세요.</p><a class="primary" href="teacher.html">예시 수업 둘러보기 <span>↗</span></a></div><a class="mini-dashboard" href="teacher.html" aria-label="교사용 예시 대시보드 열기"><div class="mini-top"><span class="signal"></span>미션 02 · 수업의 발견<span>↗</span></div><div class="mini-stats"><div>누적 참여 번호<strong>24 <small>명</small></strong></div><div>첫 최종 제출<strong>20 <small>/ 24</small></strong></div></div><div class="mini-chart"><i style="--h:98%"></i><i style="--h:92%"></i><i style="--h:80%"></i><i style="--h:70%"></i><i style="--h:60%"></i></div><small>가상의 수업으로 미리 만나보세요.</small></a></section>
-</main><footer class="landing-footer"><span>서술 실험실 <small>생각을 연결하는 과학.</small></span><span>MADE FOR THE NEXT “WHY”.</span></footer><script src="ui/intro.js"></script></body></html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>서술 실험실</title>
+<meta name="description" content="콧대 교수 앞에서 실험 결과가 무엇을 뜻하는지 증명하는 과학 서술 게임">
+<!-- ?mission=m01 / ?mission=m02 로 들어오면 고르는 화면 없이 그 미션으로 바로 보낸다 (반 코드 등 나머지 주소 값은 그대로 넘김) -->
+<script>
+(function () {
+  var paths = { m01: '감자 삼투/web/index.html', m02: '강철솜 질량 보존/web/index.html' };
+  var q = new URLSearchParams(location.search), m = q.get('mission');
+  if (paths[m]) { q.delete('mission'); var s = q.toString(); location.replace(encodeURI(paths[m]) + (s ? '?' + s : '') + location.hash); }
+})();
+</script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap">
+<link rel="preload" as="image" href="intro/lab-room.webp">
+<style>
+  :root {
+    --ink: #2b2a28;
+    --ink-soft: #6b6862;
+    --board: #2f5446;
+    --board-deep: #1f3a30;
+    --board-edge: #8a6a45;
+    --chalk: #f6f3ea;
+    --chalk-soft: #c9d6cd;
+    --memo: #fffdf8;
+    --brass: #c99a3e;
+    --glow: #ffd54a;
+    --track-bg: #2d2b29;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+    color: var(--chalk);
+    background: #1d1a17;
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse at 50% 35%, rgba(20,28,24,.35), rgba(15,13,11,.82) 75%),
+      linear-gradient(to bottom, rgba(0,0,0,.15), rgba(0,0,0,.55)),
+      url('intro/lab-room.webp') center 30% / cover no-repeat;
+  }
+  .wrap { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; align-items: center; padding: 40px 16px 28px; }
+
+  /* 칠판 간판 */
+  .sign {
+    text-align: center; padding: 22px 40px 20px; border-radius: 10px;
+    background: linear-gradient(160deg, var(--board), var(--board-deep));
+    border: 8px solid var(--board-edge);
+    box-shadow: 0 14px 40px rgba(0,0,0,.45), inset 0 0 40px rgba(0,0,0,.35);
+    max-width: 560px; width: 100%;
+  }
+  .sign .brand { display: inline-flex; align-items: center; gap: 12px; }
+  .sign svg { width: 30px; height: 38px; fill: none; stroke: var(--chalk); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .sign h1 { margin: 0; font-family: 'Gaegu', 'Pretendard', cursive; font-weight: 700; font-size: 46px; letter-spacing: 1px; line-height: 1; }
+  .sign p { margin: 10px 0 0; font-family: 'Gaegu', 'Pretendard', cursive; font-size: 21px; color: var(--chalk-soft); }
+
+  .prompt { margin: 34px 0 14px; font-size: 15px; font-weight: 700; letter-spacing: .5px; color: #e9e4da; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+
+  /* 미션 카드: 고리에 매달린 열쇠고리 + 메모 카드 */
+  .missions { display: grid; grid-template-columns: repeat(2, minmax(0, 300px)); gap: 32px; justify-content: center; width: 100%; }
+  .mission {
+    position: relative; display: flex; flex-direction: column; align-items: center;
+    text-decoration: none; color: var(--ink);
+    background: var(--memo); border-radius: 14px; padding: 18px 20px 20px;
+    box-shadow: 0 10px 28px rgba(0,0,0,.4);
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .mission::before { /* 카드를 거는 핀 */
+    content: ''; position: absolute; top: -9px; left: 50%; width: 18px; height: 18px; margin-left: -9px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ffe7a3, var(--brass) 60%, #8a6420);
+    box-shadow: 0 2px 4px rgba(0,0,0,.4);
+  }
+  .mission .art { height: 190px; width: 100%; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; }
+  /* 키링은 회색 실루엣만 보이고, 몸통 한가운데에 물음표를 띄운다 */
+  .mission .key { position: relative; height: 100%; display: inline-block; transform-origin: 50% 0; transition: transform .4s ease; }
+  .mission .key img { display: block; height: 100%; width: auto; filter: drop-shadow(0 6px 8px rgba(0,0,0,.18)); }
+  .mission .qm {
+    position: absolute; left: var(--qx, 50%); top: var(--qy, 65%); transform: translate(-50%, -50%);
+    font-family: 'Gaegu', 'Pretendard', cursive; font-weight: 700; font-size: 74px; line-height: 1;
+    color: #fffdf8; text-shadow: 0 2px 0 rgba(0,0,0,.18), 0 0 14px rgba(255,253,248,.35);
+  }
+  .mission .no { font-size: 13px; font-weight: 800; letter-spacing: 1.5px; color: var(--ink-soft); }
+  .mission h2 { margin: 4px 0 12px; font-size: 23px; font-weight: 800; text-align: center; line-height: 1.25; }
+  .mission .q {
+    width: 100%; margin: 0 0 16px; padding: 10px 12px; border-radius: 8px;
+    background: var(--board); color: var(--chalk); text-align: center;
+    font-family: 'Gaegu', 'Pretendard', cursive; font-size: 19px; line-height: 1.25;
+  }
+  .mission .go {
+    width: 100%; padding: 12px; border-radius: 10px; text-align: center;
+    background: var(--track-bg); color: #fff; font-weight: 800; font-size: 16px;
+  }
+  .mission:hover, .mission:focus-visible { transform: translateY(-4px); box-shadow: 0 16px 36px rgba(0,0,0,.5); }
+  .mission:hover .key, .mission:focus-visible .key { transform: rotate(-4deg); }
+  .mission:hover .go, .mission:focus-visible .go { background: var(--board); }
+  .mission:focus-visible { outline: 3px solid var(--glow); outline-offset: 4px; }
+
+  footer { position: relative; z-index: 1; text-align: center; padding: 0 16px 26px; }
+  footer a {
+    display: inline-block; padding: 10px 18px; border-radius: 10px;
+    border: 1px solid rgba(246,243,234,.4); color: var(--chalk); text-decoration: none; font-weight: 700; font-size: 14px;
+    background: rgba(20,18,16,.45); backdrop-filter: blur(4px);
+  }
+  footer a:hover { background: rgba(47,84,70,.7); }
+  footer a:focus-visible { outline: 3px solid var(--glow); outline-offset: 2px; }
+
+  @media (max-width: 700px) {
+    .wrap { padding-top: 24px; }
+    .sign { padding: 16px 18px; border-width: 6px; }
+    .sign h1 { font-size: 36px; }
+    .sign p { font-size: 18px; }
+    .prompt { margin-top: 24px; }
+    .missions { grid-template-columns: minmax(0, 340px); gap: 26px; }
+    .mission .art { height: 150px; }
+    .mission .qm { font-size: 58px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mission, .mission .key { transition: none; }
+    .mission:hover, .mission:hover .key { transform: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="sign">
+      <div class="brand">
+        <svg viewBox="0 0 32 40" aria-hidden="true"><path d="M11 3h10m-8 0v13L3 33q-2 4 3 4h20q5 0 3-4L19 16V3M8 27h16"/></svg>
+        <h1>서술 실험실</h1>
+      </div>
+      <p>콧대 교수를 설득할 수 있을까?</p>
+    </header>
+
+    <p class="prompt">도전할 미션을 고르세요</p>
+
+    <nav class="missions" aria-label="미션 고르기">
+      <a class="mission" data-path="감자 삼투/web/index.html" href="%EA%B0%90%EC%9E%90%20%EC%82%BC%ED%88%AC/web/index.html">
+        <div class="art"><span class="key" style="--qx:55%;--qy:70%"><img src="intro/potato-silhouette.webp" alt="" width="504" height="520"><span class="qm" aria-hidden="true">?</span></span></div>
+        <span class="no">MISSION 01</span>
+        <h2>감자 속은 얼마나 진할까?</h2>
+        <p class="q">감자 세포 안 용액의 농도는?</p>
+        <span class="go">시작하기 →</span>
+      </a>
+      <a class="mission" data-path="강철솜 질량 보존/web/index.html" href="%EA%B0%95%EC%B2%A0%EC%86%9C%20%EC%A7%88%EB%9F%89%20%EB%B3%B4%EC%A1%B4/web/index.html">
+        <div class="art"><span class="key" style="--qx:51%;--qy:64%"><img src="intro/steel-wool-silhouette.webp" alt="" width="388" height="520"><span class="qm" aria-hidden="true">?</span></span></div>
+        <span class="no">MISSION 02</span>
+        <h2>늘어난 강철솜</h2>
+        <p class="q">강철솜이 무거워진 까닭은?</p>
+        <span class="go">시작하기 →</span>
+      </a>
+    </nav>
+  </div>
+
+  <footer>
+    <a href="teacher.html">선생님이신가요? 교사용 대시보드 예시 보기 →</a>
+  </footer>
+
+<script>
+  // 반 코드처럼 이 주소에 붙어 온 값(?class=…)을 고른 미션에도 그대로 넘긴다
+  if (location.search) {
+    document.querySelectorAll('.mission[data-path]').forEach(function (a) {
+      a.href = encodeURI(a.dataset.path) + location.search;
+    });
+  }
+</script>
+</body>
+</html>

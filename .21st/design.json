@@ -13,17 +13,21 @@
   "sources": {
     "tokens": [
       "teacher/style.css",
-      "ui/intro.css"
+      "index.html"
     ],
     "components": [
       "teacher/model.js",
       "teacher/app.js"
     ],
-    "assets": [],
+    "assets": [
+      "intro/lab-room.webp",
+      "intro/potato-silhouette.webp",
+      "intro/steel-wool-silhouette.webp"
+    ],
     "instructions": []
   },
   "design": {
-    "colorMode": "light",
+    "colorMode": "mixed",
     "colors": {
       "ink": "#203f33",
       "forest": "#183e32",
@@ -33,7 +37,8 @@
     },
     "typography": {
       "sans": "Pretendard, system-ui",
-      "mono": "ui-monospace"
+      "mono": "ui-monospace",
+      "display": "Gaegu (upstream intro)"
     },
     "spacing": {},
     "radius": {},
@@ -56,7 +61,8 @@
       "Explicit demo data",
       "No ability scores or ranks",
       "False and unobserved must differ",
-      "Keep private source files out of repository"
+      "Keep private source files out of repository",
+      "Use the current main intro and mission start screens as the baseline; preserve teammate design and both mission entry points"
     ],
     "avoid": [
       "Framework migration",
@@ -72,6 +78,10 @@
     {
       "date": "2026-11-01",
       "decision": "Adapt 21st Bar Chart (28571) grow/stagger/grid behavior in native CSS; inspect Radar Chart (29837) but do not introduce a proficiency radar."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "User correction: start from woochangT main merge d4ae232 (PR #4). Restore its intro, mission selector assets and mission 02 start screen exactly. Retain only teacher dashboard improvements on that baseline."
     }
   ],
   "evidence": [],
