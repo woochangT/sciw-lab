@@ -107,8 +107,8 @@ button:focus-visible, .card:focus-visible, textarea:focus-visible, input:focus-v
 /* 타는 모습: 주황빛이 일렁이고 불씨가 깜빡이며 연기가 피어오른다. 전극이면 끝 사이에 전기 불꽃이 튄다. */
 .dev-art .burn-fx { opacity: 0; transition: opacity .3s; }
 .dev-art.burning .burn-fx { opacity: 1; }
-.fx-glow { transform-box: fill-box; transform-origin: center; animation: glowPulse .5s ease-in-out infinite alternate; }
-@keyframes glowPulse { from { transform: scale(.88); opacity: .75; } to { transform: scale(1.08); opacity: 1; } }
+.fx-flame { transform-box: fill-box; transform-origin: 50% 100%; animation: flameLick .32s ease-in-out infinite alternate; }
+@keyframes flameLick { from { transform: scaleY(.72) skewX(-6deg); } to { transform: scaleY(1.12) skewX(5deg); } }
 .fx-ember { animation: ember .6s ease-in-out infinite alternate; }
 @keyframes ember { from { opacity: .15; } to { opacity: 1; } }
 .fx-smoke { opacity: 0; transform-box: fill-box; transform-origin: center; }
@@ -262,8 +262,12 @@ body.arena #arenaDeck { transform: none; opacity: 1; }
 #arenaDeck.call .card:nth-child(6) { animation-delay: .75s; }
 body.arena:has(#reply:not([hidden])) #arenaDeck { opacity: .25; pointer-events: none; }
 #bubble { transition: opacity .25s, transform .25s, left .45s ease, right .45s ease, top .45s ease, padding .45s ease, font-size .45s ease; }
-body.arena #bubble { left: -834px; right: 22px; top: 34px; padding: 24px 34px; font-size: 29px; line-height: 1.55; border-radius: 22px; }
-body.arena #bubble::after { right: 118px; border-width: 20px; bottom: -20px; }
+/* 반박 화면의 큰 말풍선은 교수 왼쪽에 두고, 꼬리를 오른쪽으로 내어 교수 얼굴을 가리킨다 */
+body.arena #bubble { left: -834px; right: 300px; top: 34px; padding: 24px 34px; font-size: 29px; line-height: 1.55; border-radius: 22px; }
+body.arena #bubble::after { right: -26px; bottom: auto; top: 46%; border: 16px solid transparent; border-left: 28px solid #fffdf6; border-right: 0; }
+/* 교수 자리(profCol)의 빈 부분이 아래 단서 카드를 가리지 않게, 말풍선과 답장만 누를 수 있게 한다 */
+body.arena #profCol { pointer-events: none; }
+body.arena #bubble, body.arena #reply { pointer-events: auto; }
 body.arena .weak { padding: 0 6px; }
 body.arena #bubble .nudge-line { font-size: 18px; }
 body.arena #reply { left: -834px; right: 300px; bottom: 214px; padding: 16px; }

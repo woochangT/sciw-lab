@@ -26,15 +26,21 @@
     return g + '</g>';
   }
 
-  // 타는 동안의 모습: 강철솜 뒤로 번지는 주황빛(glow), 그 위에서 깜빡이는 불씨(embers), 피어오르는 연기.
-  // arc가 있으면 전극 끝 사이에 튀는 전기 불꽃도 그린다. .burning이 붙었을 때만 보인다.
-  function burnGlow(cx, cy, rx) {
-    const id = `glow-${++serial}`;
-    return `<defs><radialGradient id="${id}"><stop stop-color="#fff0a8"/><stop offset=".35" stop-color="#ffb14a" stop-opacity=".9"/><stop offset=".7" stop-color="#ff7a2e" stop-opacity=".45"/><stop offset="1" stop-color="#ff5a1f" stop-opacity="0"/></radialGradient></defs>
-      <ellipse class="burn-fx fx-glow" cx="${cx}" cy="${cy}" rx="${rx}" ry="${rx * 0.62}" fill="url(#${id})"/>`;
+  // 불꽃 혀 하나: 아래(x, y)에서 위로 h만큼 솟는 물방울 모양, 바깥은 주황, 안은 노랑
+  function flame(x, y, h, delay) {
+    const w = h * 0.42;
+    const tongue = (k) => `M${x} ${y} C${x - w * k} ${y - h * k * 0.32} ${x - w * k * 0.35} ${y - h * k * 0.62} ${x} ${y - h * k} C${x + w * k * 0.35} ${y - h * k * 0.62} ${x + w * k} ${y - h * k * 0.32} ${x} ${y} Z`;
+    return `<g class="fx-flame" style="animation-delay:${delay}s"><path d="${tongue(1)}" fill="#ff7a2e" opacity=".9"/><path d="${tongue(0.6)}" fill="#ffd36b"/></g>`;
   }
+  function flames(cx, cy, rx, h) {
+    let g = '';
+    for (let i = 0; i < 5; i++) g += flame(cx - rx * 0.6 + i * rx * 0.3, cy + (i % 2 ? 2 : -2), h * (i % 2 ? 0.75 : 1), ((i * 0.17) % 0.5).toFixed(2));
+    return g;
+  }
+  // 타는 동안의 모습: 강철솜 위로 일렁이는 불꽃, 깜빡이는 불씨, 피어오르는 연기.
+  // arc가 있으면 전극 끝 사이에 튀는 전기 불꽃도 그린다. .burning이 붙었을 때만 보인다.
   function burnTop(cx, cy, rx, arc) {
-    let g = '<g class="burn-fx">';
+    let g = '<g class="burn-fx">' + flames(cx, cy - 2, rx, 26);
     for (let i = 0; i < 14; i++) {
       const x = cx + Math.cos(i * 2.39) * rx * (0.25 + (i % 5) * 0.15); const y = cy + Math.sin(i * 2.39) * rx * 0.28;
       g += `<circle class="fx-ember" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(2.2 + (i % 3) * 1.1).toFixed(1)}" fill="${i % 2 ? '#ffe28a' : '#ff7a2e'}" style="animation-delay:${((i * 0.13) % 0.9).toFixed(2)}s"/>`;
@@ -68,7 +74,6 @@
     return `<svg viewBox="0 0 260 240" aria-hidden="true">${balance()}
       <path d="M78 136 Q130 160 182 136 L176 146 Q130 162 84 146 Z" fill="#f6f4ef" stroke="#c9c4b8" stroke-width="1.5"/>
       <ellipse cx="130" cy="136" rx="52" ry="7" fill="#ebe8e1" stroke="#c9c4b8" stroke-width="1.2"/>
-      ${burnGlow(130, 124, 84)}
       <g class="wool-all">${wool(130, 124, 66, 22, false, 11)}
       <g class="wool-dark" style="opacity:0">${wool(130, 124, 66, 22, true, 11)}</g></g>
       ${burnTop(130, 124, 60)}
@@ -82,7 +87,6 @@
       <path d="M113 22 L113 64 Q66 84 70 116 Q76 146 130 146 Q184 146 190 116 Q194 84 147 64 L147 22 Z" fill="rgba(214,240,246,.42)" stroke="#d7eef2" stroke-width="2.4"/>
       <path d="M84 100 Q82 124 102 134" stroke="#fff" stroke-width="3" opacity=".55" fill="none" stroke-linecap="round"/>
       <rect x="105" y="10" width="50" height="18" rx="4" fill="#5b3b28" stroke="#2f1d12" stroke-width="1.5"/>
-      ${burnGlow(130, 118, 80)}
       ${wool(130, 124, 58, 22, false, 23)}
       <g class="wool-dark" style="opacity:0">${wool(130, 124, 58, 22, true, 23)}</g>
       <path d="M122 14 L122 112 M138 14 L138 112" stroke="#b9872f" stroke-width="1.6"/>
@@ -176,5 +180,5 @@
     </svg>`;
   }
 
-  window.SCIW_ART02 = { wool, deviceA, deviceB, torch, power, clip, microscope, miniPhoto, miniSlide };
+  window.SCIW_ART02 = { flames, wool, deviceA, deviceB, torch, power, clip, microscope, miniPhoto, miniSlide };
 })();

@@ -815,8 +815,8 @@
     const lbl = svgEl('text', { x: box.x + 10, y: box.y - 8, fill: '#fff7d6', 'font-size': 15 }, svg);
     lbl.textContent = '저울이 재는 범위';
     const sp = svgEl('g', { id: 'woolSparks', class: 'scope-sparks' }, svg);
-    // 타는 동안: 강철솜 뒤 주황빛, 막힘이면 전극 끝 사이의 전기 불꽃
-    svgEl('ellipse', { class: 'fx-glow', cx: WOOL[0], cy: WOOL[1], rx: 110, ry: 62, fill: '#ff8a3d', opacity: 0.35 }, sp);
+    // 타는 동안: 강철솜 위로 일렁이는 불꽃, 막힘이면 전극 끝 사이의 전기 불꽃
+    sp.insertAdjacentHTML('beforeend', ART.flames(WOOL[0], WOOL[1] - 4, 90, 46));
     if (mode === 'closed') svgEl('path', { class: 'fx-arc', d: 'M290 300 l5 -7 l4 9 l5 -8 l4 8 l2 -2', stroke: '#fffbe0', 'stroke-width': 3, fill: 'none', 'stroke-linejoin': 'round' }, sp);
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2;
