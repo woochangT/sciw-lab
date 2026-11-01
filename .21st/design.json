@@ -69,10 +69,10 @@
       "Teacher first screen: participation, final-answer present, final-answer absent; plain Korean labels and visible answer actions",
       "Default to live connected sheet; never silently replace failed live reads with demo data",
       "Separate test data from real classroom counts; QA remains excluded",
-      "Require grade/class selection followed by explicit game selection before any dashboard",
       "Keep mission and class report scopes separate; do not infer unrecorded grades",
       "Put saved teaching summary first in class overview; detailed report includes frozen evidence and classroom materials",
-      "Never call LLM from page load, selection, sheet refresh or report navigation; regenerate only on explicit click"
+      "Never call LLM from page load, selection, sheet refresh or report navigation; regenerate only on explicit click",
+      "Selecting the class opens its dashboard immediately: game-by-game metrics and saved teaching summaries first, then class-and-game analysis on game choice"
     ],
     "avoid": [
       "Framework migration",
@@ -108,6 +108,10 @@
     {
       "date": "2026-11-01",
       "decision": "Latest user direction: class picker with numeric grade/class sorting and canonical aliases, then game picker. Put a large saved teaching focus in overview and open a printable report with snapshot metrics, answer excerpts and mission materials. LLM calls only on explicit generation/regeneration."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "User clarified class entry: no separate game-selection gate. Open the class dashboard on room selection; show summaries by game there, with drill-in to the selected class/game analysis and a return-to-class action."
     }
   ],
   "evidence": [],

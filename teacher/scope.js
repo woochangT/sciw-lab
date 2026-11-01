@@ -5,5 +5,6 @@
  function catalog(db){const groups=new Map();for(const s of db.sessions||[]){if(/^QA_/i.test(s.classCode)||/^qa_/i.test(s.sessionId))continue;const id=identity(String(s.classCode||'')),isTest=M.test(s),key=id.classKey+'|'+isTest;if(!s.classCode)continue;if(!groups.has(key))groups.set(key,{...id,classCode:s.classCode,classCodes:new Set(),isTest,plays:0,numbers:new Set(),byMission:{}});const g=groups.get(key);g.classCodes.add(String(s.classCode));g.plays++;const m=s.missionId||'m01',stat=g.byMission[m]||(g.byMission[m]={plays:0,numbers:new Set()});stat.plays++;if(M.number(s)){g.numbers.add(M.number(s));stat.numbers.add(M.number(s))}}
   return [...groups.values()].map(g=>({...g,classCodes:[...g.classCodes],numbers:g.numbers.size,byMission:Object.fromEntries(Object.entries(g.byMission).map(([m,v])=>[m,{plays:v.plays,numbers:v.numbers.size}]))})).sort((a,b)=>Number(a.isTest)-Number(b.isTest)||Number(a.grade===null)-Number(b.grade===null)||(a.grade||0)-(b.grade||0)||(a.classNo||0)-(b.classNo||0)||a.label.localeCompare(b.label,'ko',{numeric:true}));
  }
- root.TeacherScope={identity,gradeKey,catalog};
+ function gameSummary(db,classCodes,missionId,includeTests=false){const d=M.analyze(db,'','latest',{classCodes,missionId,includeTests}),written=d.recent.filter(s=>s.finalAnswer||M.submissions(d,s).length).length;return {participants:d.stats.N,written,pending:d.stats.N-written,plays:d.sessions.length,review:d.review.length}}
+ root.TeacherScope={identity,gradeKey,catalog,gameSummary};
 })(typeof window==='undefined'?globalThis:window);
