@@ -136,11 +136,12 @@
       <defs><linearGradient id="${id}"><stop stop-color="#8b5b20"/><stop offset=".35" stop-color="#e1ba64"/><stop offset=".6" stop-color="#b88a38"/><stop offset="1" stop-color="#694718"/></linearGradient><linearGradient id="${id}-c" x2="1" y2="1"><stop stop-color="#edffff"/><stop offset=".4" stop-color="#8cf3ef"/><stop offset="1" stop-color="#997cec"/></linearGradient></defs>
       <ellipse cx="61" cy="172" rx="52" ry="6" fill="#241b11" opacity=".4"/>
       <path d="M15 159Q57 147 105 159L108 170H12Z" fill="#173d35" stroke="#b4914f" stroke-width="2"/>
-      <path d="M68 158V128Q99 109 94 69L79 62Q87 111 53 124V158Z" fill="url(#${id})" stroke="#795325" stroke-width="1.7"/>
-      <rect x="19" y="112" width="66" height="8" rx="3" fill="#173a33" stroke="#ac8a49" stroke-width="2"/>
-      <g transform="rotate(19 52 64)"><rect x="38" y="19" width="28" height="72" rx="5" fill="#214d43" stroke="#b38b43" stroke-width="3"/><rect x="33" y="10" width="38" height="13" rx="3" fill="url(#${id})"/><rect x="42" y="91" width="20" height="16" fill="url(#${id})"/><ellipse cx="52" cy="107" rx="9" ry="4" fill="#8fe2e3"/></g>
-      <circle cx="88" cy="99" r="12" fill="url(#${id})" stroke="#695029" stroke-width="2"/><circle cx="88" cy="99" r="5" fill="#274b3f"/>
-      <path d="M53 83L64 97L53 113L42 97Z" fill="url(#${id}-c)" stroke="#e6ffff" stroke-width="1.4"/>
+      <path d="M76 157V128Q101 108 91 72Q87 60 70 55" fill="none" stroke="#795325" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M76 157V128Q101 108 91 72Q87 60 70 55" fill="none" stroke="url(#${id})" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="18" y="112" width="72" height="8" rx="3" fill="#173a33" stroke="#ac8a49" stroke-width="2"/>
+      <circle cx="93" cy="100" r="11" fill="url(#${id})" stroke="#695029" stroke-width="2"/><circle cx="93" cy="100" r="4.5" fill="#274b3f"/>
+      <g transform="translate(0 -7) rotate(19 52 64)"><rect x="38" y="19" width="28" height="72" rx="5" fill="#214d43" stroke="#b38b43" stroke-width="3"/><rect x="33" y="10" width="38" height="13" rx="3" fill="url(#${id})"/><rect x="43" y="91" width="18" height="14" fill="url(#${id})"/><ellipse cx="52" cy="105" rx="7" ry="3" fill="#8fe2e3"/></g>
+      <path d="M41 99L48 105.5L41 112L34 105.5Z" fill="url(#${id}-c)" stroke="#e6ffff" stroke-width="1.2"/>
     </svg>`;
   }
 

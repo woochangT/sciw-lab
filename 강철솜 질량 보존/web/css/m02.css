@@ -178,13 +178,16 @@ button:focus-visible, .card:focus-visible, textarea:focus-visible, input:focus-v
 /* 교수 자리 */
 #profCol { position: absolute; right: 0; top: 0; width: 410px; height: 640px; z-index: 6; }
 /* 의자 앞, 책상 뒤에 앉은 자리: 아랫부분은 책상에 가려지듯 흐리게 */
-#prof { position: absolute; right: 6px; bottom: 190px; width: 236px; height: 315px; -webkit-mask-image: linear-gradient(#000 78%, transparent 99%); mask-image: linear-gradient(#000 78%, transparent 99%); background: url('../assets/professor-expressions.png') 0 0 / 400% 100% no-repeat; filter: drop-shadow(2px 8px 7px #1c211b66); z-index: 1; }
-/* #prof의 background 단축 속성이 표정 위치를 덮지 않도록 #prof에도 같은 규칙을 준다 */
-.professor-art[data-expression=proud], #prof[data-expression=proud] { background-position: 0 0; }
-.professor-art[data-expression=skeptical], #prof[data-expression=skeptical] { background-position: 33.3333% 0; }
+#prof { position: absolute; right: 6px; bottom: 190px; width: 236px; height: 315px; -webkit-mask-image: linear-gradient(#000 78%, transparent 99%); mask-image: linear-gradient(#000 78%, transparent 99%); filter: drop-shadow(2px 8px 7px #1c211b66); z-index: 1; }
+#prof .pf-base, #prof .pf-tip { position: absolute; inset: 0; background: url('../assets/professor-expressions.png') 0 0 / 400% 100% no-repeat; }
+#prof .pf-tipwrap { position: absolute; inset: 0; }
+#prof .pf-tip { transition: transform .7s cubic-bezier(.4, 0, .2, 1); }
+/* 교수 그림은 #prof 안의 두 겹(pf-base, pf-tip)이 같은 표정 칸을 보여 준다 */
+.professor-art[data-expression=proud], #prof[data-expression=proud] .pf-base, #prof[data-expression=proud] .pf-tip { background-position: 0 0; }
+.professor-art[data-expression=skeptical], #prof[data-expression=skeptical] .pf-base, #prof[data-expression=skeptical] .pf-tip { background-position: 33.3333% 0; }
 #prof[data-expression=skeptical] { clip-path: inset(0 4% 0 0); } /* 옆 칸 그림이 비치지 않게 (미션 01과 같음) */
-.professor-art[data-expression=surprised], #prof[data-expression=surprised] { background-position: 66.6667% 0; }
-.professor-art[data-expression=acknowledging], #prof[data-expression=acknowledging] { background-position: 100% 0; }
+.professor-art[data-expression=surprised], #prof[data-expression=surprised] .pf-base, #prof[data-expression=surprised] .pf-tip { background-position: 66.6667% 0; }
+.professor-art[data-expression=acknowledging], #prof[data-expression=acknowledging] .pf-base, #prof[data-expression=acknowledging] .pf-tip { background-position: 100% 0; }
 #stage.zooming { transition: transform .7s ease-in-out; }
 #noseMeter { position: absolute; right: 240px; bottom: 200px; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 7px; background: #0f231fe6; border-radius: 14px; border: 2px solid #d7b45e; box-shadow: 0 6px 16px #0007; }
 .nose-value { font-size: 14px; font-weight: 800; color: #f6efd8; font-variant-numeric: tabular-nums; }

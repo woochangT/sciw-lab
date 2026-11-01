@@ -52,6 +52,20 @@
   /* ───────── 교수 ───────── */
   function expr(level) { return level >= 3 ? 'proud' : level === 2 ? 'skeptical' : level === 1 ? 'surprised' : 'acknowledging'; }
   // 콧대: 미션 01(감자)과 같이 콧대 단계가 교수 그림을 정한다. 3~4 거만, 2 턱 괴기, 1 놀람, 0 웃음.
+  // 코도 실제로 줄어든다. 같은 그림을 두 겹으로 쓴다: 코끝 구역을 도려낸 얼굴(pf-base)과 코끝만(pf-tip).
+  // 코끝을 뿌리 쪽으로 밀어 넣고(d) 자른 선(cut) 너머는 가리며, 세로로 키워(s) 자른 선의 코 두께에 맞춘다.
+  // 표정별 값: cut=자른 선 x, y0~y1=코끝 구역, cyc=자른 선에서 코 중심 높이, lv[콧대]=[d, s, 밀기 전 코 중심 높이]. 236×315 기준.
+  const NOSE = {"proud": {"cut": 87.79, "y0": 60.91, "y1": 93.11, "cyc": 77.88, "lv": [[15.02, 1.75, 73.96], [12.1, 1.448, 74.62], [8.76, 1.273, 75.49], [4.59, 1.135, 76.36], [0.0, 1.0, 77.88]]}, "skeptical": {"cut": 63.02, "y0": 84.84, "y1": 112.25, "cyc": 100.72, "lv": [[15.02, 1.708, 99.2], [12.1, 1.414, 99.42], [8.76, 1.281, 99.63], [4.59, 1.079, 100.07], [0.0, 1.0, 100.72]]}, "surprised": {"cut": 79.1, "y0": 82.67, "y1": 112.25, "cyc": 98.11, "lv": [[15.33, 1.64, 97.24], [12.35, 1.414, 97.24], [8.94, 1.281, 97.46], [4.69, 1.108, 97.68], [0.0, 1.0, 98.11]]}, "acknowledging": {"cut": 63.02, "y0": 109.64, "y1": 135.75, "cyc": 125.3, "lv": [[12.52, 1.652, 126.39], [10.08, 1.407, 125.96], [7.3, 1.267, 125.74], [3.82, 1.086, 125.52], [0.0, 1.0, 125.3]]}};
+  function noseStyle(face, level, animate) {
+    const n = NOSE[face]; const [d, s, cy] = n.lv[level];
+    const tip = $('#profTip');
+    $('#profBase').style.clipPath = `path(evenodd, 'M0 0H236V315H0Z M0 ${n.y0}H${n.cut}V${n.y1}H0Z')`;
+    $('#profTipWrap').style.clipPath = `inset(0 ${236 - n.cut}px 0 0)`;
+    tip.style.clipPath = `inset(${n.y0}px ${236 - n.cut}px ${315 - n.y1}px 0)`;
+    tip.style.transition = animate ? '' : 'none';
+    tip.style.transformOrigin = `0 ${cy}px`;
+    tip.style.transform = `translate(${d}px, ${n.cyc - cy}px) scaleY(${s})`;
+  }
   // 교수 얼굴 쪽으로 다가갔다가(zoomProf) 돌아온다(zoomOut). 장면 좌표: 교수 그림 왼쪽 위가 (1038, 135).
   async function zoomProf(k) {
     if (reduced) return;
@@ -71,7 +85,13 @@
   function setNose(level) {
     const prev = S.nose;
     S.nose = Math.max(0, Math.min(4, level));
-    $('#prof').dataset.expression = expr(S.nose);
+    // 지금 얼굴에서 코 길이가 먼저 바뀌고, 그다음 그 단계의 그림으로 바뀐다
+    const prof = $('#prof');
+    const was = prof.dataset.expression || expr(prev); const face = expr(S.nose);
+    if (!prof.dataset.expression) prof.dataset.expression = was;
+    noseStyle(was, S.nose, true);
+    clearTimeout(S.noseTimer);
+    if (face !== was) S.noseTimer = setTimeout(() => { prof.dataset.expression = face; noseStyle(face, S.nose, false); }, reduced ? 0 : 750);
     const meter = $('#noseMeter');
     $$('#noseMeter i').forEach((el, i) => {
       const was = el.classList.contains('on'); const on = i < S.nose;
@@ -1127,12 +1147,12 @@
     await say(line);
   }
 
-  // 반박을 통과하면 콧대가 한 칸 꺾인다. 교수 그림이 바뀌는 단계면 얼굴로 다가가 보여 준다.
+  // 반박을 통과하면 콧대가 한 칸 꺾인다. 교수 얼굴로 다가가 코가 줄어드는 것을 보여 준다.
   async function passQuest(conclId) {
-    const changes = expr(S.nose - 1) !== expr(S.nose);
-    if (changes) await zoomProf(1.7);
+    await zoomProf(1.7);
     setNose(S.nose - 1);
-    if (changes) { await sleep(reduced ? 200 : 1100); await zoomOut(); }
+    await sleep(reduced ? 200 : 1300);
+    await zoomOut();
     await say(M.lines.pass);
     addCard(conclId, $('#reply'));
     // 인정하는 한마디를 읽을 수 있게 탭할 때까지 둔다
@@ -1525,5 +1545,5 @@
   setupStart();
   setupTrayScroll();
   fit();
-  window.__m02 = { S, say, fit, renderTray }; // 디버그용
+  window.__m02 = { S, say, fit, renderTray, setNose }; // 디버그용
 })();
