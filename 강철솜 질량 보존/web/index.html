@@ -19,8 +19,8 @@
       <ol aria-label="미션 진행 단계">
         <li data-stage="explore"><b>1</b>탐색</li>
         <li data-stage="claim"><b>2</b>주장</li>
-        <li data-stage="rebuttal"><b>3</b>반박</li>
-        <li data-stage="defense"><b>4</b>변론</li>
+        <li data-stage="rebuttal"><b>3</b>드러내기</li>
+        <li data-stage="defense"><b>4</b>완전한 설명</li>
       </ol>
       <div class="who" id="who"></div>
     </header>
@@ -31,12 +31,16 @@
         <div id="board" class="board"></div>
         <div id="scope" hidden></div>
         <div id="arena" aria-hidden="true"><div id="arenaDeck"></div></div>
+        <div id="talkVeil" aria-hidden="true"></div>
         <div id="profCol">
-          <div id="bubble" role="status" aria-live="polite"><div class="body"></div><span class="more" aria-hidden="true">▶</span></div>
+          <svg id="bubbleTail" aria-hidden="true"><path/></svg>
+          <div id="bubble" role="status" aria-live="polite"><div class="body"></div><span class="more" aria-hidden="true">▶</span><div class="sys-line" id="sysLine" hidden></div></div>
           <div id="reply" hidden></div>
-          <div id="noseMeter" role="progressbar" aria-label="교수의 콧대" aria-valuemin="0" aria-valuemax="4"><div class="nose-track"><i></i><i></i><i></i><i></i></div><span class="nose-value" id="noseValue" aria-hidden="true">2 / 4</span></div>
+          <div id="sysPop" role="status" hidden></div>
+          <div id="noseMeter" role="progressbar" aria-label="교수의 콧대" aria-valuemin="0" aria-valuemax="4" hidden><div class="nose-track"><i></i><i></i><i></i><i></i></div><span class="nose-value" id="noseValue" aria-hidden="true">2 / 4</span></div>
           <div id="prof" class="professor-art" role="img" aria-label="콧대 교수"><div class="pf-base" id="profBase"></div><div class="pf-tipwrap" id="profTipWrap"><div class="pf-tip" id="profTip"></div></div></div>
         </div>
+        <div id="acqPanel" class="acq-panel" hidden></div>
         <div id="pop" hidden></div>
       </div>
     </main>

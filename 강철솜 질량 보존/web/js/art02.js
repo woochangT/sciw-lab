@@ -3,18 +3,19 @@
   let serial = 0;
 
   // 강철솜: 고리 모양 실이 엉킨 뭉치. 같은 모양이 나오도록 시드 난수를 쓴다.
-  function wool(cx, cy, w, h, burned, seed) {
+  // k: 고리와 실의 굵기 배율. 플라스크처럼 좁은 곳에 넣을 때는 줄여서 유리 밖으로 삐져나오지 않게 한다.
+  function wool(cx, cy, w, h, burned, seed, k = 1) {
     let s = seed || 7;
     const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
     let d = '';
     for (let i = 0; i < 26; i++) {
       const x = cx + (rnd() - 0.5) * w; const y = cy + (rnd() - 0.5) * h;
-      const r = 4 + rnd() * 9;
-      d += `M${(x - r).toFixed(1)} ${y.toFixed(1)} a${r.toFixed(1)} ${(r * 0.7).toFixed(1)} ${(rnd() * 60).toFixed(0)} 1 1 ${(r * 2).toFixed(1)} 0 a${r.toFixed(1)} ${(r * 0.7).toFixed(1)} 0 1 1 ${(-r * 1.6).toFixed(1)} ${(r * 0.4).toFixed(1)} `;
+      const r = (4 + rnd() * 9) * k;
+      d += `M${(x - r).toFixed(2)} ${y.toFixed(2)} a${r.toFixed(2)} ${(r * 0.7).toFixed(2)} ${(rnd() * 60).toFixed(0)} 1 1 ${(r * 2).toFixed(2)} 0 a${r.toFixed(2)} ${(r * 0.7).toFixed(2)} 0 1 1 ${(-r * 1.6).toFixed(2)} ${(r * 0.4).toFixed(2)} `;
     }
     const col = burned ? '#4a3a33' : '#a9aeb3';
     const hi = burned ? '#7a5446' : '#e3e7ea';
-    return `<g class="wool"><path d="${d}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${hi}" stroke-width=".8" opacity=".7" transform="translate(-1 -1)"/></g>`;
+    return `<g class="wool"><path d="${d}" fill="none" stroke="${col}" stroke-width="${(2.2 * k).toFixed(2)}" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${hi}" stroke-width="${(0.8 * k).toFixed(2)}" opacity=".7" transform="translate(${-k} ${-k})"/></g>`;
   }
 
   function sparks(cx, cy) {
@@ -87,10 +88,10 @@
       <path d="M113 22 L113 64 Q66 84 70 116 Q76 146 130 146 Q184 146 190 116 Q194 84 147 64 L147 22 Z" fill="rgba(214,240,246,.42)" stroke="#d7eef2" stroke-width="2.4"/>
       <path d="M84 100 Q82 124 102 134" stroke="#fff" stroke-width="3" opacity=".55" fill="none" stroke-linecap="round"/>
       <rect x="105" y="10" width="50" height="18" rx="4" fill="#5b3b28" stroke="#2f1d12" stroke-width="1.5"/>
-      ${wool(130, 124, 58, 22, false, 23)}
-      <g class="wool-dark" style="opacity:0">${wool(130, 124, 58, 22, true, 23)}</g>
+      ${wool(125, 120, 58, 16, false, 23, 0.9)}
+      <g class="wool-dark" style="opacity:0">${wool(125, 120, 58, 16, true, 23, 0.9)}</g>
       <path d="M122 14 L122 112 M138 14 L138 112" stroke="#b9872f" stroke-width="1.6"/>
-      ${burnTop(130, 124, 54, [120, 112])}
+      ${burnTop(130, 120, 54, [120, 112])}
       <path d="M122 14 Q122 2 150 2 Q210 2 260 40" stroke="#c0392b" stroke-width="2.2" fill="none"/>
       <path d="M138 14 Q140 6 160 8 Q215 12 260 60" stroke="#2b2b2b" stroke-width="2.2" fill="none"/>
       ${sparks(130, 120)}
@@ -152,7 +153,7 @@
     const lcd = which === 'A' ? '2.5' : '150.0';
     const top = which === 'A'
       ? `<path d="M34 40 Q60 50 86 40 L83 45 Q60 53 37 45 Z" fill="#f6f4ef" stroke="#c9c4b8"/>${wool(60, 36, 34, 10, true, 11)}`
-      : `<path d="M54 6 L54 18 Q38 24 39 34 Q41 44 60 44 Q79 44 81 34 Q82 24 66 18 L66 6 Z" fill="rgba(214,240,246,.5)" stroke="#9fc6cf"/><rect x="51" y="2" width="18" height="6" rx="2" fill="#5b3b28"/>${wool(60, 37, 22, 8, true, 23)}`;
+      : `<path d="M54 6 L54 18 Q38 24 39 34 Q41 44 60 44 Q79 44 81 34 Q82 24 66 18 L66 6 Z" fill="rgba(214,240,246,.5)" stroke="#9fc6cf"/><rect x="51" y="2" width="18" height="6" rx="2" fill="#5b3b28"/>${wool(58, 32, 20, 6, true, 23, 0.42)}`;
     return `<svg viewBox="0 0 120 76" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <rect width="120" height="76" fill="#3b2c22"/><rect y="52" width="120" height="24" fill="#7a5233"/>
       ${top}
@@ -167,7 +168,8 @@
   function miniSlide(mode) {
     const fe = [[44, 50], [52, 46], [60, 51], [68, 46], [76, 50]];
     // 산소는 둘씩 붙은 분자로
-    const o = fe.map(([x, y], i) => { const cy = y + (i % 2 ? -6 : 6); return `<circle cx="${x - 2.2}" cy="${cy}" r="2.4" fill="#e2553a"/><circle cx="${x + 2.2}" cy="${cy}" r="2.4" fill="#e2553a"/>`; }).join('');
+    // 막힌 플라스크에서는 바닥 밖으로 나가지 않게 모두 철 위쪽에 붙는다
+    const o = fe.map(([x, y], i) => { const cy = y + (mode === 'closed' || i % 2 ? -6 : 6); return `<circle cx="${x - 2.2}" cy="${cy}" r="2.4" fill="#e2553a"/><circle cx="${x + 2.2}" cy="${cy}" r="2.4" fill="#e2553a"/>`; }).join('');
     const ironG = fe.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.6" fill="#5b6168"/>`).join('');
     const body = mode === 'closed'
       ? `<path d="M54 14 L54 24 Q36 30 37 42 Q39 56 60 56 Q81 56 83 42 Q84 30 66 24 L66 14 Z" fill="rgba(214,240,246,.25)" stroke="#d7eef2" stroke-width="1.2"/><rect x="34" y="11" width="52" height="48" rx="5" fill="none" stroke="#fff7d6" stroke-dasharray="3 2"/>`

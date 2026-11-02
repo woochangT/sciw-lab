@@ -32,7 +32,7 @@ button:focus-visible, .card:focus-visible, textarea:focus-visible, input:focus-v
 #track .who { min-width: 120px; text-align: right; font-size: 14px; color: #cfc6ad; }
 
 /* 장면 */
-#sceneZone { position: relative; overflow: hidden; }
+#sceneZone { position: relative; overflow: hidden; overflow: clip; } /* clip: 카드로 scrollIntoView 할 때 장면이 밀려 올라가지 않게 */
 #sceneZone::before { content: ''; position: absolute; inset: -20px; background: url('../assets/laboratory-room.png') center / cover; filter: blur(8px) brightness(.55); }
 #stage { --scene-shade: radial-gradient(ellipse at 36% 40%, transparent 40%, #0b1b1866 100%); position: absolute; width: 1280px; height: 640px; transform-origin: 0 0; background: url('../assets/laboratory-room.png') center / 100% 100%; font-size: 18px; }
 #stage::after { content: ''; position: absolute; inset: 0; background: var(--scene-shade); pointer-events: none; transition: background .6s; }
@@ -56,6 +56,7 @@ button:focus-visible, .card:focus-visible, textarea:focus-visible, input:focus-v
 .ev-row, .cmb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .ev-slot, .cmb-slot { min-height: 86px; border: 2px dashed #f6f3ea88; border-radius: 10px; padding: 10px; display: grid; align-content: center; }
 .ev-slot.filled, .cmb-slot.filled { border-style: solid; }
+.ev-hint { font-size: 24px; font-weight: 700; color: #ffe39a; text-align: center; opacity: .85; }
 .can-drop { border-color: #ffe39a !important; background: #ffe39a14; }
 .chalk-btn { align-self: flex-end; padding: 10px 22px; border-radius: 10px; border: 2px solid #ffe39a; background: #ffe39a; color: #2a2a1e; font-weight: 800; font-size: 18px; font-family: 'Pretendard', sans-serif; }
 .chalk-btn:disabled { opacity: .35; cursor: default; }
@@ -186,7 +187,6 @@ button:focus-visible, .card:focus-visible, textarea:focus-visible, input:focus-v
 /* 교수 그림은 #prof 안의 두 겹(pf-base, pf-tip)이 같은 표정 칸을 보여 준다 */
 .professor-art[data-expression=proud], #prof[data-expression=proud] .pf-base, #prof[data-expression=proud] .pf-tip { background-position: 0 0; }
 .professor-art[data-expression=skeptical], #prof[data-expression=skeptical] .pf-base, #prof[data-expression=skeptical] .pf-tip { background-position: 33.3333% 0; }
-#prof[data-expression=skeptical] { clip-path: inset(0 4% 0 0); } /* 옆 칸 그림이 비치지 않게 (미션 01과 같음) */
 .professor-art[data-expression=surprised], #prof[data-expression=surprised] .pf-base, #prof[data-expression=surprised] .pf-tip { background-position: 66.6667% 0; }
 .professor-art[data-expression=acknowledging], #prof[data-expression=acknowledging] .pf-base, #prof[data-expression=acknowledging] .pf-tip { background-position: 100% 0; }
 #stage.zooming { transition: transform .7s ease-in-out; }
@@ -205,7 +205,7 @@ button:focus-visible, .card:focus-visible, textarea:focus-visible, input:focus-v
 #bubble.show { opacity: 1; transform: none; }
 #bubble.pop { animation: pop .25s ease; }
 #bubble p { margin: 0; }
-#bubble::after { content: ''; position: absolute; right: 90px; bottom: -14px; border: 14px solid transparent; border-top-color: #fffdf6; border-bottom: 0; }
+#bubble::after { content: ''; position: absolute; right: 90px; bottom: -14px; border: 14px solid transparent; border-top-color: #fffdf6; border-bottom: 0; transition: opacity .2s; }
 #bubble .more { display: none; position: absolute; right: 12px; bottom: 6px; font-size: 13px; color: var(--ink-soft); animation: nudge 1s infinite; }
 #bubble.has-more .more { display: block; }
 #bubble.has-more { cursor: pointer; }
@@ -213,6 +213,8 @@ button:focus-visible, .card:focus-visible, textarea:focus-visible, input:focus-v
 @keyframes pop { from { transform: scale(.97); } to { transform: none; } }
 #reply { position: absolute; left: 14px; right: 60px; bottom: 16px; max-height: 420px; overflow-y: auto; z-index: 5; padding: 12px; background: #eef6ff; border: 3px solid #3a6df0; border-radius: 12px; box-shadow: 0 10px 22px #0007; display: flex; flex-direction: column; gap: 8px; }
 #reply.pop { animation: pop .25s ease; }
+/* 칠판에 답을 쓸 때: 칠판 바로 아래. top은 칠판 높이에 맞춰 game02.js가 정한다. */
+#reply.under-board { left: -582px; right: auto; width: 560px; bottom: auto; }
 #reply input[type=text] { width: 100%; border: 1.5px solid #b9c8e6; border-radius: 8px; padding: 9px 10px; font: inherit; font-size: 17px; }
 #reply textarea { width: 100%; resize: none; border: 1.5px solid #b9c8e6; border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 17px; line-height: 1.45; }
 .r-choices { display: flex; flex-direction: column; gap: 6px; }
@@ -258,7 +260,29 @@ body.arena #arenaDeck { transform: none; opacity: 1; }
 #arenaDeck.call .card:nth-child(4) { animation-delay: .45s; } #arenaDeck.call .card:nth-child(5) { animation-delay: .6s; }
 #arenaDeck.call .card:nth-child(6) { animation-delay: .75s; }
 body.arena:has(#reply:not([hidden])) #arenaDeck { opacity: .25; pointer-events: none; }
-#bubble { transition: opacity .25s, transform .25s, left .45s ease, right .45s ease, top .45s ease, padding .45s ease, font-size .45s ease; }
+#bubble { transition: opacity .25s, transform .25s, left .5s ease, right .5s ease, top .5s ease, padding .5s ease, font-size .5s ease, border-radius .5s ease; }
+/* 할 일이 바뀌는 말: 화면 가운데에 크게 뜨고 꼬리가 교수 입까지 이어진다. 읽고 나면 머리 위로 옮겨 가며 작아진다. */
+#talkVeil { position: absolute; inset: 0; z-index: 5; background: #07120e8c; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .4s, visibility .4s; }
+#talkVeil.on { opacity: 1; visibility: visible; }
+/* 교수 앞 책상은 막보다 위에 있으므로 같은 막을 한 겹 더 덮는다 */
+#profCol::after { content: ''; position: absolute; left: 0; right: 0; top: 384px; bottom: 0; z-index: 2; background: #07120e8c; opacity: 0; pointer-events: none; transition: opacity .4s; }
+#talkVeil.on ~ #profCol::after { opacity: 1; }
+#bubble.center { left: -650px; right: 330px; top: 150px; padding: 28px 38px; font-size: 32px; line-height: 1.5; border-radius: 24px; }
+#bubble.no-move { transition: none; }
+#bubble.center::after, #bubble.moving::after { opacity: 0; }
+#bubble.center .more { font-size: 20px; right: 18px; bottom: 10px; }
+#bubbleTail { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; z-index: 3; pointer-events: none; opacity: 0; transition: opacity .25s; }
+#bubbleTail.on { opacity: 1; }
+#bubbleTail path { fill: #fffdf6; }
+/* 게임 시스템의 말: 교수의 말풍선과 다른 모양과 글씨로 보인다 */
+#sysPop { position: absolute; right: 288px; top: 228px; z-index: 5; padding: 12px 18px; width: 290px; display: flex; flex-direction: column; gap: 4px; border-radius: 10px; background: #10234aee; border: 2px solid #7fd4ff; box-shadow: 0 0 20px #7fd4ff66, 0 10px 22px #0009; color: #e4f6ff; font-family: 'Pretendard', sans-serif; animation: sysIn .35s cubic-bezier(.2, 1.3, .4, 1); }
+#sysPop::before { content: 'SYSTEM'; font: 700 12px 'Share Tech Mono', ui-monospace, monospace; letter-spacing: .24em; color: #7fd4ff; }
+#sysPop b { font-size: 23px; font-weight: 800; }
+#sysPop span { font-size: 15px; line-height: 1.4; color: #bfe6fb; }
+#sysPop.out { opacity: 0; transform: translateX(10px); transition: opacity .3s, transform .3s; }
+@keyframes sysIn { from { opacity: 0; transform: translateX(-16px) scale(.96); } }
+.sys-line { position: absolute; left: 8px; top: calc(100% + 12px); white-space: nowrap; font: 700 19px 'Share Tech Mono', 'Pretendard', ui-monospace, monospace; letter-spacing: .02em; color: #8fe6ff; text-shadow: 0 0 10px #4fc3ff99; }
+.sys-line::before { content: '▸ SYSTEM  '; white-space: pre; font-size: 13px; letter-spacing: .2em; opacity: .8; }
 /* 반박 화면의 큰 말풍선은 교수 왼쪽에 두고, 꼬리를 오른쪽으로 내어 교수 얼굴을 가리킨다 */
 body.arena #bubble { left: -834px; right: 300px; top: 34px; padding: 24px 34px; font-size: 29px; line-height: 1.55; border-radius: 22px; }
 body.arena #bubble::after { right: -26px; bottom: auto; top: 46%; border: 16px solid transparent; border-left: 28px solid #fffdf6; border-right: 0; }
@@ -274,7 +298,7 @@ body.arena .r-send { font-size: 18px; padding: 10px 22px; }
 .scope-frame { position: relative; height: 100%; border-radius: 26px; padding: 44px 26px 38px; background: radial-gradient(ellipse at 50% 40%, #183f45, #0b1f22 80%); border: 10px solid #8a6038; box-shadow: inset 0 0 0 3px #d5ad62, inset 0 0 60px #000a, 0 18px 40px #0009; display: flex; flex-direction: column; }
 .scope-title { position: absolute; left: 0; right: 0; text-align: center; top: 12px; color: #e6d39d; font-size: 15px; font-weight: 700; letter-spacing: .04em; }
 .scope-view { position: relative; flex: 1; min-height: 0; }
-#atoms { width: 100%; height: 100%; display: block; }
+#atoms { width: 100%; height: 100%; display: block; overflow: visible; }
 .atom .bob { animation: bob 3s ease-in-out infinite; }
 .atom.n .bob, .atom.o .bob { animation-duration: 2.4s; }
 .atom.fe .bob { animation: none; }
@@ -286,6 +310,7 @@ body.arena .r-send { font-size: 18px; padding: 10px 22px; }
 .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
 .dot.fe { background: var(--fe); } .dot.o { background: var(--o); }
 .lens-slot { position: absolute; right: 10px; bottom: 10px; }
+.scope-view.uncorking .scope-wires, .scope-view.uncorking #scopePower, .scope-view.uncorking #clipS, .scope-view.uncorking #count { opacity: 0; pointer-events: none; transition: opacity .4s; }
 .scope-base { display: flex; justify-content: center; align-items: flex-end; gap: 16px; margin-top: 4px; }
 .scope-base .dev-btn { margin: 0 0 10px; }
 .engrave { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font-size: 12px; color: #d9b874; letter-spacing: .08em; text-shadow: 0 1px 0 #0008; }
@@ -355,7 +380,7 @@ body.arena .r-send { font-size: 18px; padding: 10px 22px; }
 .start-story { min-width: 0; min-height: 0; }
 .start-story p { font-size: clamp(19px, 1.3vw, 22px); line-height: 1.7; margin: 18px 0 0; color: #e5ecd8; }
 .start-dialogue { display: flex; align-items: center; justify-content: flex-end; height: clamp(240px, 34vh, 307px); gap: 12px; margin-top: 8px; }
-.hero-prof { height: 100%; width: auto; aspect-ratio: 3 / 4; flex: none; clip-path: inset(0 4% 0 0); }
+.hero-prof { height: 100%; width: auto; aspect-ratio: 3 / 4; flex: none; }
 .hero-quote { flex: none; max-width: none; white-space: nowrap; margin: 0 -5px 0 0; padding: 15px 18px; border: 1px solid #ceb269; border-radius: 17px 17px 4px 17px; background: #fff3dbe8; color: #314d36; font-size: clamp(27px, 2.2vw, 34px); line-height: 1.25; transform: rotate(-4deg); box-shadow: 0 6px 14px #0d291e66; }
 .start-card { width: auto; padding: 30px 34px; }
 .start-card .tag { font-size: 16px; letter-spacing: .4px; }
@@ -400,6 +425,11 @@ body.arena .r-send { font-size: 18px; padding: 10px 22px; }
 .lg.from-card { text-decoration: underline dotted; }
 .praise { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.6; }
 .next-line { margin: 0; font-weight: 700; color: #7a3d2a; }
+/* 키링을 받지 못했을 때: 인트로와 같은 실루엣과 물음표 */
+.next-keyring { display: flex; align-items: center; gap: 14px; }
+.key-sil { position: relative; flex: none; height: 104px; display: inline-block; }
+.key-sil img { display: block; height: 100%; width: auto; filter: drop-shadow(0 4px 5px #0003); }
+.key-sil .qm { position: absolute; left: 51%; top: 64%; transform: translate(-50%, -50%); font: 700 40px/1 'Gaegu', cursive; color: #fffdf8; text-shadow: 0 2px 0 #0003, 0 0 10px #fffdf859; }
 /* 혼자 힘으로 완전 클리어했을 때의 선물 (미션 01 감자 키링과 같은 모양) */
 .keyring-reward { display: flex; gap: 16px; align-items: center; padding: 12px 20px 12px 10px; border: 2px solid #dfbd62; border-radius: 16px; background: linear-gradient(125deg, #fff8dc, #ecedcc); color: #355137; box-shadow: 0 8px 25px #10271b55; animation: rewardAppear .6s ease-out; }
 .keyring-reward img { flex: none; width: 120px; height: 180px; object-fit: contain; filter: drop-shadow(0 6px 8px #0004); transform-origin: 50% 6%; animation: keyringSway 3s ease-in-out infinite; }
@@ -424,16 +454,24 @@ body.arena .r-send { font-size: 18px; padding: 10px 22px; }
 .scope-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 #scopeWire { fill: none; stroke: #c0392b; stroke-width: 3; stroke-linecap: round; }
 
-/* 단서 획득: 카드와 도장을 세로로 나란히 놓아 결과 글을 가리지 않는다. */
-.acquire { position: fixed; inset: 0; z-index: 950; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; padding: 30px 24px; overflow: auto; background: radial-gradient(circle, #0b1b18aa, #0b1b18dd); animation: acqIn .25s ease; cursor: pointer; }
-.acquire.out { opacity: 0; transition: opacity .3s; }
-.acq-cards { display: flex; flex: none; flex-wrap: wrap; justify-content: center; gap: 18px; max-width: 100%; }
-.acquire .card.acq { width: min(300px, calc(100vw - 48px)); min-height: 120px; font-size: 20px; padding: 18px 20px; transform: rotate(-2deg); animation: acqCard .45s cubic-bezier(.2,1.4,.4,1); box-shadow: 0 18px 40px #000a; }
-.acquire .card.acq b { font-size: 14px; }
-.acq-stamp { flex: none; padding: 6px 18px; border: 4px solid #c0392b; border-radius: 8px; color: #c0392b; font-weight: 900; font-size: 26px; letter-spacing: .12em; background: #fff8ec; transform: rotate(-8deg); animation: stamp .35s .35s both ease-out; }
-@keyframes acqIn { from { opacity: 0; } }
-@keyframes acqCard { from { transform: translateX(-60vw) rotate(-14deg); } }
-@keyframes stamp { from { transform: rotate(-8deg) scale(1.2); opacity: 0; } }
+/* 단서 획득: '획득'을 눌러야 수집함으로 간다. 기본 자리는 우측 하단(교수 앞). 실험대 단서는 조작한 장치 바로 오른편에(beside), 현미경 단서는 가운데에 크게 떴다가(at-center) 기본 자리로 옮겨 간다(moving). */
+.acq-panel { position: absolute; left: 884px; bottom: 10px; width: 382px; z-index: 7; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; background: #fffaf0; border: 3px solid #c0392b; border-radius: 14px; box-shadow: 0 14px 30px #0009; transform-origin: 0 0; }
+.acq-panel.beside { width: 300px; bottom: auto; transform-origin: 0 50%; animation: acqIn .4s cubic-bezier(.2, 1.3, .4, 1); }
+.acq-panel.beside::before { content: ''; position: absolute; left: -13px; top: 120px; border: 10px solid transparent; border-right-color: #c0392b; border-left: 0; }
+.acq-panel.at-center { animation: acqFade .3s ease; }
+.acq-panel.at-center .acq-btn { max-height: 0; padding: 0; opacity: 0; box-shadow: none; }
+.acq-panel.moving { transition: transform .65s cubic-bezier(.4, 0, .2, 1); }
+.acq-panel.moving .acq-btn { transition: max-height .65s, padding .65s, opacity .3s .35s; }
+.acq-head { font-size: 15px; font-weight: 900; letter-spacing: .1em; color: #c0392b; }
+.acq-panel .card { flex: none; width: 100%; transform: none; cursor: default; box-shadow: 0 2px 6px #0003; }
+.acq-panel .card.big .pic svg { height: 92px; }
+.acq-panel .card.big span { font-size: 18px; }
+.acq-seen { margin: 0; font-size: 16px; line-height: 1.45; color: var(--ink); }
+.acq-seen:empty { display: none; }
+.acq-btn { max-height: 60px; overflow: hidden; flex: none; padding: 9px; border: 0; border-radius: 10px; background: #c0392b; color: #fff; font-size: 20px; font-weight: 900; letter-spacing: .14em; box-shadow: 0 3px 0 #7d2319; }
+.acq-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #7d2319; }
+@keyframes acqIn { from { opacity: 0; transform: translateX(-20px) scale(.94); } }
+@keyframes acqFade { from { opacity: 0; } }
 
 /* 반박: 교수 말 속 단서를 댈 수 있는 곳 */
 #bubble.debate { border: 3px solid #f0a33a; }
@@ -495,7 +533,7 @@ body.arena .r-send { font-size: 18px; padding: 10px 22px; }
 .scale-win.on-balance { position: absolute; margin: 0; z-index: 3; width: 150px; height: 34px; }
 .scale-win.on-balance .num { font-size: 24px; }
 .scale-win.on-balance .lbl { top: 40px; left: -4px; }
-.scale-win.on-balance .tag { top: -34px; right: -10px; left: auto; }
+.scale-win.on-balance .tag { top: 0; left: calc(100% + 10px); right: auto; font-size: 21px; } /* 숫자 바로 오른편: 플라스크 속이 아니라 이 무게에 대한 말임을 드러낸다 */
 .scale-win .num.flash { animation: numPop .45s ease; display: inline-block; }
 @keyframes numPop { 40% { transform: scale(1.25); color: #0b5d2a; } }
 

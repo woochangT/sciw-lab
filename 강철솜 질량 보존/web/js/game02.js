@@ -1,7 +1,9 @@
 /*
  * 게임 엔진 — 미션 02 「늘어난 강철솜」
- * 흐름: 탐색 → 주장(처음 답 직접 쓰기 + 고르기) → 반박(현미경 Q1~Q3) → 결론 합치기 → 변론(분류 → 답안 짜기) → 클리어
- * 화면 규칙: 가운데 지시문 없음. 다음 물건은 세 번 깜빡인 뒤 빛 테두리로 남고, 할 말은 교수 머리 위 말풍선이 한다.
+ * 흐름: 탐색 → 주장(처음 답 직접 쓰기 + 고르기) → 드러내기(현미경 Q1~Q3 → 드러내기 카드 합치기) → 완전한 설명(분류 → 답안 짜기) → 클리어
+ * 코드와 기록의 단계 이름(rebuttal, defense)은 그대로 둔다.
+ * 화면 규칙: 다음 물건은 세 번 깜빡인 뒤 빛 테두리로 남고, 할 말은 교수 말풍선이 한다. 할 일이 바뀌는 말은 가운데에 크게 떴다가 머리 위로 옮겨 간다.
+ * 교수의 말이 아닌 안내는 게임 시스템의 말(#sysPop, #sysLine)로 따로 보인다.
  * 장면은 1280×640 크기로 그리고 화면에 맞게 줄여 보여 준다.
  */
 (function () {
@@ -23,7 +25,7 @@
     stage: 'explore', nose: 2, sessionId: null, classCode: '', studentNo: '',
     tray: [], cards: Object.assign({}, M.cards), done: {}, firstAnswer: '', firstTag: '',
     claim: null, evidence: [null, null], q: null, errCount: {}, concl: {},
-    scope: { mode: 'closed', bonded: { closed: 0, open: 0 }, locked: true },
+    scope: { mode: 'closed', bonded: { closed: 0, open: 0 }, locked: true }, outO: [], outN: [],
     sortFirst: {}, sortPlaced: {}, inserted: [], ownMode: false, ownEver: false,
     hint: 0, hintReason: '', submits: 0, predicted: false,
     composeStart: 0, lastInput: now(), glowKey: null, nudged: {}, sel: null, times: {}, firstSubmitText: ''
@@ -87,7 +89,7 @@
   // 코도 실제로 줄어든다. 같은 그림을 두 겹으로 쓴다: 코끝 구역을 도려낸 얼굴(pf-base)과 코끝만(pf-tip).
   // 코끝을 뿌리 쪽으로 밀어 넣고(d) 자른 선(cut) 너머는 가리며, 세로로 키워(s) 자른 선의 코 두께에 맞춘다.
   // 표정별 값: cut=자른 선 x, y0~y1=코끝 구역, cyc=자른 선에서 코 중심 높이, lv[콧대]=[d, s, 밀기 전 코 중심 높이]. 236×315 기준.
-  const NOSE = {"proud": {"cut": 87.79, "y0": 60.91, "y1": 93.11, "cyc": 77.88, "lv": [[15.02, 1.75, 73.96], [12.1, 1.448, 74.62], [8.76, 1.273, 75.49], [4.59, 1.135, 76.36], [0.0, 1.0, 77.88]]}, "skeptical": {"cut": 63.02, "y0": 84.84, "y1": 112.25, "cyc": 100.72, "lv": [[15.02, 1.708, 99.2], [12.1, 1.414, 99.42], [8.76, 1.281, 99.63], [4.59, 1.079, 100.07], [0.0, 1.0, 100.72]]}, "surprised": {"cut": 79.1, "y0": 82.67, "y1": 112.25, "cyc": 98.11, "lv": [[15.33, 1.64, 97.24], [12.35, 1.414, 97.24], [8.94, 1.281, 97.46], [4.69, 1.108, 97.68], [0.0, 1.0, 98.11]]}, "acknowledging": {"cut": 63.02, "y0": 109.64, "y1": 135.75, "cyc": 125.3, "lv": [[12.52, 1.652, 126.39], [10.08, 1.407, 125.96], [7.3, 1.267, 125.74], [3.82, 1.086, 125.52], [0.0, 1.0, 125.3]]}};
+  const NOSE = {"proud": {"cut": 83.88, "y0": 60.91, "y1": 93.11, "cyc": 77.88, "lv": [[15.02, 1.75, 73.96], [12.1, 1.448, 74.62], [8.76, 1.273, 75.49], [4.59, 1.135, 76.36], [0.0, 1.0, 77.88]]}, "skeptical": {"cut": 69.1, "y0": 84.84, "y1": 112.25, "cyc": 100.72, "lv": [[15.02, 1.708, 99.2], [12.1, 1.414, 99.42], [8.76, 1.281, 99.63], [4.59, 1.079, 100.07], [0.0, 1.0, 100.72]]}, "surprised": {"cut": 83.04, "y0": 95.65, "y1": 123.47, "cyc": 110.17, "lv": [[14.42, 1.64, 109.35], [11.61, 1.414, 109.35], [8.41, 1.281, 109.56], [4.41, 1.108, 109.77], [0.0, 1.0, 110.17]]}, "acknowledging": {"cut": 63.02, "y0": 109.64, "y1": 135.75, "cyc": 125.3, "lv": [[12.52, 1.652, 126.39], [10.08, 1.407, 125.96], [7.3, 1.267, 125.74], [3.82, 1.086, 125.52], [0.0, 1.0, 125.3]]}};
   function noseStyle(face, level, animate) {
     const n = NOSE[face]; const [d, s, cy] = n.lv[level];
     const tip = $('#profTip');
@@ -141,6 +143,7 @@
   const pick = (v) => (Array.isArray(v) && Array.isArray(v[0]) ? v[Math.floor(Math.random() * v.length)] : v);
 
   // 말풍선: 두 문장씩 한 장. 다음 장이 있으면 탭을 기다린다. 마지막 장은 띄워 둔 채로 끝낸다.
+  // opts.center: 할 일이 바뀌는 말은 화면 가운데에 크게 띄웠다가, 읽고 나면 교수 머리 위로 옮겨 간다.
   let sayToken = 0;
   async function say(lines, opts = {}) {
     const my = ++sayToken;
@@ -148,26 +151,98 @@
     const pages = [];
     for (let i = 0; i < arr.length; i += 2) pages.push(arr.slice(i, i + 2));
     const bubble = $('#bubble');
+    $('#sysLine').hidden = true;
+    if (opts.center) centerIn(); else centerOff();
     for (let p = 0; p < pages.length; p++) {
       if (my !== sayToken) return;
       bubble.querySelector('.body').innerHTML = pages[p].map((l) => `<p>${esc(l)}</p>`).join('');
       bubble.classList.add('show');
       bubble.classList.remove('pop'); void bubble.offsetWidth; bubble.classList.add('pop');
+      if (opts.center) drawTail();
       const more = p < pages.length - 1;
       bubble.classList.toggle('has-more', more);
       if (more) await waitTap();
     }
     placeReply();
+    if (opts.center && my === sayToken) {
+      // 마지막 장은 읽을 시간을 주고 저절로 옮겨 간다. 누르면 바로 옮겨 간다.
+      const chars = pages[pages.length - 1].join('').length;
+      bubble.classList.add('has-more');
+      await waitTap(reduced ? 1500 : Math.min(6000, 1800 + chars * 70));
+      bubble.classList.remove('has-more');
+      if (my === sayToken) await centerOut();
+    }
   }
-  // 답장 카드는 교수 얼굴을 가리지 않게 교수 아래 책상 쪽에 둔다 (위치는 CSS의 bottom)
-  function placeReply() {}
-  function waitTap() {
+  // 교수 그림(236×315) 안에서 입 왼쪽 자리. 가운데 말풍선의 꼬리가 여기까지 이어진다.
+  const MOUTH = { proud: [87, 102], skeptical: [74, 126], surprised: [100, 138], acknowledging: [81, 139] };
+  function drawTail() {
+    const b = $('#bubble'); const prof = $('#prof');
+    const m = MOUTH[prof.dataset.expression] || MOUTH.skeptical;
+    const tx = prof.offsetLeft + m[0]; const ty = prof.offsetTop + m[1];
+    const x0 = b.offsetLeft; const y0 = b.offsetTop; const x1 = x0 + b.offsetWidth; const y1 = y0 + b.offsetHeight;
+    const bx = Math.max(x0 + 40, Math.min(tx, x1 - 40)); const by = Math.max(y0 + 30, Math.min(ty, y1 - 30));
+    const len = Math.hypot(tx - bx, ty - by) || 1;
+    const nx = -(ty - by) / len * 22; const ny = (tx - bx) / len * 22;
+    const mx = (bx + tx) / 2; const my = (by + ty) / 2 + 10;
+    $('#bubbleTail path').setAttribute('d', `M${bx + nx} ${by + ny} Q${mx + nx * 0.4} ${my + ny * 0.4} ${tx} ${ty} Q${mx - nx * 0.4} ${my - ny * 0.4} ${bx - nx} ${by - ny} Z`);
+  }
+  function centerIn() {
+    const b = $('#bubble');
+    if (b.classList.contains('center')) return;
+    b.classList.add('no-move', 'center');
+    void b.offsetWidth;
+    b.classList.remove('no-move');
+    $('#talkVeil').classList.add('on');
+    $('#bubbleTail').classList.add('on');
+  }
+  function centerOff() {
+    $('#bubble').classList.remove('center', 'moving');
+    $('#talkVeil').classList.remove('on');
+    $('#bubbleTail').classList.remove('on');
+  }
+  // 머리 위 자리로 옮겨 가며 글자가 작아지고, 꼬리는 따라가다 사라진다
+  async function centerOut() {
+    const b = $('#bubble');
+    if (!b.classList.contains('center')) return;
+    b.classList.add('moving');
+    b.classList.remove('center');
+    $('#talkVeil').classList.remove('on');
+    const t0 = now();
+    while (!reduced && now() - t0 < 560) {
+      drawTail();
+      if (now() - t0 > 280) $('#bubbleTail').classList.remove('on');
+      await sleep(16);
+    }
+    $('#bubbleTail').classList.remove('on');
+    b.classList.remove('moving');
+  }
+  // 게임 시스템이 잠깐 띄우는 알림. 교수의 말이 아니므로 말풍선을 쓰지 않는다.
+  async function sysPop(lines, ms = 3000) {
+    const el = $('#sysPop');
+    el.innerHTML = `<b>${esc(lines[0])}</b>${lines[1] ? `<span>${esc(lines[1])}</span>` : ''}`;
+    el.classList.remove('out');
+    el.hidden = false;
+    await sleep(reduced ? 1800 : ms);
+    el.classList.add('out');
+    await sleep(reduced ? 0 : 300);
+    el.hidden = true;
+  }
+  // 답장 카드는 교수 얼굴을 가리지 않게 교수 아래 책상 쪽에 둔다 (위치는 CSS의 bottom).
+  // 칠판에 답을 쓸 때만 칠판 바로 아래에 둔다.
+  function placeReply() {
+    const box = $('#reply'); const b = $('#board');
+    box.style.top = box.classList.contains('under-board') ? (b.offsetTop + b.offsetHeight + 10) + 'px' : '';
+  }
+  // timeout을 주면 그 시간이 지나도 넘어간다
+  function waitTap(timeout) {
     return new Promise((resolve) => {
       const c = $('#catcher');
       c.hidden = false;
-      const done = () => { c.hidden = true; c.removeEventListener('pointerdown', done); window.removeEventListener('keydown', key); resolve(); };
+      let timer = null;
+      const done = () => { clearTimeout(timer); c.hidden = true; c.removeEventListener('pointerdown', done); window.removeEventListener('keydown', key); resolve(); };
       const key = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); done(); } };
       setTimeout(() => { c.addEventListener('pointerdown', done); window.addEventListener('keydown', key); }, 250);
+      if (timeout) timer = setTimeout(done, timeout);
     });
   }
 
@@ -186,6 +261,7 @@
     html += `<button type="button" class="r-send" id="replySend" disabled ${cfg.instant ? 'hidden' : ''}>${esc(cfg.send || '교수님께 말하기')}</button>`;
     box.innerHTML = html;
     box.hidden = false;
+    box.classList.toggle('under-board', !!cfg.underBoard);
     placeReply();
     box.classList.remove('pop'); void box.offsetWidth; box.classList.add('pop');
     let choice = null;
@@ -567,7 +643,7 @@
     $('#numA').textContent = M.devices.A.after.toFixed(1) + ' g';
     $('#tagA').textContent = '2.0 → 2.5 g';
     logAttempt({ stage: 'explore', questId: 'burnA' });
-    acquire(['cA'], async () => { await say(M.lines.afterA); glow($('#clipB'), 'deviceB'); setNote('플라스크도 태우기'); });
+    acquire(['cA'], async () => { await say(M.lines.afterA, { center: true }); glow($('#clipB'), 'deviceB'); setNote('플라스크도 태우기'); }, $('#devA'));
   }
 
   // 집게: 끌어서 전원 장치 빨간 단자 가까이 놓으면 물리고(전류가 흐름), 다시 끌면 떨어진다.
@@ -621,7 +697,7 @@
     S.clipB = makeClip({
       el: $('#clipB'), container: $('#bench'), path: $('#wirePlus'), power: $('#power'),
       from: () => WIRE.from, home: () => WIRE.home, terminal: () => terminalOf($('#power'), $('#bench')),
-      enabled: () => S.stage === 'explore' && !S.done.burnB && S.done.burnA,
+      enabled: () => S.stage === 'explore' && !S.done.burnB && S.done.burnA && !S.acquiring,
       denied: () => { if (!S.done.burnA) say(M.lines.nudge.deviceA); },
       onChange: (on) => {
         $('#devB .dev-art').classList.toggle('burning', on && !S.done.burnB);
@@ -646,29 +722,58 @@
     $('#tagB').textContent = '150.0 → 150.0 g';
     logAttempt({ stage: 'explore', questId: 'burnB' });
     acquire(['cB'], async () => {
-      await say(M.lines.afterB); S.boardOpen = true; renderSmallBoard(); setNote('칠판에 내 생각 쓰기');
+      await say(M.lines.afterB, { center: true }); S.boardOpen = true; renderSmallBoard(); setNote('칠판에 내 생각 쓰기');
       glow($('#board'), 'board');
-    });
+    }, $('#devB'));
   }
 
-  // 단서 획득: 카드가 화면 가운데로 날아들어 도장이 찍힌 뒤 수집함으로 간다. 누르면 바로 넘어간다.
-  function acquire(ids, after) {
-    const ov = document.createElement('div');
-    ov.className = 'acquire';
-    ov.innerHTML = `<div class="acq-cards">${ids.map((id) => cardHTML(id, 'big acq')).join('')}</div><div class="acq-stamp">단서 획득</div>`;
-    document.body.appendChild(ov);
+  // 단서 획득: 학생이 '획득'을 눌러야 수집함으로 간다. 그동안 장면은 그대로 남아 있어서, 방금 본 것을 다시 살펴보거나 현미경의 '다시 하기'로 다시 볼 수 있다.
+  // 실험대 단서는 조작한 장치(beside) 바로 오른편에 뜬다. 현미경 단서는 가운데에 크게 보여 준 뒤 우측 하단으로 옮겨 간다.
+  function acquire(ids, after, beside) {
+    S.acquiring = true;
+    $('#bubble').classList.remove('show');
+    const box = $('#acqPanel');
+    box.innerHTML = `<div class="acq-head">새 단서 발견</div>${ids.map((id) => `${cardHTML(id, 'big').replace('xMidYMid slice', 'xMidYMid meet')}<p class="acq-seen">${esc(S.cards[id].sentence || '')}</p>`).join('')}<button type="button" class="acq-btn" id="acqBtn">획득</button>`;
+    box.className = beside ? 'acq-panel beside' : 'acq-panel';
+    box.style.cssText = '';
+    box.hidden = false;
     logAttempt({ stage: S.stage, questId: 'acquire', input: ids.join('+') });
-    let done = false;
-    const finish = () => {
-      if (done) return; done = true;
-      const els = $$('.card', ov);
+    const btn = $('#acqBtn');
+    btn.addEventListener('click', () => {
+      glow(null);
+      S.acquiring = false;
+      const els = $$('.card', box);
       ids.forEach((id, i) => addCard(id, els[i]));
-      ov.classList.add('out');
-      setTimeout(() => ov.remove(), 300);
+      box.hidden = true;
+      box.innerHTML = '';
       if (after) after();
-    };
-    ov.addEventListener('pointerdown', finish);
-    setTimeout(finish, reduced ? 900 : 1700);
+    }, { once: true });
+    if (beside) {
+      box.style.left = (beside.offsetLeft + beside.offsetWidth + 14) + 'px';
+      box.style.top = Math.min(beside.offsetTop, $('#stage').offsetHeight - 10 - box.offsetHeight) + 'px';
+    }
+    if (beside || reduced) glow(btn, null);
+    else acquireFromCenter(box, btn, ids.map((id) => S.cards[id].sentence || '').join('').length);
+  }
+  // 버튼은 가운데에 있는 동안 접어 두고, 옮겨 가면서 펼친다. 그래도 자리가 틀어지지 않게 왼쪽 위를 기준으로 줄인다.
+  async function acquireFromCenter(box, btn, chars) {
+    const stage = $('#stage'); const K = 1.5;
+    btn.disabled = true;
+    box.style.top = (stage.offsetHeight - 10 - box.offsetHeight) + 'px';
+    box.style.bottom = 'auto';
+    box.classList.add('at-center');
+    const x = (stage.offsetWidth - box.offsetWidth * K) / 2 - box.offsetLeft;
+    const y = (stage.offsetHeight - box.offsetHeight * K) / 2 - box.offsetTop;
+    box.style.transform = `translate(${x}px, ${y}px) scale(${K})`;
+    $('#talkVeil').classList.add('on');
+    await waitTap(Math.min(6000, 1800 + chars * 70));
+    $('#talkVeil').classList.remove('on');
+    box.classList.add('moving');
+    box.classList.remove('at-center');
+    box.style.transform = '';
+    await sleep(680);
+    btn.disabled = false;
+    glow(btn, null);
   }
 
   function onMicroscope() {
@@ -683,9 +788,9 @@
     $('#board').onclick = null;
     glow(null);
     setNote('내 생각 말하기');
-    await say([RUBRIC.STAGES.first.question, ...M.lines.firstAsk.slice(1)]);
+    await say([RUBRIC.STAGES.first.question, ...M.lines.firstAsk.slice(1)], { center: true });
     openReply({
-      text: true, rows: 3, send: '교수님께 말하기',
+      text: true, rows: 3, send: '교수님께 말하기', underBoard: true,
       onSubmit: async ({ text }) => {
         const r = await evaluateText('first', text);
         if (!r.pass) { await say(feedbackLines('first', r.nextQuestion)); return false; }
@@ -695,7 +800,7 @@
         logAttempt(Object.assign({ stage: 'claim', questId: 'first', input: text, diag: S.firstTag }, judgmentRecord(r)));
         updateSession(Object.assign({ firstAnswer: text, firstError: S.firstTag }, judgmentRecord(r)));
         renderSmallBoard();
-        await say(M.lines.firstThanks);
+        await say(M.lines.firstThanks, { center: true });
         openClaimBoard();
       }
     });
@@ -733,7 +838,7 @@
     S.evidence.forEach((id, i) => {
       const slot = $(`[data-drop="ev${i}"]`);
       if (!slot) return;
-      slot.innerHTML = id ? `<div class="mini k-${S.cards[id].kind}">${esc(S.cards[id].text)}</div>` : '';
+      slot.innerHTML = id ? `<div class="mini k-${S.cards[id].kind}">${esc(S.cards[id].text)}</div>` : `<span class="ev-hint">${esc(M.system.evSlot)}</span>`;
       slot.classList.toggle('filled', !!id);
     });
     updateClaimSubmit();
@@ -770,12 +875,16 @@
     renderTray();
     $('#stage').classList.add('spot');
     setNote('강철솜이 스스로 무거워질까?');
-    // 교수 얼굴로 다가가 콧대가 솟는 것을 보여 준 뒤 반박을 건다
+    // 왜 다음 단계로 넘어가는지 교수가 먼저 정리한다
+    await say(M.lines.rebuttalWhy, { center: true });
+    // 교수 얼굴로 다가가 콧대가 솟는 것을 보여 준다. 콧대 게이지는 이때 처음 나타난다.
     await zoomProf(2.2);
+    $('#noseMeter').hidden = false;
     setNose(4);
     await sleep(reduced ? 200 : 1200);
     await zoomOut();
-    await say(M.lines.rebuttal);
+    await sysPop(M.system.press);
+    await say(M.lines.rebuttal, { center: true });
     S.scope.locked = false;
     $('#microscope').classList.add('unlocked');
     glow($('#microscope'), 'scope');
@@ -786,10 +895,17 @@
   const FE = [[238, 318], [262, 302], [286, 320], [310, 303], [334, 319], [358, 304]];
   const N_O = 5; // 산소 분자(원자 두 개짜리) 5개. 하나 붙을 때마다 0.1 g (모형용 예시, 화면 대사에서는 개수와 무게를 잇지 않는다)
   const BOND = FE.slice(0, N_O).map(([x, y], i) => [x + (i % 2 ? 4 : -4), y + (i % 2 ? -19 : 19)]);
+  // 막힌 플라스크에서는 바닥 유리 밖으로 나가지 않게 모두 철 위쪽에 붙는다
+  const BOND_CLOSED = FE.slice(0, N_O).map(([x, y]) => [x, y - 21]);
+  const bondSpot = (mode, i) => (mode === 'closed' ? BOND_CLOSED : BOND)[i];
   const WOOL = [298, 312];
   const BOX = { closed: { x: 140, y: 34, w: 320, h: 344 }, open: { x: 196, y: 268, w: 208, h: 92 } };
   const BULB = { cx: 300, cy: 228, rx: 108, ry: 86 };
-  const AIR = { x1: 30, y1: 30, x2: 570, y2: 340 };
+  const AIR = { x1: -40, y1: 30, x2: 640, y2: 340 };
+  // 떠다니는 분자가 들어가지 않는 자리: 점선 둘레
+  const KEEP_OUT = { closed: { x: BOX.closed.x - 12, y: BOX.closed.y - 12, w: BOX.closed.w + 24, h: BOX.closed.h + 24 }, open: { x: BOX.open.x - 20, y: BOX.open.y - 30, w: BOX.open.w + 40, h: BOX.open.h + 50 } };
+  const FLASK = 'M266 58 L266 120 Q160 160 168 250 Q174 346 300 348 Q426 346 432 250 Q440 160 334 120 L334 58 Z';
+  const STOPPER = { closed: { x: 262, y: 34, r: 0 }, open: { x: 60, y: 352, r: -14 } };
 
   function openScope() {
     glow(null);
@@ -814,7 +930,7 @@
         <div class="engrave">실제 관찰 영상이 아닌 개념 모형 · 원자 수는 예시</div>
       </div>`;
     $('#scopeReset').addEventListener('click', () => {
-      if (S.ox.some((a) => a.state === 'moving')) return;
+      if (S.uncorking || S.ox.some((a) => a.state === 'moving')) return;
       S.scope.bonded[S.scope.mode] = 0; drawAtoms(); logAttempt({ stage: 'rebuttal', questId: 'reset-' + S.scope.mode });
     });
     setupFlameS();
@@ -853,22 +969,23 @@
   function setAt(a, x, y) { a.x = x; a.y = y; a.g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`); }
   function inBox(p, b) { return p[0] > b.x && p[0] < b.x + b.w && p[1] > b.y && p[1] < b.y + b.h; }
 
-  // 떠다니는 자리: 막힘이면 플라스크 몸통 안, 열림이면 점선 밖 공기
-  function randomSpot(mode, rnd) {
+  // 떠다니는 자리: 플라스크 몸통 안(flask) 또는 점선 밖 공기(closed·open은 그때의 점선 기준)
+  function randomSpot(where, rnd) {
     for (let i = 0; i < 50; i++) {
-      if (mode === 'closed') {
+      if (where === 'flask') {
         const a = rnd() * Math.PI * 2; const r = Math.sqrt(rnd()) * 0.8;
         const p = [BULB.cx + Math.cos(a) * BULB.rx * r, BULB.cy - 10 + Math.sin(a) * BULB.ry * r * 0.8];
-        if (p[1] < 280) return p;
+        if (p[1] < 250) return p;
       } else {
         const p = [AIR.x1 + rnd() * (AIR.x2 - AIR.x1), AIR.y1 + rnd() * (AIR.y2 - AIR.y1)];
-        if (!inBox(p, { x: BOX.open.x - 30, y: BOX.open.y - 40, w: BOX.open.w + 60, h: BOX.open.h + 60 })) return p;
+        if (!inBox(p, KEEP_OUT[where])) return p;
       }
     }
-    return mode === 'closed' ? [BULB.cx, BULB.cy] : [80, 80];
+    return where === 'flask' ? [BULB.cx, BULB.cy] : [80, 80];
   }
 
-  function drawAtoms() {
+  // carry: 마개를 열 때 떠다니던 바깥 분자의 자리를 이어받는다
+  function drawAtoms(carry) {
     const svg = $('#atoms');
     svg.innerHTML = '';
     const mode = S.scope.mode; const box = BOX[mode];
@@ -877,12 +994,12 @@
     svgEl('rect', { id: 'balBody', x: 140, y: 374, width: 320, height: 40, rx: 8, fill: '#d9dcd7', stroke: '#9a9e98', 'stroke-width': 1.5 }, svg);
     svgEl('rect', { x: 290, y: 360, width: 20, height: 16, fill: '#a8b0b3' }, svg);
     svgEl('ellipse', { cx: 300, cy: 360, rx: 112, ry: 12, fill: '#cfd6d9', stroke: '#7f878b', 'stroke-width': 1.2 }, svg);
-    svgEl('ellipse', { cx: 300, cy: 346, rx: 96, ry: 12, fill: '#f6f4ef', stroke: '#c9c4b8', 'stroke-width': 1.5 }, svg);
-    if (mode === 'closed') svgEl('path', { d: 'M266 58 L266 120 Q160 160 168 250 Q178 340 300 342 Q422 340 432 250 Q440 160 334 120 L334 58 Z', fill: 'rgba(214,240,246,.22)', stroke: '#d7eef2', 'stroke-width': 3 }, svg);
+    svgEl('ellipse', { id: 'scopeDish', cx: 300, cy: 346, rx: 96, ry: 12, fill: '#f6f4ef', stroke: '#c9c4b8', 'stroke-width': 1.5, opacity: mode === 'closed' ? 0 : 1 }, svg);
+    if (mode === 'closed') svgEl('path', { class: 'flask-part', d: FLASK, fill: 'rgba(214,240,246,.22)', stroke: '#d7eef2', 'stroke-width': 3 }, svg);
     svgEl('path', { d: 'M' + FE.map((p) => p.join(' ')).join(' L'), stroke: '#8b9197', 'stroke-width': 4, fill: 'none', 'stroke-linecap': 'round', opacity: 0.7 }, svg);
-    if (mode === 'closed') svgEl('path', { d: 'M290 46 L290 300 M310 46 L310 300', stroke: '#b9872f', 'stroke-width': 2 }, svg);
-    svgEl('rect', { x: box.x, y: box.y, width: box.w, height: box.h, rx: 14, fill: 'none', stroke: '#fff7d6', 'stroke-width': 2.5, 'stroke-dasharray': '9 7' }, svg);
-    const lbl = svgEl('text', { x: box.x + 10, y: box.y - 8, fill: '#fff7d6', 'font-size': 15 }, svg);
+    if (mode === 'closed') svgEl('path', { class: 'flask-part', d: 'M290 46 L290 300 M310 46 L310 300', stroke: '#b9872f', 'stroke-width': 2 }, svg);
+    svgEl('rect', { id: 'rangeBox', x: box.x, y: box.y, width: box.w, height: box.h, rx: 14, fill: 'none', stroke: '#fff7d6', 'stroke-width': 2.5, 'stroke-dasharray': '9 7' }, svg);
+    const lbl = svgEl('text', { id: 'rangeLbl', x: box.x + 10, y: box.y - 8, fill: '#fff7d6', 'font-size': 15 }, svg);
     lbl.textContent = '저울이 재는 범위';
     const sp = svgEl('g', { id: 'woolSparks', class: 'scope-sparks' }, svg);
     // 타는 동안: 강철솜 위로 일렁이는 불꽃, 막힘이면 전극 끝 사이의 전기 불꽃
@@ -896,10 +1013,14 @@
     const nb = S.scope.bonded[mode];
     S.ox = [];
     for (let i = 0; i < N_O; i++) {
-      if (i < nb) { const a = atom(svg, BOND[i][0], BOND[i][1], 'o'); a.state = 'bonded'; S.ox.push(a); } else { const p = randomSpot(mode, rnd); S.ox.push(atom(svg, p[0], p[1], 'o')); }
+      if (i < nb) { const p = bondSpot(mode, i); const a = atom(svg, p[0], p[1], 'o'); a.state = 'bonded'; S.ox.push(a); } else { const p = carry ? carry.ox[i] : randomSpot(mode === 'closed' ? 'flask' : 'open', rnd); S.ox.push(atom(svg, p[0], p[1], 'o')); }
     }
-    S.nx = mode === 'open' ? [0, 1, 2, 3].map(() => { const p = randomSpot('open', rnd); return atom(svg, p[0], p[1], 'n'); }) : [];
-    const st = mode === 'closed' ? { x: 262, y: 34, r: 0 } : { x: 60, y: 352, r: -14 };
+    S.nx = mode === 'open' ? [0, 1, 2, 3].map((i) => { const p = carry ? carry.nx[i] : randomSpot('open', rnd); return atom(svg, p[0], p[1], 'n'); }) : [];
+    // 막혀 있어도 플라스크 바깥에는 공기가 있다(점선 밖이라 저울에는 잡히지 않는다). 마개를 열면 이 분자들이 그대로 강철솜 둘레의 공기가 된다.
+    const air = (n, type) => (mode === 'closed' ? Array.from({ length: n }, () => { const p = randomSpot('closed', rnd); return atom(svg, p[0], p[1], type); }) : []);
+    S.outO = air(N_O, 'o');
+    S.outN = air(4, 'n');
+    const st = STOPPER[mode];
     const stopper = svgEl('g', { class: 'stopper', id: 'stopper', transform: `translate(${st.x} ${st.y}) rotate(${st.r})`, tabindex: 0, role: 'button', 'aria-label': mode === 'closed' ? '마개 열기' : '마개 막기' }, svg);
     svgEl('rect', { x: 0, y: 0, width: 76, height: 28, rx: 6, fill: '#6b4630', stroke: '#2f1d12', 'stroke-width': 2 }, stopper);
     svgEl('rect', { x: 6, y: 4, width: 64, height: 6, rx: 3, fill: '#8d6044' }, stopper);
@@ -914,13 +1035,13 @@
     placeScopeWin();
   }
   // 현미경 저울 액정은 그림 속 저울 몸체 위에 겹친다 (산소가 붙는 접시 바로 아래)
+  // 교수 쪽으로 확대하는 동안에도 틀어지지 않게 화면 좌표가 아니라 그림 좌표로 계산한다 (저울 몸체 가운데가 그림의 (300, 394))
   function placeScopeWin() {
-    const body = $('#balBody'); const view = $('#scopeView'); const win = $('#scopeWin');
-    if (!body || !view || !win) return;
-    const b = body.getBoundingClientRect(); const v = view.getBoundingClientRect();
-    const w = win.offsetWidth; const h = win.offsetHeight;
-    win.style.left = ((b.left - v.left) / S.scale + (b.width / S.scale - w) / 2) + 'px';
-    win.style.top = ((b.top - v.top) / S.scale + (b.height / S.scale - h) / 2) + 'px';
+    const view = $('#scopeView'); const win = $('#scopeWin');
+    if (!view || !win) return;
+    const k = Math.min(view.clientWidth / 600, view.clientHeight / 440);
+    win.style.left = ((view.clientWidth - 600 * k) / 2 + 300 * k - win.offsetWidth / 2) + 'px';
+    win.style.top = ((view.clientHeight - 440 * k) / 2 + 394 * k - win.offsetHeight / 2) + 'px';
   }
 
   // 저울 창과 '점선 안 원자'를 지금 원자 위치로 다시 센다
@@ -938,32 +1059,29 @@
     if (num.textContent && num.textContent !== txt) blinkOnce(num);
     num.textContent = txt;
     const delta = value - d.before;
-    win.querySelector('.tag').textContent = S.scope.bonded[mode] ? (delta > 0.001 ? '+' + delta.toFixed(1) + ' g' : '변화 없음') : '';
+    win.querySelector('.tag').textContent = S.scope.bonded[mode] ? (delta > 0.001 ? '← 무게 +' + delta.toFixed(1) + ' g' : '← 무게 변화 없음') : '';
     const el = $('#count');
     el.style.left = ((b.x + b.w) / 600 * 100) + '%';
     el.style.top = (b.y / 440 * 100) + '%';
-    el.innerHTML = `<div><i class="dot fe"></i>철 ${feIn}</div><div><i class="dot o"></i>산소 ${oIn}</div>` + (mode === 'open' ? '<div class="ct-n"><i class="dot n"></i>질소</div>' : '');
+    el.innerHTML = `<div><i class="dot fe"></i>철 ${feIn}</div><div><i class="dot o"></i>산소 ${oIn}</div><div class="ct-n"><i class="dot n"></i>질소</div>`;
   }
 
   function scopeFrame() {
     if (!S.scopeLoop) return;
     const mode = S.scope.mode;
-    const drift = (a) => {
+    const inFlask = (x, y) => { const dx = (x - BULB.cx) / (BULB.rx * 0.85); const dy = (y - BULB.cy) / (BULB.ry * 0.85); return dx * dx + dy * dy <= 1 && y <= 255; };
+    const inAir = (x, y) => x >= AIR.x1 && x <= AIR.x2 && y >= AIR.y1 && y <= AIR.y2 && !inBox([x, y], KEEP_OUT[mode]);
+    const drift = (a, ok) => {
       if (a.state !== 'free') return;
       a.vx = (a.vx + (Math.random() - 0.5) * 0.25) * 0.96; a.vy = (a.vy + (Math.random() - 0.5) * 0.25) * 0.96;
       let x = a.x + a.vx; let y = a.y + a.vy;
-      if (mode === 'closed') {
-        const dx = (x - BULB.cx) / (BULB.rx * 0.85); const dy = (y - BULB.cy) / (BULB.ry * 0.85);
-        if (dx * dx + dy * dy > 1 || y > 285) { a.vx *= -1; a.vy *= -1; x = a.x; y = a.y; }
-      } else {
-        if (x < AIR.x1 || x > AIR.x2) { a.vx *= -1; x = a.x; }
-        if (y < AIR.y1 || y > AIR.y2) { a.vy *= -1; y = a.y; }
-        const pad = { x: BOX.open.x - 20, y: BOX.open.y - 30, w: BOX.open.w + 40, h: BOX.open.h + 50 };
-        if (inBox([x, y], pad)) { a.vx *= -1; a.vy *= -1; x = a.x; y = a.y; }
-      }
+      if (!ok(x, y)) { a.vx *= -1; a.vy *= -1; x = a.x; y = a.y; }
       setAt(a, x, y);
     };
-    S.ox.forEach(drift); S.nx.forEach(drift);
+    S.ox.forEach((a) => drift(a, mode === 'closed' ? inFlask : inAir));
+    S.nx.forEach((a) => drift(a, inAir));
+    S.outO.forEach((a) => drift(a, inAir));
+    S.outN.forEach((a) => drift(a, inAir));
     nextFrame(scopeFrame);
   }
 
@@ -1027,26 +1145,72 @@
     const a = free[0];
     const slot = S.ox.filter((o) => o.state !== 'free').length;
     a.state = 'moving';
-    await tweenAtom(a, BOND[slot], 700);
+    await tweenAtom(a, bondSpot(mode, slot), 700);
     if (S.scope.mode !== mode) return;
     a.state = 'bonded';
     S.scope.bonded[mode] = S.ox.filter((o) => o.state === 'bonded').length;
     readings();
     if (S.scope.bonded[mode] === N_O) {
       logAttempt({ stage: 'rebuttal', questId: 'burn-' + mode });
-      if (mode === 'closed') { clearInterval(S.clipTimer); const sp = $('#woolSparks'); if (sp) sp.classList.remove('on'); }
+      // 다 타면 집게를 떼어 제자리로, 전원 램프도 끈다 (장치 B와 같다)
+      if (mode === 'closed') { clearInterval(S.clipTimer); if (S.clipS) S.clipS.reset(); }
       if (S.onAllBonded) S.onAllBonded(mode);
     }
   }
 
   async function toggleStopper() {
-    if (!S.canToggle || S.ox.some((a) => a.state === 'moving')) { const s = $('#stopper'); if (s) blinkOnce(s); return; }
+    if (!S.canToggle || S.acquiring || S.uncorking || S.ox.some((a) => a.state === 'moving')) { const s = $('#stopper'); if (s) blinkOnce(s); return; }
     clearInterval(S.clipTimer);
-    S.scope.mode = S.scope.mode === 'closed' ? 'open' : 'closed';
-    logAttempt({ stage: 'rebuttal', questId: 'stopper', choice: S.scope.mode });
+    glow(null);
+    const opening = S.scope.mode === 'closed';
+    logAttempt({ stage: 'rebuttal', questId: 'stopper', choice: opening ? 'open' : 'closed' });
     S.stopperToggles = (S.stopperToggles || 0) + 1;
-    drawAtoms();
+    if (opening) await uncork();
+    else { S.scope.mode = 'closed'; drawAtoms(); }
     if (S.onToggle) S.onToggle(S.scope.mode);
+  }
+  function tween(ms, fn) {
+    return new Promise((res) => {
+      if (reduced) { fn(1); res(); return; }
+      const t0 = performance.now();
+      const step = (t) => { const k = Math.min(1, (t - t0) / ms); fn(k); if (k < 1) nextFrame(step); else res(); };
+      nextFrame(step);
+    });
+  }
+  // 마개를 열 때: 막힌 플라스크 장면에서 이어서, 마개가 뽑혀 바닥에 떨어지고 플라스크는 사라지며 점선 범위가 강철솜만큼 줄어든다.
+  // 바깥 공기는 그대로 떠다니다가 열린 장면의 공기가 된다.
+  async function uncork() {
+    S.uncorking = true;
+    const view = $('#scopeView'); const stopper = $('#stopper'); const rect = $('#rangeBox'); const lbl = $('#rangeLbl'); const dish = $('#scopeDish');
+    const glass = $$('.flask-part', $('#atoms'));
+    const inside = S.ox.slice();
+    const { closed: from, open: to } = STOPPER;
+    const put = (x, y, r) => stopper.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${r.toFixed(1)})`);
+    const top = { x: from.x - 6, y: from.y - 46, r: -12 };
+    view.classList.add('uncorking');
+    // 뽑힌다
+    await tween(280, (k) => { const e = 1 - (1 - k) * (1 - k); put(from.x + (top.x - from.x) * e, from.y + (top.y - from.y) * e, from.r + (top.r - from.r) * e); });
+    // 날아가 떨어지는 동안 플라스크가 사라지고 점선이 줄어든다
+    const fade = tween(760, (k) => {
+      const e = k * k * (3 - 2 * k);
+      glass.forEach((el) => el.setAttribute('opacity', (1 - e).toFixed(2)));
+      inside.forEach((a) => a.g.setAttribute('opacity', (1 - e).toFixed(2)));
+      dish.setAttribute('opacity', e.toFixed(2));
+      const a = BOX.closed; const b = BOX.open;
+      const v = { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, w: a.w + (b.w - a.w) * e, h: a.h + (b.h - a.h) * e };
+      rect.setAttribute('x', v.x.toFixed(1)); rect.setAttribute('y', v.y.toFixed(1)); rect.setAttribute('width', v.w.toFixed(1)); rect.setAttribute('height', v.h.toFixed(1));
+      lbl.setAttribute('x', (v.x + 10).toFixed(1)); lbl.setAttribute('y', (v.y - 8).toFixed(1));
+    });
+    await tween(620, (k) => put(top.x + (to.x - top.x) * k, top.y + (to.y - top.y) * k * k - 46 * Math.sin(Math.PI * k), top.r + (to.r - 360 - top.r) * k));
+    // 바닥에서 한 번 튀어 오른다
+    await tween(260, (k) => put(to.x, to.y - 22 * Math.sin(Math.PI * k), to.r));
+    await fade;
+    const at = (a) => [a.x, a.y];
+    const carry = { ox: S.outO.map(at), nx: S.outN.map(at) };
+    S.scope.mode = 'open';
+    drawAtoms(carry);
+    view.classList.remove('uncorking');
+    S.uncorking = false;
   }
 
   function questErr(qid, diag) {
@@ -1062,12 +1226,12 @@
     S.round = 1;
     S.canToggle = false;
     setNote('막은 채로 전기 점화');
-    await say(M.lines.r1Do);
+    await say(M.lines.r1Do, { center: true });
     glow($('#clipS'), 'clip');
     S.onAllBonded = async (mode) => {
       if (mode !== 'closed') return;
       S.onAllBonded = null;
-      await sleep(500);
+      await sleep(900);
       acquire(['e1'], () => debate(0));
     };
   }
@@ -1075,14 +1239,14 @@
   async function startRound2() {
     S.round = 2;
     setNote('마개 열고 불꽃 대기');
-    await say(M.lines.r2Do);
+    await say(M.lines.r2Do, { center: true });
     S.canToggle = true;
     glow($('#stopper'), 'stopper');
     S.onToggle = (mode) => { if (mode === 'open' && S.scope.bonded.open < N_O) glow($('#flameS'), 'flame'); };
     S.onAllBonded = async (mode) => {
       if (mode !== 'open') return;
       S.onAllBonded = null; S.onToggle = null;
-      await sleep(500);
+      await sleep(900);
       acquire(['e2'], () => debate(1));
     };
   }
@@ -1133,6 +1297,10 @@
       return `<p>${html}</p>`;
     }).join('');
     placeReply();
+    // 앞서 모은 단서를 써도 된다는 말은 교수가 아니라 게임 시스템이 한다
+    const sys = $('#sysLine');
+    sys.textContent = R.sys ? M.system[R.sys] : '';
+    sys.hidden = !R.sys;
     bubble.classList.remove('pop'); void bubble.offsetWidth; bubble.classList.add('pop');
     S.glowKey = 'debate';
     $('#arenaDeck').classList.add('call');
@@ -1157,6 +1325,7 @@
     $('#arenaDeck').classList.remove('call');
     S.glowKey = null;
     $('#bubble').classList.remove('debate');
+    $('#sysLine').hidden = true;
     if (weakEl) weakEl.classList.add('broken');
     blinkOnce($('#stage'));
     updateSession({ ['debate' + (i + 1) + 'Tries']: tries });
@@ -1167,7 +1336,7 @@
     await say(hitLines);
     whyReply(i);
   }
-  // 반박한 뒤 "왜 이 단서가 저 말을 뒤집나?"를 한 줄로. 이 한 줄이 결론 카드가 된다.
+  // 반박한 뒤 "왜 이 단서가 저 말을 뒤집나?"를 한 줄로. 이 한 줄이 드러내기 카드가 된다.
   function whyReply(i, value) {
     const R = M.debates[i];
     openReply({
@@ -1187,7 +1356,7 @@
         if (i === 0) sentence = toSentence('마개를 막고 태웠을 때 ' + text);
         if (i === 1) sentence = toSentence(text.replace(/^그\s*산소(는|들은)\s*/, '접시에서 강철솜에 붙은 산소는 '));
         S.concl[id] = sentence;
-        S.cards[id] = { kind: 'concl', col: 'mean', title: `결론 ${'①②③'[i]}`, text: sentence, sentence };
+        S.cards[id] = { kind: 'concl', col: 'mean', title: `드러내기 ${'①②③'[i]}`, text: sentence, sentence };
         await passQuest(id);
         // 2라운드 다음은 곧바로 3라운드라 반박 화면을 유지한다
         if (i === 0) { exitArena(); startRound2(); }
@@ -1211,7 +1380,7 @@
     $('#bubble').classList.remove('has-more');
   }
 
-  /* ───────── 결론 합치기 ───────── */
+  /* ───────── 드러내기 카드 합치기 ───────── */
   async function startCombine() {
     S.q = null;
     closeScope();
@@ -1219,17 +1388,17 @@
     const b = $('#board');
     b.className = 'board big';
     b.innerHTML = `<div class="chalk q">늘어난 0.5 g 풀어 보기</div>
-      <div class="cmb-row"><div class="cmb-slot" data-drop="cmb1" tabindex="0" role="button" aria-label="결론 칸 1"></div><div class="cmb-slot" data-drop="cmb3" tabindex="0" role="button" aria-label="결론 칸 2"></div></div>
+      <div class="cmb-row"><div class="cmb-slot" data-drop="cmb1" tabindex="0" role="button" aria-label="드러내기 칸 1"></div><div class="cmb-slot" data-drop="cmb3" tabindex="0" role="button" aria-label="드러내기 칸 2"></div></div>
       <svg id="bars" viewBox="0 0 700 230" aria-hidden="true"></svg>`;
     S.combine = {};
-    setNote('두 결론을 칠판에');
-    await say(M.lines.combine);
+    setNote('두 드러내기 카드를 칠판에');
+    await say(M.lines.combine, { center: true });
     ['c1', 'c3'].forEach((id) => { const el = $(`#trayCards [data-card="${id}"]`); if (el) el.classList.add('glow'); });
     S.glowKey = 'tray';
   }
   function dropCombine(id, where) {
     if (!S.combine) return;
-    if (id !== 'c1' && id !== 'c3') { say(['그 카드 말고, 결론 카드 ①과 ③일세.']); return; }
+    if (id !== 'c1' && id !== 'c3') { say(['그 카드 말고, 드러내기 카드 ①과 ③일세.']); return; }
     if (Object.values(S.combine).includes(id)) return;
     S.combine[where] = id;
     const slot = $(`[data-drop="${where}"]`);
@@ -1238,7 +1407,7 @@
     const el = $(`#trayCards [data-card="${id}"]`); if (el) el.classList.remove('glow');
     if (Object.values(S.combine).length === 2) drawBars();
   }
-  // 결론 합치기: 막대 대신 두 실험의 작은 장면을 나란히. 산소 분자가 실제로 움직이고 저울 숫자가 함께 바뀐다.
+  // 합치기: 막대 대신 두 실험의 작은 장면을 나란히. 산소 분자가 실제로 움직이고 저울 숫자가 함께 바뀐다.
   async function drawBars() {
     S.combine = null;
     glow(null);
@@ -1270,16 +1439,19 @@
       const lcd = svgEl('text', { x: ox + 190, y: 206, 'text-anchor': 'end', 'font-size': 15, fill: '#1b261c', 'font-family': "'Share Tech Mono', monospace" }, svg);
       if (flask) svgEl('path', { d: `M${ox + 132} 20 L${ox + 132} 58 Q${ox + 78} 80 ${ox + 82} 120 Q${ox + 90} 170 ${ox + 150} 172 Q${ox + 210} 170 ${ox + 218} 120 Q${ox + 222} 80 ${ox + 168} 58 L${ox + 168} 20 Z`, fill: 'rgba(214,240,246,.15)', stroke: '#d7eef2', 'stroke-width': 2 }, svg);
       if (flask) svgEl('rect', { x: ox + 128, y: 10, width: 44, height: 14, rx: 3, fill: '#6b4630' }, svg);
-      const fe = [0, 1, 2, 3, 4].map((i) => [ox + 110 + i * 20, 160 + (i % 2 ? -4 : 4)]);
+      // 플라스크 안의 철과 산소는 유리 밖으로 나가지 않게 조금 위에, 좁게 놓는다
+      const fe = [0, 1, 2, 3, 4].map((i) => (flask ? [ox + 118 + i * 16, 146 + (i % 2 ? -3 : 3)] : [ox + 110 + i * 20, 160 + (i % 2 ? -4 : 4)]));
       svgEl('path', { d: 'M' + fe.map((p) => p.join(' ')).join(' L'), stroke: '#8b9197', 'stroke-width': 3, fill: 'none' }, svg);
       fe.forEach(([x, y]) => svgEl('circle', { cx: x, cy: y, r: 7, fill: '#5b6168' }, svg));
-      return { lcd, slots: fe.map(([x, y], i) => [x, y + (i % 2 ? -14 : 14)]) };
+      return { lcd, slots: fe.map(([x, y], i) => [x, y + (flask || i % 2 ? -14 : 14)]) };
     };
     const L = scene(0, true); const R = scene(380, false);
     L.lcd.textContent = '150.0 g'; R.lcd.textContent = '2.0 g';
     // 막힘: 산소는 처음부터 플라스크 안에 있다 / 열림: 산소는 접시 밖 공기에 있다
     const inside = [[120, 90], [170, 78], [150, 118], [190, 112], [112, 130]].map(([x, y]) => pair(x, y));
     const outside = [[420, 40], [650, 30], [470, 90], [680, 110], [400, 140]].map(([x, y]) => pair(x, y));
+    // 막힌 플라스크 바깥에도 공기 속 산소가 있다(들어오지 못한다)
+    [[30, 44], [268, 34], [24, 128], [282, 112]].forEach(([x, y]) => pair(x, y));
     await sleep(reduced ? 100 : 500);
     for (let i = 0; i < 5; i++) {
       await Promise.all([move(inside[i], L.slots[i], 420), move(outside[i], R.slots[i], 420)]);
@@ -1309,7 +1481,7 @@
     b.className = 'board big sort';
     b.innerHTML = `<div class="cols">${M.sortCols.map((c) => `<div class="col" data-drop="col-${c.id}" tabindex="0" role="button" aria-label="${esc(c.label)}"><div class="col-h chalk">${esc(c.label)}</div><div class="col-body"></div></div>`).join('')}</div>`;
     setNote('카드 정리하기');
-    await say(M.lines.sortAsk);
+    await say(M.lines.sortAsk, { center: true });
     S.glowKey = 'sort';
   }
   async function dropSort(id, col, el) {
@@ -1389,7 +1561,7 @@
     $('#hintBook').addEventListener('click', onHintBook);
     $('#finalSubmit').addEventListener('click', submitFinal);
     setNote('처음부터 끝까지 설명하기');
-    await say(M.lines.composeAsk);
+    await say(M.lines.composeAsk, { center: true });
     S.glowKey = 'compose';
     ta.focus();
     S.hintTimer = setInterval(checkHintUnlock, 3000);
@@ -1560,7 +1732,7 @@
       </div>
       ${praise.length ? `<ul class="praise">${praise.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
       ${missLine ? `<p class="next-line">${esc(missLine)}</p>` : ''}
-      ${own ? `<section class="keyring-reward" aria-label="혼자 힘으로 설명한 연구원에게 주는 강철솜 키링"><img src="assets/steel-wool-keyring.png" width="120" height="180" alt="안경과 나비넥타이를 단 강철솜 키링"><div><div class="reward-label">교수님의 깜짝 선물</div><h3>“카드 없이 해낸 건 인정하지. 이건… 자네가 가지게.”</h3><p>카드 문장에 기대지 않고 자신의 말로 끝까지 설명했어요!</p><strong>나만의 강철솜 키링 획득</strong></div></section>` : (S.ownEver && type !== 'full' ? '<p class="next-line">“다음엔 이걸 줄 수도 있겠군.”</p>' : '')}
+      ${own ? `<section class="keyring-reward" aria-label="혼자 힘으로 설명한 연구원에게 주는 강철솜 키링"><img src="assets/steel-wool-keyring.png" width="120" height="180" alt="안경과 나비넥타이를 단 강철솜 키링"><div><div class="reward-label">교수님의 깜짝 선물</div><h3>“카드 없이 해낸 건 인정하지. 이건… 자네가 가지게.”</h3><p>카드 문장에 기대지 않고 자신의 말로 끝까지 설명했어요!</p><strong>나만의 강철솜 키링 획득</strong></div></section>` : '<div class="next-keyring"><span class="key-sil"><img src="assets/steel-wool-silhouette.webp" width="388" height="520" alt="물음표가 그려진 강철솜 키링 실루엣"><span class="qm" aria-hidden="true">?</span></span><p class="next-line">“다음엔 이걸 줄 수도 있겠군.”</p></div>'}
       <div class="btns"><button type="button" id="againBtn">처음부터 다시</button></div>`;
     $('#againBtn').addEventListener('click', () => location.reload());
     // 완전 클리어면 마지막 콧대가 꺾이는 것을 보여 준 뒤 결과를 띄운다
@@ -1601,7 +1773,7 @@
     setStage('explore');
     setNote('두 강철솜 태우기');
     await tareScene();
-    await say(M.lines.intro);
+    await say(M.lines.intro, { center: true });
     glow($('#flameA'), 'deviceA');
   }
 
