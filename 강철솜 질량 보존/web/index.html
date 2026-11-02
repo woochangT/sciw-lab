@@ -30,7 +30,7 @@
         <div id="bench"></div>
         <div id="board" class="board"></div>
         <div id="scope" hidden></div>
-        <div id="arena" aria-hidden="true"><div id="arenaDeck"></div></div>
+        <div id="arena" aria-hidden="true"><div id="gapView"></div><div id="lensRow" hidden></div></div>
         <div id="talkVeil" aria-hidden="true"></div>
         <div id="profCol">
           <svg id="bubbleTail" aria-hidden="true"><path/></svg>
@@ -61,8 +61,8 @@
       <div class="start-story">
         <div class="story-tag">관찰하고, 추리하고, 설명하는 과학 미션</div>
         <div class="story-heading">숫자 너머의<br><em>이유</em>를 찾아라.</div>
-        <p>태웠더니 오히려 무거워진 강철솜.<br>실험의 단서로 교수의 추측을 깨고,<br>높은 콧대를 납작하게 꺾어 보세요.</p>
-        <div class="start-dialogue"><div class="hero-quote">“타면 가벼워지는<br>거 아니었나?”</div><div class="hero-prof professor-art" data-expression="skeptical" role="img" aria-label="콧대 교수"></div></div>
+        <p>태웠더니 오히려 무거워진 강철솜.<br>실험의 단서가 뜻하는 바를 드러내어,<br>높은 콧대를 납작하게 꺾어 보세요.</p>
+        <div class="start-dialogue"><div class="hero-quote">“그 숫자가<br>뭘 의미하지?”</div><div class="hero-prof professor-art" data-expression="skeptical" role="img" aria-label="콧대 교수"></div></div>
       </div>
       <form class="start-card" id="startForm" autocomplete="off">
         <div class="tag" id="startTag"></div>
@@ -73,6 +73,7 @@
         <label for="studentNo">출석번호</label>
         <input id="studentNo" inputmode="numeric" maxlength="3" placeholder="예: 12" required>
         <button class="go" type="submit" id="goBtn" disabled>실험실 들어가기</button>
+        <button class="tutorial-btn" type="button" id="tutorialBtn">튜토리얼</button>
       <div class="teacher-entry"><span>선생님이신가요?</span><a href="../../teacher.html?mission=m02&amp;from=m02">교사용 수업 기록 열기 <span aria-hidden="true">→</span></a><small>반 대시보드에서 게임별 기록과 수업 요약을 확인하세요.</small></div>
       </form>
     </div>
