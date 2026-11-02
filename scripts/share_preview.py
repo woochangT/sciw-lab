@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Password-gated team preview in front of the unchanged loopback-only server.
+"""Public or password-gated preview in front of the loopback-only server.
 
 Run behind an HTTPS tunnel with one explicit public origin. No records or
 credentials are logged; only web assets and the three teacher API routes pass.
@@ -40,10 +40,11 @@ def web_path(path):
 
 
 class PreviewServer(ThreadingHTTPServer):
-    def __init__(self, address, origin, code, upstream_port):
+    def __init__(self, address, origin, code, upstream_port, allow_public=False):
         self.origin = public_origin(origin)
         self.public_host = urllib.parse.urlsplit(self.origin).netloc
         self.code = code
+        self.is_public = allow_public
         self.session = secrets.token_urlsafe(32)
         self.expires = time.monotonic() + 8 * 3600
         self.upstream_port = upstream_port
@@ -80,6 +81,8 @@ class Handler(BaseHTTPRequestHandler):
         return self.headers.get('Origin') == self.server.origin and self.headers.get('Sec-Fetch-Site') not in ('cross-site', 'same-site')
 
     def signed_in(self):
+        if self.server.is_public:
+            return time.monotonic() < self.server.expires
         try:
             jar = SimpleCookie(self.headers.get('Cookie', ''))
             token = jar[COOKIE].value if COOKIE in jar else ''
@@ -151,6 +154,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.valid_host():
             return self.reply(403)
         if not self.signed_in():
+            if self.server.is_public:
+                return self.reply(410, '공유 미리보기가 종료되었습니다.')
             if urllib.parse.urlsplit(self.path).path.startswith('/api/'):
                 return self.reply(401, '{"ok":false,"error":"입장코드를 먼저 입력해 주세요."}', 'application/json; charset=utf-8')
             return self.login_page()
@@ -163,8 +168,12 @@ class Handler(BaseHTTPRequestHandler):
         if not self.valid_host():
             return self.reply(403)
         if self.path == '/_preview/login':
+            if self.server.is_public and self.signed_in():
+                return self.reply(303, headers={'Location': '/'})
             return self.login()
         if not self.signed_in():
+            if self.server.is_public:
+                return self.reply(410, '공유 미리보기가 종료되었습니다.')
             return self.reply(401)
         self.forward()
 
@@ -175,13 +184,15 @@ def main():
     p.add_argument('--port', type=int, default=8767)
     p.add_argument('--upstream-port', type=int, default=8765)
     p.add_argument('--public-url', required=True)
-    p.add_argument('--code-file', type=Path, required=True)
+    access = p.add_mutually_exclusive_group(required=True)
+    access.add_argument('--public', action='store_true', help='입장코드 없이 공개')
+    access.add_argument('--code-file', type=Path)
     args = p.parse_args()
-    code = args.code_file.read_text().strip()
-    if len(code) < 12:
+    code = args.code_file.read_text().strip() if args.code_file else ''
+    if not args.public and len(code) < 12:
         p.error('입장코드는 12자 이상으로 생성해 주세요.')
-    server = PreviewServer(('127.0.0.1', args.port), args.public_url, code, args.upstream_port)
-    print(f'Team preview gateway ready on 127.0.0.1:{args.port} (8 hours)', flush=True)
+    server = PreviewServer(('127.0.0.1', args.port), args.public_url, code, args.upstream_port, allow_public=args.public)
+    print(f'{"Public" if args.public else "Gated"} preview ready on 127.0.0.1:{args.port} (8 hours)', flush=True)
     server.serve_forever()
 
 

@@ -67,6 +67,22 @@ class PreviewTests(unittest.TestCase):
         self.assertEqual(status, 303)
         return headers['Set-Cookie'].split(';')[0]
 
+    def test_explicit_public_mode_needs_no_cookie_but_keeps_host_origin_and_file_boundaries(self):
+        self.gateway.is_public = True
+        for path in ('/', '/teacher.html', '/api/sheet/classes'):
+            self.assertEqual(self.request(path)[0], 200)
+        self.assertEqual(len(self.calls), 3)
+        self.assertEqual(self.request('/.git/config')[0], 404)
+        self.assertEqual(self.request(Host='evil.example')[0], 403)
+        self.assertEqual(self.request('/api/sheet/analysis', 'POST', '{}', Origin='https://evil.example')[0], 403)
+        self.assertEqual(len(self.calls), 3)
+        self.gateway.expires = 0
+        for path in ('/', '/api/sheet/classes'):
+            status, _, body = self.request(path)
+            self.assertEqual(status, 410)
+            self.assertNotIn('입장코드'.encode(), body)
+        self.assertEqual(len(self.calls), 3)
+
     def test_unauthenticated_visitors_cannot_read_answers_or_source(self):
         status, headers, body = self.request('/teacher.html')
         self.assertEqual(status, 200)
