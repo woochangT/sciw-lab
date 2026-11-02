@@ -40,6 +40,13 @@ test('public hosted GET reads both real-shaped tabs without cookies and filters 
  const s=setup(),res=await s.handler(request('/api/sheet/class?classKey=g:3:r:2&missionId=m02'),{}),value=await res.json();
  assert.equal(res.status,200);assert.deepEqual(value.sessions.map(s=>s.sessionId),['d']);assert.equal(s.calls.length,2);assert.equal(res.headers.get('Cache-Control'),'private, no-store');
 });
+test('class overview is aggregated without student answers and does not generate an AI request',async()=>{
+ const s=setup(),res=await s.handler(request('/api/sheet/classes'),{}),v=await res.json();
+ assert.equal(res.status,200);assert.equal(v.overview.version,'teacher-overview-v1');
+ assert.equal(v.overview.classes.find(c=>c.classKey==='g:3:r:2').games.m01.participants,1);
+ for(const key of ['firstAnswer','finalAnswer','studentNo','sessionId'])assert.equal(JSON.stringify(v.overview).includes(key),false);
+ assert.equal(s.calls.length,2);
+});
 test('analysis rebuilds authoritative evidence, strips identifiers, and relays explicit regeneration',async()=>{
  const s=setup(),res=await s.handler(request('/api/sheet/analysis',{classKey:'g:3:r:2',missionId:'m01',mode:'latest',regenerate:true,evidence:{participants:999}}),{}),v=await res.json();
  assert.equal(res.status,200);assert.equal(v.basis.participants,1);assert.equal(v.basis.written,1);assert.equal(v.analysis.model,'gpt-6-luna');

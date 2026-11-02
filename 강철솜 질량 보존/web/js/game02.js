@@ -389,7 +389,7 @@
   function logAttempt(o) {
     if (!S.sessionId) return;
     const { diag, hint, elements, ...rest } = o;
-    const a = Object.assign({ attemptId: API.uid('a'), sessionId: S.sessionId, missionId: M.id, classCode: S.classCode, studentNo: S.studentNo, createdAt: new Date().toISOString() }, rest);
+    const a = Object.assign({ attemptId: API.uid('a'), sessionId: S.sessionId, missionId: M.id, missionVersion: 'm02-1.2', hintSchemaVersion: 'm02-note-pages-v1', rubricVersion: RUBRIC.VERSION, classCode: S.classCode, studentNo: S.studentNo, createdAt: new Date().toISOString() }, rest);
     if (diag !== undefined) a.diagnosis = diag;
     if (hint !== undefined) a.hintLevel = hint;
     if (elements !== undefined) a.judgment = elements;
@@ -1959,7 +1959,7 @@
   async function start(classCode, studentNo) {
     S.classCode = classCode; S.studentNo = studentNo;
     S.sessionId = API.uid('s');
-    API.startSession({ sessionId: S.sessionId, missionId: M.id, classCode, studentNo, startedAt: new Date().toISOString(), stage: 'explore', tutorial: S.tutorial });
+    API.startSession({ sessionId: S.sessionId, missionId: M.id, classCode, studentNo, startedAt: new Date().toISOString(), stage: 'explore', tutorial: S.tutorial, missionVersion: 'm02-1.2', eventSchemaVersion: 'm02-events-v2', hintSchemaVersion: 'm02-note-pages-v1', rubricVersion: RUBRIC.VERSION, hintLevel: 0 });
     $('#who').textContent = `${classCode} · ${studentNo}번`;
     $('#startScreen').hidden = true;
     S.started = true;

@@ -1,7 +1,8 @@
 import '../../teacher/model.js';
 import '../../teacher/scope.js';
 import '../../teacher/evidence.js';
-const M=globalThis.TeacherModel,S=globalThis.TeacherScope,E=globalThis.TeacherEvidence;
+import '../../teacher/insights.js';
+const M=globalThis.TeacherModel,S=globalThis.TeacherScope,E=globalThis.TeacherEvidence,I=globalThis.TeacherInsights;
 const SHEET='1oA71tk0hqCXC0ImV3c5MZq938hZFKcj2XkJnB3XNnAU';
 const MISSIONS={m01:{name:'감자 삼투',gid:'807310001'},m02:{name:'강철솜 질량 보존',gid:'807310002'}};
 const SCRIPT='https://script.google.com/macros/s/AKfycbxS7kGYURyYRhRZHWZZw0B0sChUE5UAFP3TqUhxLcAMDty_1OGk0OrxVQzKv2RdhCG4/exec';
@@ -82,7 +83,7 @@ export function createHandler(fetcher){return async(request,env)=>{
     }
     if(request.headers.get('Origin')&&request.headers.get('Origin')!==url.origin||request.headers.get('Sec-Fetch-Site')==='cross-site')throw new HttpError(403,'같은 수업 화면에서 요청해 주세요.');
     if(request.method==='GET'&&['/api/sheet/classes','/api/sheet/class'].includes(url.pathname)){
-      if(url.pathname.endsWith('/classes')){const d=await readSheet(fetcher);return json({ok:true,classes:catalog(d),fetchedAt:d.fetchedAt,sheetUrl:d.sheetUrl,invalidRows:d.invalidRows})}
+      if(url.pathname.endsWith('/classes')){const d=await readSheet(fetcher);return json({ok:true,classes:catalog(d),overview:I.overview(d),fetchedAt:d.fetchedAt,sheetUrl:d.sheetUrl,invalidRows:d.invalidRows})}
       const scope=validScope({classKey:url.searchParams.get('classKey')||'',classCode:url.searchParams.get('classCode')||'',missionId:url.searchParams.get('missionId')||'m02',includeTests:url.searchParams.get('includeTests')==='1'});
       return json({ok:true,...scoped(await readSheet(fetcher),scope)});
     }

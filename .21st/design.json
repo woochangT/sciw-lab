@@ -7,7 +7,8 @@
       "HTML",
       "CSS",
       "vanilla JavaScript",
-      "Python local read-only sheet bridge"
+      "Cloudflare Workers API",
+      "Python local sheet bridge"
     ]
   },
   "sources": {
@@ -66,13 +67,15 @@
       "False and unobserved must differ",
       "Keep private source files out of repository",
       "Preserve Woochang main intro layout, background, two silhouette mission cards; apply additive motion and teacher-link improvements only",
-      "Teacher first screen: participation, final-answer present, final-answer absent; plain Korean labels and visible answer actions",
       "Default to live connected sheet; never silently replace failed live reads with demo data",
       "Separate test data from real classroom counts; QA remains excluded",
       "Keep mission and class report scopes separate; do not infer unrecorded grades",
-      "Put saved teaching summary first in class overview; detailed report includes frozen evidence and classroom materials",
+      "Put saved teaching focus first within the selected class/game analysis; detailed report includes frozen evidence and classroom materials",
       "Never call LLM from page load, selection, sheet refresh or report navigation; regenerate only on explicit click",
-      "Selecting the class opens its dashboard immediately: game-by-game metrics and saved teaching summaries first, then class-and-game analysis on game choice"
+      "Selecting the class opens its dashboard immediately: game-by-game metrics and saved teaching summaries first, then class-and-game analysis on game choice",
+      "Teacher starts at a multi-class achievement overview, with optional grade/test filters; no selection stepper or initial gate",
+      "Class and student heatmaps show explicit final judgment counts; unknown, zero and different rubric versions must remain separate",
+      "Rubric 1.2 note pages 0/1/2 differ from old hint levels; removed sorting is not failure"
     ],
     "avoid": [
       "Framework migration",
@@ -112,6 +115,10 @@
     {
       "date": "2026-11-01",
       "decision": "User clarified class entry: no separate game-selection gate. Open the class dashboard on room selection; show summaries by game there, with drill-in to the selected class/game analysis and a return-to-class action."
+    },
+    {
+      "date": "2026-11-03",
+      "decision": "Teacher manages multiple classes: overview first, then class and game analysis. Adapt 21st Heat Map XL 2407 and InlineAnalyticsTable 7475 metadata with native accessible tables and paper/board primitives. Separate missing judgments and rubric versions; version note-page exposure and preserve latest frontend tutorial/card changes."
     }
   ],
   "evidence": [],

@@ -33,10 +33,12 @@ Worker 로그에는 실패 종류/HTTP 상태만 기록한다. 답안·API 키�
 
 ## 검증
 
-클라우드 서버 계약 검사 7개와 기존 JS 56개/Python 21개를 통과했다. 정적 루트 연결, CSV 원문 보존, 두 탭 조회, Python과 동일한 반/게임 범위, AI 입력 재구성, 잘못된 Origin·크기·스코프 거절을 검사한다. `wrangler deploy --dry-run`과 실제 배포를 별도로 확인했다.
+클라우드 서버 계약 검사 8개와 기존·교사 JS 63개/Python 22개를 통과했다. 정적 루트 연결, CSV 원문 보존, 두 탭 조회, Python과 동일한 반/게임 범위, AI 입력 재구성, 잘못된 Origin·크기·스코프 거절을 검사한다. `wrangler deploy --dry-run`과 실제 배포를 별도로 확인했다.
 
 공개 주소에서 인트로, 교사 페이지, 실제 시트의 반 목록과 선택한 반의 감자 기록을 확인했다. 로컬 포트 8765/8767이 모두 종료된 상태에서도 이 요청은 동작한다. 자동 검사에는 합성 공급자 응답을 사용하며 실제 모델 정확도 검증과 구분한다.
 
 브라우저에서 실제 표본 반의 감자 수업 요약 생성과 상세 리포트 열기를 확인했다(2026-11-02 16:42 KST). 학생 기록을 추가하거나 기존 Apps Script를 재배포하지 않았다.
 
 설정 근거: [Workers 정적 자산과 바인딩](https://developers.cloudflare.com/workers/static-assets/binding/), [Workers 플랫폼 한도](https://developers.cloudflare.com/workers/platform/limits/).
+
+2026-11-03: `/api/sheet/classes`에 익명 집계 오버뷰를 포함한다. `teacher/insights.js`를 브라우저와 Workers에서 재사용하며, Python은 같은 함수를 Node로 호출한다. 여러 반의 같은 번호를 합치지 않고, 판정 버전과 노트 열람 의미를 구분한다. 오버뷰 응답에는 개별 학생 번호·세션 ID·답안 원문을 넣지 않는다.

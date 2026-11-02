@@ -61,6 +61,12 @@ class LocalEndpointTests(unittest.TestCase):
         value=self.request('/api/sheet/class?classCode=A')
         self.assertEqual([s['sessionId'] for s in value['sessions']],['a'])
         self.assertEqual([a['attemptId'] for a in value['attempts']],['aa'])
+    def test_class_catalog_includes_aggregated_overview_without_student_answers(self):
+        value=self.request('/api/sheet/classes')
+        self.assertEqual(value['overview']['version'],'teacher-overview-v1')
+        self.assertEqual(len([c for c in value['overview']['classes'] if not c['isTest']]),2)
+        for key in ('firstAnswer','finalAnswer','studentNo','sessionId'):
+            self.assertNotIn(key,json.dumps(value['overview']))
     def test_test_records_require_explicit_mode_and_qa_never_appears(self):
         self.assertEqual(self.request('/api/sheet/class?classCode=test')['sessions'],[])
         value=self.request('/api/sheet/class?classCode=test&includeTests=1')

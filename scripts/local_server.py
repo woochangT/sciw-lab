@@ -213,7 +213,7 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 data=self.reader.read(query.get('refresh')==['1'])
                 if parsed.path=='/api/sheet/classes':
-                    self.json(catalog(data))
+                    self.json({**catalog(data),'overview':build_overview(data)})
                     return
                 name=query.get('classCode',[''])[0]
                 class_key=query.get('classKey',[''])[0]
@@ -247,6 +247,12 @@ def main():
     server=ThreadingHTTPServer(('127.0.0.1',args.port),partial(Handler,reader=SheetReader()))
     print(f'Sciw Lab + sheet connection: http://127.0.0.1:{args.port}',flush=True)
     server.serve_forever()
+
+def build_overview(data):
+    result=subprocess.run(['node',str(ROOT/'teacher/overview-input.cjs')],input=json.dumps(data,ensure_ascii=False),capture_output=True,text=True,timeout=10,cwd=ROOT)
+    if result.returncode:
+        raise ValueError('학급 요약을 구성하지 못했습니다.')
+    return json.loads(result.stdout)
 
 def build_evidence(data, name, mode, include, mission='m02'):
     result=subprocess.run(['node',str(ROOT/'teacher/analysis-input.cjs')],input=json.dumps({'db':data,'classCode':name,'mode':mode,'includeTests':include,'missionId':mission},ensure_ascii=False),capture_output=True,text=True,timeout=10,cwd=ROOT)
