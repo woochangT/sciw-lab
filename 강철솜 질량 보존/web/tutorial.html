@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>서술 실험실 · 튜토리얼</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Share+Tech+Mono&display=swap">
+  <link rel="stylesheet" href="css/m02.css">
+  <link rel="preload" as="image" href="assets/laboratory-room.png">
+  <link rel="preload" as="image" href="assets/professor-expressions.png">
+</head>
+<body class="tutorial">
+  <div id="app">
+    <header id="track">
+      <div class="brand"><svg viewBox="0 0 32 40" aria-hidden="true"><path d="M11 3h10m-8 0v13L3 33q-2 4 3 4h20q5 0 3-4L19 16V3M8 27h16"/></svg><div><strong>서술 실험실</strong><div class="mission" id="missionTitle"></div></div></div>
+      <ol aria-label="미션 진행 단계">
+        <li data-stage="explore"><b>1</b>탐색</li>
+        <li data-stage="claim"><b>2</b>주장</li>
+        <li data-stage="rebuttal"><b>3</b>드러내기</li>
+        <li data-stage="defense"><b>4</b>완전한 설명</li>
+      </ol>
+      <div class="who" id="who"><button type="button" class="t-skip" id="tSkip">건너뛰기</button></div>
+    </header>
+
+    <main id="sceneZone">
+      <div id="stage">
+        <div id="bench"></div>
+        <div id="board" class="board small"></div>
+        <div id="scope" hidden></div>
+        <div id="arena" aria-hidden="true"><div id="gapView"></div><div id="lensRow" hidden></div></div>
+        <div id="talkVeil" aria-hidden="true"></div>
+        <div id="profCol">
+          <svg id="bubbleTail" aria-hidden="true"><path/></svg>
+          <div id="bubble" role="status" aria-live="polite"><div class="body"></div><span class="more" aria-hidden="true">▶</span><div class="sys-line" id="sysLine" hidden></div></div>
+          <div id="reply" hidden></div>
+          <div id="sysPop" role="status" hidden></div>
+          <div id="noseMeter" role="progressbar" aria-label="교수의 콧대" aria-valuemin="0" aria-valuemax="4" hidden><div class="nose-track"><i></i><i></i><i></i><i></i></div><span class="nose-value" id="noseValue" aria-hidden="true">4 / 4</span></div>
+          <div id="prof" class="professor-art" role="img" aria-label="콧대 교수"><div class="pf-base" id="profBase"></div><div class="pf-tipwrap" id="profTipWrap"><div class="pf-tip" id="profTip"></div></div></div>
+        </div>
+        <div id="acqPanel" class="acq-panel" hidden></div>
+      </div>
+    </main>
+
+    <footer id="tray">
+      <div class="label"><strong>수집함</strong></div>
+      <button type="button" class="tray-nav" id="trayPrev" aria-label="앞 카드 보기">‹</button>
+      <div class="cards" id="trayCards"></div>
+      <button type="button" class="tray-nav" id="trayNext" aria-label="뒤 카드 보기">›</button>
+    </footer>
+  </div>
+
+  <div id="catcher" hidden></div>
+  <div id="cardPeek" hidden></div>
+
+  <!-- 튜토리얼은 기록을 남기지 않으므로 기록 모듈(api.js)을 싣지 않는다. 시작 전이라 게임 엔진도 기록을 부르지 않는다. -->
+  <script>window.SCIW_API = {};</script>
+  <script src="missions/mission02.js"></script>
+  <script src="missions/tutorial02.js"></script>
+  <script src="js/rubric02.js"></script>
+  <script src="js/art02.js"></script>
+  <script src="js/game02.js"></script>
+  <script src="js/tutorial02.js"></script>
+</body>
+</html>

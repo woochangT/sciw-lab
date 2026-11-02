@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "project": {
+    "name": "서술 실험실",
+    "productType": "Science reasoning game and teacher evidence dashboard",
+    "stack": [
+      "HTML",
+      "CSS",
+      "vanilla JavaScript",
+      "Cloudflare Workers API",
+      "Python local sheet bridge"
+    ]
+  },
+  "sources": {
+    "tokens": [
+      "index.html",
+      "intro/enhancements.css",
+      "teacher/style.css"
+    ],
+    "components": [
+      "teacher/app.js",
+      "teacher/model.js",
+      "scripts/local_server.py"
+    ],
+    "assets": [
+      "intro/lab-room.webp",
+      "intro/potato-silhouette.webp",
+      "intro/steel-wool-silhouette.webp"
+    ],
+    "instructions": []
+  },
+  "design": {
+    "colorMode": "mixed",
+    "colors": {
+      "ink": "#2b2a28",
+      "board": "#2f5446",
+      "boardDeep": "#1f3a30",
+      "wood": "#8a6a45",
+      "chalk": "#f6f3ea",
+      "paper": "#fffdf8",
+      "brass": "#c99a3e"
+    },
+    "typography": {
+      "sans": "Pretendard, system-ui",
+      "mono": "ui-monospace",
+      "display": "Gaegu"
+    },
+    "spacing": {},
+    "radius": {},
+    "shadows": {},
+    "motion": {
+      "charts": "staggered grow, 900ms ease-out",
+      "dialog": "300ms slide",
+      "accessibility": "prefers-reduced-motion"
+    },
+    "density": "comfortable compact"
+  },
+  "components": {
+    "installed": [],
+    "preferredPrimitives": [],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [
+      "Explicit demo data",
+      "No ability scores or ranks",
+      "False and unobserved must differ",
+      "Keep private source files out of repository",
+      "Preserve Woochang main intro layout, background, two silhouette mission cards; apply additive motion and teacher-link improvements only",
+      "Default to live connected sheet; never silently replace failed live reads with demo data",
+      "Separate test data from real classroom counts; QA remains excluded",
+      "Keep mission and class report scopes separate; do not infer unrecorded grades",
+      "Put saved teaching focus first within the selected class/game analysis; detailed report includes frozen evidence and classroom materials",
+      "Never call LLM from page load, selection, sheet refresh or report navigation; regenerate only on explicit click",
+      "Selecting the class opens its dashboard immediately: game-by-game metrics and saved teaching summaries first, then class-and-game analysis on game choice",
+      "Teacher starts at a multi-class achievement overview, with optional grade/test filters; no selection stepper or initial gate",
+      "Class and student heatmaps show explicit final judgment counts; unknown, zero and different rubric versions must remain separate",
+      "Rubric 1.2 note pages 0/1/2 differ from old hint levels; removed sorting is not failure"
+    ],
+    "avoid": [
+      "Framework migration",
+      "Automatic teacher prescriptions",
+      "Student data in design-service requests"
+    ]
+  },
+  "decisions": [
+    {
+      "date": "2026-11-01",
+      "decision": "Forest-green laboratory identity, warm paper, olive chart bars, restrained copper accents; explicit user request for intuitive visualization and animation."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "Adapt 21st Bar Chart (28571) grow/stagger/grid behavior in native CSS; inspect Radar Chart (29837) but do not introduce a proficiency radar."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "User correction: start from woochangT main merge d4ae232 (PR #4). Restore its intro, mission selector assets and mission 02 start screen exactly. Retain only teacher dashboard improvements on that baseline."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "User found the analytics UI unclear. Replace sidebar charts/codes with a lab chalkboard and pinned action notes, 3-step navigation, raw answer comparison, collapsed event details. Connect the existing link-readable sheet through a loopback-only read server."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "User requested class-level Sonnet medium comments instead of a prominent manual memo. Put AI observations, classroom questions and short activities in step 3; preserve manual notes in a collapsed optional area."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "User switched the class analysis provider to GPT-6 Luna medium with the existing OpenAI Script Property. Keep the lab identity and class analysis hierarchy."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "Latest user direction: class picker with numeric grade/class sorting and canonical aliases, then game picker. Put a large saved teaching focus in overview and open a printable report with snapshot metrics, answer excerpts and mission materials. LLM calls only on explicit generation/regeneration."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "User clarified class entry: no separate game-selection gate. Open the class dashboard on room selection; show summaries by game there, with drill-in to the selected class/game analysis and a return-to-class action."
+    },
+    {
+      "date": "2026-11-03",
+      "decision": "Teacher manages multiple classes: overview first, then class and game analysis. Adapt 21st Heat Map XL 2407 and InlineAnalyticsTable 7475 metadata with native accessible tables and paper/board primitives. Separate missing judgments and rubric versions; version note-page exposure and preserve latest frontend tutorial/card changes."
+    }
+  ],
+  "evidence": [],
+  "generatedAt": "2026-11-01T08:16:41.063Z"
+}

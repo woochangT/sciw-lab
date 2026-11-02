@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.local/
+.env
+.env.*
+!.env.example
+.DS_Store
+.Rhistory
+.RData
+node_modules/
+.wrangler/
