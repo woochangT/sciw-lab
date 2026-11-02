@@ -164,23 +164,23 @@
       <circle cx="84" cy="60" r="2.6" fill="#c9cdc7"/><circle cx="91" cy="60" r="2.6" fill="#c9cdc7"/>
     </svg>`;
   }
-  // 현미경 슬라이드: 동그란 관찰창 안에 원자 모형. 점선은 저울이 재는 범위.
+  // 현미경 슬라이드: 동그란 관찰창 안에 개념 모형. closed=밀폐 용기, open=용기 없음, ledger=공기 중의 기체 수.
   function miniSlide(mode) {
-    const fe = [[44, 50], [52, 46], [60, 51], [68, 46], [76, 50]];
-    // 산소는 둘씩 붙은 분자로
-    // 막힌 플라스크에서는 바닥 밖으로 나가지 않게 모두 철 위쪽에 붙는다
-    const o = fe.map(([x, y], i) => { const cy = y + (mode === 'closed' || i % 2 ? -6 : 6); return `<circle cx="${x - 2.2}" cy="${cy}" r="2.4" fill="#e2553a"/><circle cx="${x + 2.2}" cy="${cy}" r="2.4" fill="#e2553a"/>`; }).join('');
-    const ironG = fe.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.6" fill="#5b6168"/>`).join('');
-    const body = mode === 'closed'
-      ? `<path d="M54 14 L54 24 Q36 30 37 42 Q39 56 60 56 Q81 56 83 42 Q84 30 66 24 L66 14 Z" fill="rgba(214,240,246,.25)" stroke="#d7eef2" stroke-width="1.2"/><rect x="34" y="11" width="52" height="48" rx="5" fill="none" stroke="#fff7d6" stroke-dasharray="3 2"/>`
-      : `<rect x="38" y="38" width="44" height="20" rx="4" fill="none" stroke="#fff7d6" stroke-dasharray="3 2"/><circle cx="28" cy="24" r="2.2" fill="#3f7fd6"/><circle cx="32" cy="24" r="2.2" fill="#3f7fd6"/><circle cx="86" cy="22" r="2.2" fill="#3f7fd6"/><circle cx="90" cy="22" r="2.2" fill="#3f7fd6"/>`;
-    return `<svg viewBox="0 0 120 76" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    const frame = (inner) => `<svg viewBox="0 0 120 76" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <rect x="2" y="6" width="116" height="64" rx="4" fill="rgba(210,236,240,.55)" stroke="#9cc3c9"/>
-      <circle cx="60" cy="38" r="31" fill="#123536" stroke="#c79a4a" stroke-width="2.5"/>
-      ${body}
-      <ellipse cx="60" cy="55" rx="20" ry="2.6" fill="#e9eef0" opacity=".8"/>
-      ${ironG}${o}
-    </svg>`;
+      <circle cx="60" cy="38" r="31" fill="#123536" stroke="#c79a4a" stroke-width="2.5"/>${inner}</svg>`;
+    const pair = (x, y, col) => `<circle cx="${x - 2.2}" cy="${y}" r="2.4" fill="${col}"/><circle cx="${x + 2.2}" cy="${y}" r="2.4" fill="${col}"/>`;
+    if (mode === 'ledger') {
+      const row = (y, col, n) => { let g = ''; for (let i = 0; i < n; i++) g += pair(44 + i * 10, y, col); return g; };
+      return frame(`${row(24, '#3f7fd6', 4)}${row(36, '#e2553a', 2)}<path d="M66 36 h8" stroke="#ffe39a" stroke-width="1.6"/><path d="M78 33 l5 3 l-5 3" fill="none" stroke="#ffe39a" stroke-width="1.6"/>${pair(90, 36, '#e2553a')}<circle cx="46" cy="48" r="2.6" fill="#d9b23f"/><circle cx="58" cy="48" r="2.2" fill="#34383c"/><circle cx="54" cy="48" r="1.8" fill="#e2553a"/><circle cx="62" cy="48" r="1.8" fill="#e2553a"/>`);
+    }
+    const fe = [[44, 50], [52, 46], [60, 51], [68, 46], [76, 50]];
+    const o = fe.map(([x, y]) => pair(x, y - 6, '#e2553a')).join('');
+    const iron = fe.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.6" fill="#5b6168"/>`).join('');
+    const body = mode === 'closed'
+      ? `<path d="M50 16 L50 20 Q36 22 36 30 L36 54 Q36 58 41 58 L79 58 Q84 58 84 54 L84 30 Q84 22 70 20 L70 16 Z" fill="rgba(214,240,246,.25)" stroke="#d7eef2" stroke-width="1.2"/><rect x="47" y="11" width="26" height="6" rx="2" fill="#6b4630"/>`
+      : `<ellipse cx="60" cy="55" rx="20" ry="2.6" fill="#e9eef0" opacity=".8"/>${pair(32, 24, '#3f7fd6')}${pair(86, 22, '#3f7fd6')}${pair(44, 18, '#e2553a')}`;
+    return frame(body + iron + o);
   }
 
   window.SCIW_ART02 = { flames, wool, deviceA, deviceB, torch, power, clip, microscope, miniPhoto, miniSlide };
