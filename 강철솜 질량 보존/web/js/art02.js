@@ -3,18 +3,19 @@
   let serial = 0;
 
   // 강철솜: 고리 모양 실이 엉킨 뭉치. 같은 모양이 나오도록 시드 난수를 쓴다.
-  function wool(cx, cy, w, h, burned, seed) {
+  // k: 고리와 실의 굵기 배율. 플라스크처럼 좁은 곳에 넣을 때는 줄여서 유리 밖으로 삐져나오지 않게 한다.
+  function wool(cx, cy, w, h, burned, seed, k = 1) {
     let s = seed || 7;
     const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
     let d = '';
     for (let i = 0; i < 26; i++) {
       const x = cx + (rnd() - 0.5) * w; const y = cy + (rnd() - 0.5) * h;
-      const r = 4 + rnd() * 9;
-      d += `M${(x - r).toFixed(1)} ${y.toFixed(1)} a${r.toFixed(1)} ${(r * 0.7).toFixed(1)} ${(rnd() * 60).toFixed(0)} 1 1 ${(r * 2).toFixed(1)} 0 a${r.toFixed(1)} ${(r * 0.7).toFixed(1)} 0 1 1 ${(-r * 1.6).toFixed(1)} ${(r * 0.4).toFixed(1)} `;
+      const r = (4 + rnd() * 9) * k;
+      d += `M${(x - r).toFixed(2)} ${y.toFixed(2)} a${r.toFixed(2)} ${(r * 0.7).toFixed(2)} ${(rnd() * 60).toFixed(0)} 1 1 ${(r * 2).toFixed(2)} 0 a${r.toFixed(2)} ${(r * 0.7).toFixed(2)} 0 1 1 ${(-r * 1.6).toFixed(2)} ${(r * 0.4).toFixed(2)} `;
     }
     const col = burned ? '#4a3a33' : '#a9aeb3';
     const hi = burned ? '#7a5446' : '#e3e7ea';
-    return `<g class="wool"><path d="${d}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${hi}" stroke-width=".8" opacity=".7" transform="translate(-1 -1)"/></g>`;
+    return `<g class="wool"><path d="${d}" fill="none" stroke="${col}" stroke-width="${(2.2 * k).toFixed(2)}" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${hi}" stroke-width="${(0.8 * k).toFixed(2)}" opacity=".7" transform="translate(${-k} ${-k})"/></g>`;
   }
 
   function sparks(cx, cy) {
@@ -23,6 +24,30 @@
       const a = (i / 12) * Math.PI * 2; const r1 = 10 + (i % 3) * 4; const r2 = r1 + 12 + (i % 4) * 4;
       g += `<path d="M${(cx + Math.cos(a) * r1).toFixed(1)} ${(cy + Math.sin(a) * r1 * 0.7).toFixed(1)} L${(cx + Math.cos(a) * r2).toFixed(1)} ${(cy + Math.sin(a) * r2 * 0.7).toFixed(1)}" stroke="${i % 2 ? '#ffd36b' : '#ff8a3d'}" stroke-width="2.4" stroke-linecap="round" style="animation-delay:${(i % 4) * 0.08}s"/>`;
     }
+    return g + '</g>';
+  }
+
+  // 불꽃 혀 하나: 아래(x, y)에서 위로 h만큼 솟는 물방울 모양, 바깥은 주황, 안은 노랑
+  function flame(x, y, h, delay) {
+    const w = h * 0.42;
+    const tongue = (k) => `M${x} ${y} C${x - w * k} ${y - h * k * 0.32} ${x - w * k * 0.35} ${y - h * k * 0.62} ${x} ${y - h * k} C${x + w * k * 0.35} ${y - h * k * 0.62} ${x + w * k} ${y - h * k * 0.32} ${x} ${y} Z`;
+    return `<g class="fx-flame" style="animation-delay:${delay}s"><path d="${tongue(1)}" fill="#ff7a2e" opacity=".9"/><path d="${tongue(0.6)}" fill="#ffd36b"/></g>`;
+  }
+  function flames(cx, cy, rx, h) {
+    let g = '';
+    for (let i = 0; i < 5; i++) g += flame(cx - rx * 0.6 + i * rx * 0.3, cy + (i % 2 ? 2 : -2), h * (i % 2 ? 0.75 : 1), ((i * 0.17) % 0.5).toFixed(2));
+    return g;
+  }
+  // 타는 동안의 모습: 강철솜 위로 일렁이는 불꽃, 깜빡이는 불씨, 피어오르는 연기.
+  // arc가 있으면 전극 끝 사이에 튀는 전기 불꽃도 그린다. .burning이 붙었을 때만 보인다.
+  function burnTop(cx, cy, rx, arc) {
+    let g = '<g class="burn-fx">' + flames(cx, cy - 2, rx, 26);
+    for (let i = 0; i < 14; i++) {
+      const x = cx + Math.cos(i * 2.39) * rx * (0.25 + (i % 5) * 0.15); const y = cy + Math.sin(i * 2.39) * rx * 0.28;
+      g += `<circle class="fx-ember" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(2.2 + (i % 3) * 1.1).toFixed(1)}" fill="${i % 2 ? '#ffe28a' : '#ff7a2e'}" style="animation-delay:${((i * 0.13) % 0.9).toFixed(2)}s"/>`;
+    }
+    for (let i = 0; i < 3; i++) g += `<circle class="fx-smoke" cx="${cx - 14 + i * 14}" cy="${cy - 10}" r="${7 + i * 2}" fill="#9aa0a3" style="animation-delay:${i * 0.5}s"/>`;
+    if (arc) g += `<path class="fx-arc" d="M${arc[0]} ${arc[1]} l4 -5 l3 7 l4 -6 l3 6 l2 -2" stroke="#fffbe0" stroke-width="2" fill="none" stroke-linejoin="round"/>`;
     return g + '</g>';
   }
 
@@ -52,6 +77,7 @@
       <ellipse cx="130" cy="136" rx="52" ry="7" fill="#ebe8e1" stroke="#c9c4b8" stroke-width="1.2"/>
       <g class="wool-all">${wool(130, 124, 66, 22, false, 11)}
       <g class="wool-dark" style="opacity:0">${wool(130, 124, 66, 22, true, 11)}</g></g>
+      ${burnTop(130, 124, 60)}
       ${sparks(130, 122)}
     </svg>`;
   }
@@ -62,9 +88,10 @@
       <path d="M113 22 L113 64 Q66 84 70 116 Q76 146 130 146 Q184 146 190 116 Q194 84 147 64 L147 22 Z" fill="rgba(214,240,246,.42)" stroke="#d7eef2" stroke-width="2.4"/>
       <path d="M84 100 Q82 124 102 134" stroke="#fff" stroke-width="3" opacity=".55" fill="none" stroke-linecap="round"/>
       <rect x="105" y="10" width="50" height="18" rx="4" fill="#5b3b28" stroke="#2f1d12" stroke-width="1.5"/>
-      ${wool(130, 124, 58, 22, false, 23)}
-      <g class="wool-dark" style="opacity:0">${wool(130, 124, 58, 22, true, 23)}</g>
+      ${wool(125, 120, 58, 16, false, 23, 0.9)}
+      <g class="wool-dark" style="opacity:0">${wool(125, 120, 58, 16, true, 23, 0.9)}</g>
       <path d="M122 14 L122 112 M138 14 L138 112" stroke="#b9872f" stroke-width="1.6"/>
+      ${burnTop(130, 120, 54, [120, 112])}
       <path d="M122 14 Q122 2 150 2 Q210 2 260 40" stroke="#c0392b" stroke-width="2.2" fill="none"/>
       <path d="M138 14 Q140 6 160 8 Q215 12 260 60" stroke="#2b2b2b" stroke-width="2.2" fill="none"/>
       ${sparks(130, 120)}
@@ -104,27 +131,18 @@
     </svg>`;
   }
 
-  function notebook() {
-    return `<svg viewBox="0 0 170 90" aria-hidden="true">
-      <path d="M3 15Q43 3 85 13Q127 3 167 15L166 80Q125 71 85 85Q44 71 4 80Z" fill="#69422b" stroke="#34251b" stroke-width="3"/>
-      <path d="M9 12Q47 2 85 13Q123 2 161 12L160 74Q121 66 85 79Q49 66 10 74Z" fill="#f7edce" stroke="#d3be8f" stroke-width="1.5"/>
-      <path d="M85 13V79" stroke="#b5a077" stroke-width="2"/>
-      <g stroke="#a9a58a" stroke-width="1.2" opacity=".7"><path d="M21 27L70 24M21 35L69 32M21 43L62 40M22 51L69 48M99 26L147 29M99 34L147 37M100 42L142 45M101 51L148 54"/></g>
-      <path d="M132 4h12v24l-6-5-6 5Z" fill="#a95236"/>
-    </svg>`;
-  }
-
   function microscope() {
     const id = `scope-${++serial}`;
     return `<svg viewBox="0 0 120 180" aria-hidden="true">
       <defs><linearGradient id="${id}"><stop stop-color="#8b5b20"/><stop offset=".35" stop-color="#e1ba64"/><stop offset=".6" stop-color="#b88a38"/><stop offset="1" stop-color="#694718"/></linearGradient><linearGradient id="${id}-c" x2="1" y2="1"><stop stop-color="#edffff"/><stop offset=".4" stop-color="#8cf3ef"/><stop offset="1" stop-color="#997cec"/></linearGradient></defs>
       <ellipse cx="61" cy="172" rx="52" ry="6" fill="#241b11" opacity=".4"/>
       <path d="M15 159Q57 147 105 159L108 170H12Z" fill="#173d35" stroke="#b4914f" stroke-width="2"/>
-      <path d="M68 158V128Q99 109 94 69L79 62Q87 111 53 124V158Z" fill="url(#${id})" stroke="#795325" stroke-width="1.7"/>
-      <rect x="19" y="112" width="66" height="8" rx="3" fill="#173a33" stroke="#ac8a49" stroke-width="2"/>
-      <g transform="rotate(19 52 64)"><rect x="38" y="19" width="28" height="72" rx="5" fill="#214d43" stroke="#b38b43" stroke-width="3"/><rect x="33" y="10" width="38" height="13" rx="3" fill="url(#${id})"/><rect x="42" y="91" width="20" height="16" fill="url(#${id})"/><ellipse cx="52" cy="107" rx="9" ry="4" fill="#8fe2e3"/></g>
-      <circle cx="88" cy="99" r="12" fill="url(#${id})" stroke="#695029" stroke-width="2"/><circle cx="88" cy="99" r="5" fill="#274b3f"/>
-      <path d="M53 83L64 97L53 113L42 97Z" fill="url(#${id}-c)" stroke="#e6ffff" stroke-width="1.4"/>
+      <path d="M76 157V128Q101 108 91 72Q87 60 70 55" fill="none" stroke="#795325" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M76 157V128Q101 108 91 72Q87 60 70 55" fill="none" stroke="url(#${id})" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="18" y="112" width="72" height="8" rx="3" fill="#173a33" stroke="#ac8a49" stroke-width="2"/>
+      <circle cx="93" cy="100" r="11" fill="url(#${id})" stroke="#695029" stroke-width="2"/><circle cx="93" cy="100" r="4.5" fill="#274b3f"/>
+      <g transform="translate(0 -7) rotate(19 52 64)"><rect x="38" y="19" width="28" height="72" rx="5" fill="#214d43" stroke="#b38b43" stroke-width="3"/><rect x="33" y="10" width="38" height="13" rx="3" fill="url(#${id})"/><rect x="43" y="91" width="18" height="14" fill="url(#${id})"/><ellipse cx="52" cy="105" rx="7" ry="3" fill="#8fe2e3"/></g>
+      <path d="M41 99L48 105.5L41 112L34 105.5Z" fill="url(#${id}-c)" stroke="#e6ffff" stroke-width="1.2"/>
     </svg>`;
   }
 
@@ -135,7 +153,7 @@
     const lcd = which === 'A' ? '2.5' : '150.0';
     const top = which === 'A'
       ? `<path d="M34 40 Q60 50 86 40 L83 45 Q60 53 37 45 Z" fill="#f6f4ef" stroke="#c9c4b8"/>${wool(60, 36, 34, 10, true, 11)}`
-      : `<path d="M54 6 L54 18 Q38 24 39 34 Q41 44 60 44 Q79 44 81 34 Q82 24 66 18 L66 6 Z" fill="rgba(214,240,246,.5)" stroke="#9fc6cf"/><rect x="51" y="2" width="18" height="6" rx="2" fill="#5b3b28"/>${wool(60, 37, 22, 8, true, 23)}`;
+      : `<path d="M54 6 L54 18 Q38 24 39 34 Q41 44 60 44 Q79 44 81 34 Q82 24 66 18 L66 6 Z" fill="rgba(214,240,246,.5)" stroke="#9fc6cf"/><rect x="51" y="2" width="18" height="6" rx="2" fill="#5b3b28"/>${wool(58, 32, 20, 6, true, 23, 0.42)}`;
     return `<svg viewBox="0 0 120 76" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <rect width="120" height="76" fill="#3b2c22"/><rect y="52" width="120" height="24" fill="#7a5233"/>
       ${top}
@@ -150,7 +168,8 @@
   function miniSlide(mode) {
     const fe = [[44, 50], [52, 46], [60, 51], [68, 46], [76, 50]];
     // 산소는 둘씩 붙은 분자로
-    const o = fe.map(([x, y], i) => { const cy = y + (i % 2 ? -6 : 6); return `<circle cx="${x - 2.2}" cy="${cy}" r="2.4" fill="#e2553a"/><circle cx="${x + 2.2}" cy="${cy}" r="2.4" fill="#e2553a"/>`; }).join('');
+    // 막힌 플라스크에서는 바닥 밖으로 나가지 않게 모두 철 위쪽에 붙는다
+    const o = fe.map(([x, y], i) => { const cy = y + (mode === 'closed' || i % 2 ? -6 : 6); return `<circle cx="${x - 2.2}" cy="${cy}" r="2.4" fill="#e2553a"/><circle cx="${x + 2.2}" cy="${cy}" r="2.4" fill="#e2553a"/>`; }).join('');
     const ironG = fe.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.6" fill="#5b6168"/>`).join('');
     const body = mode === 'closed'
       ? `<path d="M54 14 L54 24 Q36 30 37 42 Q39 56 60 56 Q81 56 83 42 Q84 30 66 24 L66 14 Z" fill="rgba(214,240,246,.25)" stroke="#d7eef2" stroke-width="1.2"/><rect x="34" y="11" width="52" height="48" rx="5" fill="none" stroke="#fff7d6" stroke-dasharray="3 2"/>`
@@ -164,5 +183,5 @@
     </svg>`;
   }
 
-  window.SCIW_ART02 = { wool, deviceA, deviceB, torch, power, clip, notebook, microscope, miniPhoto, miniSlide };
+  window.SCIW_ART02 = { flames, wool, deviceA, deviceB, torch, power, clip, microscope, miniPhoto, miniSlide };
 })();
