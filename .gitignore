@@ -7,3 +7,5 @@ __pycache__/
 .DS_Store
 .Rhistory
 .RData
+node_modules/
+.wrangler/
