@@ -1,6 +1,6 @@
 > **현재 실행:** 저장소 루트에서 `python3 scripts/local_server.py --port 8765` 실행 후 [미션 선택](http://127.0.0.1:8765/) / [교사 기록장](http://127.0.0.1:8765/teacher.html)을 엽니다. Node.js가 필요합니다.
 >
-> **교사 화면:** 학년·반 선택 → 반 대시보드의 게임별 요약 → 선택한 게임 분석. 감자·강철솜 시트를 읽고, GPT-6 Luna medium 수업 요약·근거 리포트는 생성/재생성 버튼에서만 갱신합니다. Python API가 필요한 로컬 연결이므로 GitHub Pages에 정적 파일만 올려서는 동일하게 동작하지 않습니다. [실행·검증 안내](teacher/README.md).
+> **교사 화면:** 학년·반 선택 → 반 대시보드의 게임별 요약 → 선택한 게임 분석. 감자·강철솜 시트를 읽고, GPT-6 Luna medium 수업 요약·근거 리포트는 생성/재생성 버튼에서만 갱신합니다. Python API가 필요한 로컬 연결이므로 GitHub Pages에 정적 파일만 올려서는 동일하게 동작하지 않습니다. [실행·검증·팀 공유 안내](teacher/README.md).
 >
 > **2026-11-02 통합:** main의 우창님 인트로를 유지하고 `front-end`의 플레이테스트 수정·강철솜 AI 평가를 반영했습니다. 학생 기록 저장(`apps-script/Code.gs`)·강철솜 평가(`apps-script/m02-evaluator/`)·교사 수업 분석은 각각 구분됩니다. 강철솜 평가의 연결 주소·호출 상한은 팀의 최신 설정을 유지합니다. [평가 서버 안내](apps-script/m02-evaluator/README.md).
 >
