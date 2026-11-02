@@ -1862,7 +1862,7 @@
       return `<span class="w ${isNew ? 'new-connection' : ''}" title="${esc(roles + (isNew ? ' · 처음 생각에서 새롭게 발전한 연결' : ' · 잘 드러난 연결'))}">${esc(text.slice(start, end))}</span>`;
     }).join('');
     const praise = marks.map((h) => {
-      const source = h.source === 'card' ? ' 카드에서 가져온 구절이에요.' : h.source === 'mixed' ? ' 카드 구절과 직접 쓴 부분이 함께 있어요.' : '';
+      const source = h.source === 'mixed' ? ' 카드 구절과 직접 쓴 부분이 함께 있어요.' : '';
       const growth = h.isNew ? ' 처음 생각보다 새롭게 드러난 연결이에요.' : '';
       return `“${h.quote}” — ${h.explanation}${source}${growth}`;
     });
