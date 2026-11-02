@@ -183,5 +183,27 @@
     return frame(body + iron + o);
   }
 
-  window.SCIW_ART02 = { flames, wool, deviceA, deviceB, torch, power, clip, microscope, miniPhoto, miniSlide };
+  // 돋보기 작은 그림: 현미경 슬라이드의 동그란 관찰창만 잘라 보여 준다.
+  function lensMini(mode) { return miniSlide(mode).replace('viewBox="0 0 120 76"', 'viewBox="29 7 62 62"'); }
+  // 돋보기를 카드에 댔을 때: 방금 본 일이 작게 되풀이된다. 산소가 철로 옮겨 붙고, 숫자가 함께 바뀐다. 움직임을 끄면 붙은 모습으로 멈춘다.
+  function lensScene(mode) {
+    const pair = (x, y, col) => `<circle cx="${x - 3.6}" cy="${y}" r="4" fill="${col}"/><circle cx="${x + 3.6}" cy="${y}" r="4" fill="${col}"/>`;
+    const fe = [[36, 76], [48, 70], [60, 76], [72, 70], [84, 76]];
+    const iron = `<path d="M${fe.map((p) => p.join(' ')).join(' L')}" stroke="#8b9197" stroke-width="2.5" fill="none"/>${fe.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="5.5" fill="#5b6168"/>`).join('')}`;
+    const bond = (from) => fe.map(([x, y], i) => `<g class="ls-o" style="--dx:${from[i][0] - x}px;--dy:${from[i][1] - (y - 9)}px;--t:${(i * 0.45).toFixed(2)}s">${pair(x, y - 9, '#e2553a')}</g>`).join('');
+    const still = (list, col) => list.map(([x, y]) => pair(x, y, col)).join('');
+    const lcd = (t, cls = '') => `<text class="${cls}" x="82" y="107" font-size="10" text-anchor="end" font-family="'Share Tech Mono', monospace" fill="#1b261c">${t}</text>`;
+    const scale = (txt) => `<rect x="26" y="94" width="68" height="20" rx="3" fill="#d9dcd7"/><rect x="34" y="97" width="52" height="13" rx="2" fill="#b9c7a5" stroke="#2f3a3e" stroke-width=".8"/>${txt}`;
+    const wrap = (inner) => `<svg viewBox="0 0 120 120" aria-hidden="true"><rect width="120" height="120" fill="#123536"/>${inner}</svg>`;
+    if (mode === 'closed') {
+      return wrap(`${still([[11, 58], [109, 46]], '#e2553a')}${still([[14, 36], [106, 70]], '#3f7fd6')}<path d="M46 12 L46 20 Q24 24 24 38 L24 84 Q24 90 30 90 L90 90 Q96 90 96 84 L96 38 Q96 24 74 20 L74 12 Z" fill="rgba(214,240,246,.18)" stroke="#d7eef2" stroke-width="2"/><rect x="42" y="6" width="36" height="8" rx="2" fill="#6b4630"/>${iron}${bond([[40, 36], [60, 30], [80, 38], [46, 52], [74, 54]])}${scale(lcd('150.0 g'))}`);
+    }
+    if (mode === 'open') {
+      return wrap(`${still([[38, 26], [84, 22], [14, 62]], '#3f7fd6')}<ellipse cx="60" cy="86" rx="36" ry="5" fill="#f6f4ef"/>${iron}${bond([[20, 36], [60, 12], [102, 34], [28, 54], [96, 56]])}${scale(lcd('2.0 g', 'ls-a') + lcd('2.5 g', 'ls-b'))}`);
+    }
+    const count = (t, cls) => `<text class="${cls}" x="60" y="106" font-size="11" font-weight="700" text-anchor="middle" fill="#b2401f">${t}</text>`;
+    return wrap(`${still([[38, 26], [84, 22], [14, 62], [106, 62]], '#3f7fd6')}<g class="ls-x">${pair(60, 44, '#3f7fd6')}</g>${iron}${bond([[20, 36], [60, 12], [102, 34], [28, 54], [96, 50]])}<rect x="34" y="94" width="52" height="17" rx="3" fill="#fffdf6"/>${count('산소 8', 'ls-a')}${count('산소 3', 'ls-b')}`);
+  }
+
+  window.SCIW_ART02 = { flames, wool, deviceA, deviceB, torch, power, clip, microscope, miniPhoto, miniSlide, lensMini, lensScene };
 })();

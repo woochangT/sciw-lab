@@ -1,6 +1,6 @@
 /*
  * 게임 엔진 — 미션 02 「늘어난 강철솜」
- * 흐름: 탐색 → 주장(처음 답 직접 쓰기 + 고르기) → 드러내기(꼬투리 셋: 현미경 조사 → 뜻 쓰기 → 합치기 장면) → 완전한 설명(순서 짜기 → 답안 짜기) → 클리어
+ * 흐름: 탐색 → 주장(처음 답 직접 쓰기 + 고르기) → 드러내기(꼬투리 셋: 카드 뒤집기와 교수의 오독 → 현미경 조사 → 뒷면 쓰기 → 합치기 장면) → 완전한 설명(답안 짜기) → 클리어
  * 코드와 기록의 단계 이름(rebuttal, defense)은 그대로 둔다.
  * 화면 규칙: 다음 물건은 세 번 깜빡인 뒤 빛 테두리로 남고, 할 말은 교수 말풍선이 한다. 할 일이 바뀌는 말은 가운데에 크게 떴다가 머리 위로 옮겨 간다.
  * 교수의 말이 아닌 안내는 게임 시스템의 말(#sysPop, #sysLine)로 따로 보인다.
@@ -26,7 +26,7 @@
     tray: [], cards: Object.assign({}, M.cards), done: {}, firstAnswer: '', firstTag: '',
     claim: null, evidence: [null, null], q: null, errCount: {}, concl: {},
     scope: { mode: 'closed', bonded: { closed: 0, open: 0 }, locked: true }, gas: [],
-    link: 0, linkBoard: false, boardView: 'text', linkTries: {}, claimTried: [], inserted: [], ownMode: false, ownEver: false,
+    link: 0, linkBoard: false, gap: null, lensOn: null, notePages: 1, noteView: 1, linkTries: {}, claimTried: [], inserted: [], ownMode: false, ownEver: false,
     hint: 0, hintReason: '', submits: 0, predicted: false,
     composeStart: 0, lastInput: now(), glowKey: null, nudged: {}, sel: null, times: {}, firstSubmitText: ''
   };
@@ -236,7 +236,7 @@
   // 칠판에 답을 쓸 때만 칠판 바로 아래에 둔다.
   function placeReply() {
     const box = $('#reply'); const b = $('#board');
-    if (document.body.classList.contains('arena')) { const talk = $('#bubble'); box.style.top = Math.max(156, talk.offsetTop + talk.offsetHeight + 8) + 'px'; $('#arenaSys').style.top = (box.offsetTop + box.offsetHeight + 5) + 'px'; return; }
+    if (document.body.classList.contains('arena')) { placeGap(); return; }
     box.style.top = box.classList.contains('under-board') ? (b.offsetTop + b.offsetHeight + 10) + 'px' : '';
   }
   // timeout을 주면 그 시간이 지나도 넘어간다
@@ -262,7 +262,7 @@
     if (cfg.text && cfg.line) {
       html += `<div class="r-text"><input id="replyText" type="text" maxlength="200" autocomplete="off" aria-label="교수님께 답하기" value="${esc(cfg.value ?? cfg.starter ?? '')}"></div>`;
     } else if (cfg.text) {
-      html += `<div class="r-text"><textarea id="replyText" rows="${cfg.rows || 3}" maxlength="${cfg.frame ? 240 : 400}" ${cfg.frame ? 'data-drop="reply"' : ''} aria-label="교수님께 답하기">${esc(cfg.value ?? cfg.starter ?? '')}</textarea></div>`;
+      html += `<div class="r-text"><textarea id="replyText" rows="${cfg.rows || 3}" maxlength="${cfg.frame ? 150 : 400}" aria-label="교수님께 답하기">${esc(cfg.value ?? cfg.starter ?? '')}</textarea></div>`;
     }
     if (cfg.frame) html += `<div class="r-frame r-frame-end">${esc(cfg.frame.post)}</div>`;
     html += `<button type="button" class="r-send" id="replySend" disabled ${cfg.instant ? 'hidden' : ''}>${esc(cfg.send || '교수님께 말하기')}</button>`;
@@ -398,19 +398,32 @@
   /* ───────── 카드 ───────── */
   // 단서는 그 증거의 모양으로 보인다: 실험 결과는 장치 사진, 현미경 결과는 관찰 슬라이드,
   // 학생이 쓴 결론은 손글씨 메모, 주장은 작은 칠판
-  function cardHTML(id, extra = '') {
+  function cardHTML(id, extra = '', badge = '') {
     const c = S.cards[id];
     const look = c.look || ({ concl: 'memo', claim: 'slate', model: 'lens' }[c.kind]) || 'note';
     const title = c.title ? `<b>${esc(c.title)}</b>` : '';
     const pic = look === 'photo' ? `<div class="pic">${ART.miniPhoto(c.art)}</div>` : look === 'slide' ? `<div class="pic">${ART.miniSlide(c.art)}</div>` : '';
-    return `<div class="card k-${c.kind} look-${look} ${extra}" data-card="${id}" tabindex="0">${pic}${title}<span>${esc(c.text)}</span></div>`;
+    return `<div class="card k-${c.kind} look-${look} ${extra}" data-card="${id}" tabindex="0">${badge}${pic}${title}<span>${esc(c.text)}</span></div>`;
+  }
+  // 돋보기. on-card면 카드에 댄 모습으로, 방금 본 장면이 되풀이된다.
+  function lensHTML(id, extra = '') {
+    const c = S.cards[id];
+    const act = /act|on-card/.test(extra);
+    return `<div class="lens ${extra}" data-card="${id}" ${act ? 'tabindex="0" role="button"' : 'role="img"'} aria-label="${esc(c.title)}">${extra.includes('on-card') ? ART.lensScene(c.mode) : ART.lensMini(c.mode)}</div>`;
+  }
+  // 수집함의 뒷면 표시: 비었으면 ?, 교수가 적었으면 낙서, 학생이 채웠으면 ✓
+  function backBadge(id) {
+    const c = S.cards[id];
+    if (c.kind !== 'clue' || !['rebuttal', 'defense'].includes(S.stage)) return '';
+    return c.back ? '<i class="bk ok">뒷면 ✓</i>' : c.mis ? '<i class="bk no">뒷면 낙서</i>' : '<i class="bk q">뒷면 ?</i>';
   }
   function renderTray() {
     const box = $('#trayCards');
     // 변론에서 칸에 놓은 카드는 수집함에서 뺀다.
     const ids = S.tray.filter((id) => !(S.stage === 'defense' && S.placedOut && S.placedOut.has(id)));
-    box.innerHTML = ids.map((id) => cardHTML(id, S.dimmed && S.dimmed.has(id) ? 'dim' : '')).join('');
+    box.innerHTML = ids.map((id) => (S.cards[id].kind === 'lens' ? `<div class="lens-card">${lensHTML(id)}<em>${esc(S.cards[id].title)}</em></div>` : cardHTML(id, S.dimmed && S.dimmed.has(id) ? 'dim' : '', backBadge(id)))).join('');
     $$('.card', box).forEach((el) => { bindCard(el); bindPeek(el); });
+    $$('.lens', box).forEach(bindPeek);
     updateTrayNav();
   }
   // 좌우로 넘겨 보기: 화살표, 마우스 휠(세로 휠도 가로로), 스크롤바
@@ -434,7 +447,7 @@
     const peek = $('#cardPeek');
     el.addEventListener('mouseenter', () => {
       const c = S.cards[el.dataset.card]; if (!c) return;
-      peek.innerHTML = `${c.title ? `<b>${esc(c.title)}</b>` : ''}${esc(c.sentence || c.text)}`;
+      peek.innerHTML = `${c.title ? `<b>${esc(c.title)}</b>` : ''}${esc(c.sentence || c.text)}${c.back && S.phase !== 'compose' ? `<span class="peek-b">뒷면: ${esc(c.back)}</span>` : ''}`;
       peek.hidden = false;
       const r = el.getBoundingClientRect();
       peek.style.left = Math.max(8, Math.min(r.left, innerWidth - peek.offsetWidth - 8)) + 'px';
@@ -447,8 +460,7 @@
     if (S.tray.includes(id)) return;
     S.tray.push(id);
     renderTray();
-    if (S.arena) renderDeck();
-    const target = S.arena ? $(`#arenaDeck [data-card="${id}"]`) : $(`#trayCards [data-card="${id}"]`);
+    const target = $(`#trayCards [data-card="${id}"]`);
     if (fromEl && target && !reduced) {
       const a = fromEl.getBoundingClientRect(); const b = target.getBoundingClientRect();
       const fly = document.createElement('div');
@@ -498,7 +510,6 @@
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTapCard(id, el); } });
   }
   function onTapCard(id, el) {
-    if (S.arena) { insertReply(id); return; }
     if (S.stage === 'defense' && S.phase === 'compose') { insertCard(id); return; }
     S.sel = S.sel === id ? null : id;
     $$('.card').forEach((c) => c.classList.toggle('selected', c.dataset.card === S.sel));
@@ -523,9 +534,7 @@
     $$('.card').forEach((c) => c.classList.remove('selected'));
     $$('[data-drop]').forEach((d) => d.classList.remove('can-drop'));
     if (where.startsWith('ev')) dropEvidence(id, Number(where.slice(2)));
-    else if (where.startsWith('ord-')) dropOrder(id, where.slice(4));
     else if (where === 'answer') insertCard(id);
-    else if (where === 'reply') insertReply(id);
   }
 
   /* ───────── 1. 탐색 ───────── */
@@ -561,31 +570,24 @@
     b.innerHTML = html;
     b.onclick = S.stage === 'explore' && S.boardOpen ? openClaimFlow : null;
   }
-  const linkState = (i) => (S.cards[M.links[i].card] ? 'done' : i === S.link ? 'now' : 'wait');
-  // 드러내기 칠판: 교수가 잡은 꼬투리 세 줄. 풀린 줄은 학생의 문장으로 바뀐다. 버튼으로 구조도와 바꿔 볼 수 있다.
+  const linkState = (i) => (S.cards[M.links[i].data].back ? 'done' : i === S.link ? 'now' : 'wait');
+  // 드러내기 칠판: 카드 앞면, 그 뒷면(교수의 빨간 글씨 또는 학생의 문장), 주장이 늘 함께 보인다.
   function renderLinkBoard(b) {
-    const struct = S.boardView === 'struct';
     const rows = M.links.map((L, i) => {
-      const st = linkState(i); const c = S.cards[L.card];
-      return `<div class="lk-row ${st}"><b>${'①②③'[i]}</b><div class="lk-text">${esc(c ? c.text : L.row)}</div>${st === 'done' ? '<span class="lk-mark">✓</span>' : ''}</div>`;
+      const c = S.cards[L.data]; const have = S.tray.includes(L.data);
+      const back = c.back ? ['ok', c.back] : c.mis ? ['red', c.mis] : have ? ['wait', '뒷면 비어 있음'] : ['wait', L.row];
+      return `<div class="cb-row ${linkState(i)}"><b>${'①②③'[i]}</b><div class="cb-f ${have ? '' : 'none'}">${have ? L.chip.map(esc).join('<br>') : '카드 없음'}</div><div class="cb-a">›</div><div class="cb-b ${back[0]}">${esc(back[1])}</div></div>`;
     }).join('');
-    const body = struct ? structHTML() : `<div class="chalk lk-rows">${rows}<div class="lk-claim">→ ${esc(S.claim.text)}</div></div>`;
-    b.innerHTML = `<button type="button" class="bt-toggle" id="boardView">${struct ? '글 보기' : '구조 보기'}</button><div class="chalk lk-title">${esc(M.boardLinksTitle)}</div>${body}`;
+    b.innerHTML = `<div class="chalk cb-t">${esc(M.boardLinksTitle)}</div>${rows}<div class="cb-c">→ ${esc(M.claimShort)}.</div>`;
     b.onclick = null;
-    $('#boardView').addEventListener('click', () => { S.boardView = struct ? 'text' : 'struct'; logAttempt({ stage: 'rebuttal', questId: 'boardView', choice: S.boardView }); renderSmallBoard(); });
     // 긴 문장은 두 줄에서 잘리고, 누르면 전체가 보인다
-    $$('.lk-row.done', b).forEach((el) => el.addEventListener('click', () => el.classList.toggle('open')));
+    $$('.cb-row.done', b).forEach((el) => el.addEventListener('click', () => el.classList.toggle('open')));
   }
-  // 구조도: 자료 → 꼬투리 → 주장. pick이면 학생이 빠진 곳을 누르는 칠판, all이면 다 이어진 모습이다.
-  function structHTML({ pick = false, all = false } = {}) {
+  // 구조도: 자료 → 꼬투리 → 주장. pick이면 학생이 빠진 곳을 누르는 칠판, 아니면 다 이어진 모습이다.
+  function structHTML({ pick = false } = {}) {
     const T = pick ? 'button' : 'div';
     const node = (cls, id, label) => `<${T} ${pick ? `type="button" data-pick="${id}"` : ''} class="n ${cls}">${esc(label)}</${T}>`;
-    const rows = M.links.map((L, r) => {
-      const data = L.nodeBefore && !all && !pick && !S.tray.includes(L.data) ? L.nodeBefore : L.node;
-      const st = all ? 'done' : pick ? '' : linkState(r);
-      const mark = pick ? `${'①②③'[r]} ${L.pickLabel}` : `${'①②③'[r]} ${st === 'done' ? '✓' : '?'}`;
-      return node(`d r${r}`, 'd' + r, data) + node(`w r${r} ${st}`, 'w' + r, mark);
-    }).join('');
+    const rows = M.links.map((L, r) => node(`d r${r}`, 'd' + r, L.node) + node(`w r${r} ${pick ? '' : 'done'}`, 'w' + r, pick ? `${'①②③'[r]} ${L.pickLabel}` : `${'①②③'[r]} ✓`)).join('');
     const lines = pick ? 'M33 13 H37 M33 50 H37 M33 87 H37 M65 13 H69 V87 H65 M65 50 H74' : 'M40 13 H44 M40 50 H44 M40 87 H44 M57 13 H61 V87 H57 M57 50 H66';
     return `<div class="st${pick ? ' pick' : ''} chalk"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="${lines}"/></svg>${rows}${node('c', 'claim', M.claimShort)}</div>`;
   }
@@ -768,7 +770,8 @@
     S.acquiring = true;
     $('#bubble').classList.remove('show');
     const box = $('#acqPanel');
-    box.innerHTML = `<div class="acq-head">새 단서 발견</div>${ids.map((id) => `${cardHTML(id, 'big').replace('xMidYMid slice', 'xMidYMid meet')}<p class="acq-seen">${esc(S.cards[id].sentence || '')}</p>`).join('')}<button type="button" class="acq-btn" id="acqBtn">획득</button>`;
+    const isLens = S.cards[ids[0]].kind === 'lens';
+    box.innerHTML = `<div class="acq-head">${isLens ? '새 돋보기 발견' : '새 단서 발견'}</div>${ids.map((id) => `${isLens ? `<div class="acq-lens">${lensHTML(id)}<b>${esc(S.cards[id].title)}</b></div>` : cardHTML(id, 'big').replace('xMidYMid slice', 'xMidYMid meet')}<p class="acq-seen">${esc(S.cards[id].sentence || '')}</p>`).join('')}<button type="button" class="acq-btn" id="acqBtn">획득</button>`;
     box.className = beside ? 'acq-panel beside' : 'acq-panel';
     box.style.cssText = '';
     box.hidden = false;
@@ -777,7 +780,7 @@
     btn.addEventListener('click', () => {
       glow(null);
       S.acquiring = false;
-      const els = $$('.card', box);
+      const els = $$('[data-card]', box);
       ids.forEach((id, i) => addCard(id, els[i]));
       box.hidden = true;
       box.innerHTML = '';
@@ -924,10 +927,8 @@
     S.linkBoard = true;
     renderSmallBoard();
     const lead = M.lines.linkLead[S.claimTried[0]] || M.lines.linkLead.direct;
-    await say(M.lines.linkIntro.concat(lead, M.lines.toScope), { center: true });
-    S.scope.locked = false;
-    $('#microscope').classList.add('unlocked');
-    glow($('#microscope'), 'scope');
+    await say(M.lines.linkIntro.concat(lead), { center: true });
+    await nextGap(0);
   }
 
   // 현미경 개념 모형: 철과 공기 중의 네 기체. 불이 붙어 있는 동안 산소만 하나씩 철에 붙고, 다른 기체는 부딪혀 튕겨 나간다.
@@ -1337,8 +1338,8 @@
   }
   function toSentence(t) { t = t.trim(); return /[.!?]$/.test(t) ? t : t + '.'; }
 
-  /* ───────── 드러내기: 꼬투리 하나마다 현미경 조사 → 새 단서 → "…라는 것은 ___라는 뜻이다" ───────── */
-  // 실험실에서 교수가 꼬투리를 짚고, 학생이 현미경을 열면 이 조사가 시작된다
+  /* ───────── 드러내기: 꼬투리 하나마다 카드 뒤집기 → 현미경 조사 → 뒷면에 "…라는 것은 ___라는 뜻이다" ───────── */
+  // 실험실에서 교수가 보내고, 학생이 현미경을 열면 이 조사가 시작된다
   async function startLink(i) {
     S.round = i + 1;
     S.onToggle = null;
@@ -1365,30 +1366,132 @@
       if (mode !== wanted) return;
       S.onAllBonded = null; S.onToggle = null;
       await sleep(900);
-      acquire([M.links[i].clue], () => askLink(i));
+      acquire([M.links[i].clue], () => {
+        if (M.links[i].lens !== M.links[i].clue) addCard(M.links[i].lens);
+        askLink(i);
+      });
     };
   }
 
-  // 답 쓰는 화면: 실험실·현미경·수집함을 걷어 내고, 커진 말풍선과 답 틀, 단서 줄만 남긴다. 고리가 이어지면 돌아간다.
-  function renderDeck() {
-    const box = $('#arenaDeck');
-    box.innerHTML = S.tray.map((id) => cardHTML(id, S.cards[id].locked ? 'deck-card locked-card' : 'deck-card')).join('');
-    $$('.card', box).forEach((el) => { bindCard(el); bindPeek(el); });
-  }
+  // 꼬투리 화면: 실험실·현미경·수집함을 걷어 내고, 왼쪽에 카드 앞면, 오른쪽에 그 뒷면(종이)을 놓는다.
+  // state: blank(비어 있음) · mis(교수가 빨간 글씨를 적는 순간) · write(답 쓰는 중) · done(학생의 문장이 빨간 글씨를 지움)
   function enterArena() {
     if (S.arena) return;
     S.arena = true;
     glow(null);
-    renderDeck();
     $('#arena').setAttribute('aria-hidden', 'false');
     document.body.classList.add('arena');
+    setTimeout(placeGap, 560); // 말풍선이 커지는 동안 잰 자리를 바로잡는다
   }
   function exitArena() {
     if (!S.arena) return;
     S.arena = false;
-    $('#arenaSys').hidden = true;
+    S.gap = null;
+    $('#gapView').innerHTML = '';
+    $('#lensRow').hidden = true;
     $('#arena').setAttribute('aria-hidden', 'true');
     document.body.classList.remove('arena');
+  }
+  function renderGap(i, state) {
+    const L = M.links[i]; const c = S.cards[L.data];
+    const prev = S.gap && S.gap.i === i ? S.gap.state : null;
+    S.gap = { i, state };
+    const mis = state === 'blank' ? '' : `<div class="mis ${state === 'mis' ? 'fresh' : ''} ${state === 'done' ? 'off' : ''}">${esc(L.mis)}</div>`;
+    const body = state === 'blank' ? '<div class="faint">(비어 있음)</div>'
+      : state === 'done' ? `<div class="mine">${esc(STAGES[L.quest].starter + c.back)}</div><div class="stamp">뒷면 완성</div>` : '';
+    $('#gapView').innerHTML = `
+      <div class="gap-front" id="gapFront">${cardHTML(L.data, 'big').replace('xMidYMid slice', 'xMidYMid meet')}</div>
+      <div class="paper ${state === 'done' ? 'done' : ''} ${state === 'blank' && prev !== 'blank' ? 'flip-in' : ''}" id="gapPaper"><div id="gapHead"><div class="hd">뒷면 · 이 숫자의 뜻</div>${mis}</div>${body}</div>`;
+    renderLens();
+    placeGap();
+  }
+  // 말풍선이 길어져도 카드와 종이가 가리지 않게 내려 둔다. 답 틀은 종이 위, 빨간 글씨 아래에 놓인다.
+  function placeGap() {
+    const paper = $('#gapPaper');
+    if (!paper) return;
+    const talk = $('#bubble'); const head = $('#gapHead');
+    const top = Math.max(162, talk.offsetTop + talk.offsetHeight + 12);
+    paper.style.top = top + 'px';
+    $('#gapFront').style.top = top + 'px';
+    $('#reply').style.top = (top + head.offsetTop + head.offsetHeight + 4) + 'px';
+  }
+  // 돋보기: 쓰는 동안 아래 줄에 놓여 있고, 숫자 카드에 대면 방금 본 장면이 그 위에서 되풀이된다.
+  function renderLens() {
+    const row = $('#lensRow');
+    const on = S.gap && S.gap.state === 'write';
+    row.hidden = !on;
+    if (!on) { row.innerHTML = ''; return; }
+    const ids = S.tray.filter((id) => S.cards[id].kind === 'lens');
+    row.innerHTML = `${ids.map((id) => `<div class="lens-slot">${S.lensOn === id ? '' : lensHTML(id, 'act')}</div>`).join('')}<div class="sys-note"><small>▸ SYSTEM</small>${M.system.lensHint.map(esc).join('<br>')}</div>`;
+    $$('.lens', row).forEach(bindLens);
+    const front = $('#gapFront');
+    const old = $('.lens.on-card', front);
+    if (old) old.remove();
+    if (!S.lensOn) return;
+    front.insertAdjacentHTML('beforeend', lensHTML(S.lensOn, 'on-card'));
+    const placed = $('.lens.on-card', front);
+    bindPeek(placed);
+    const lift = () => { S.lensOn = null; renderLens(); };
+    placed.addEventListener('click', lift);
+    placed.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); lift(); } });
+  }
+  // 누르거나 끌어서 숫자 카드에 댄다
+  function bindLens(el) {
+    const id = el.dataset.card;
+    const place = () => { S.lensOn = id; logAttempt({ stage: 'rebuttal', questId: 'lens', choice: id }); renderLens(); };
+    bindPeek(el);
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      const sx = e.clientX; const sy = e.clientY;
+      let ghost = null;
+      const move = (ev) => {
+        if (!ghost && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 6) {
+          ghost = el.cloneNode(true);
+          ghost.classList.add('ghost');
+          document.body.appendChild(ghost);
+        }
+        if (ghost) { ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px'; }
+      };
+      const up = (ev) => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        if (!ghost) { place(); return; }
+        ghost.remove();
+        const t = document.elementFromPoint(ev.clientX, ev.clientY);
+        if (t && t.closest('#gapFront')) place();
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); place(); } });
+  }
+  async function sayTap(lines) {
+    await say(lines);
+    const b = $('#bubble');
+    b.classList.add('has-more');
+    await waitTap();
+    b.classList.remove('has-more');
+  }
+  // 꼬투리를 여는 장면: 교수가 카드를 뒤집는다. 뒷면이 비었으니 제멋대로 읽어 빨간 글씨로 적어 둔다.
+  async function openGap(i) {
+    const L = M.links[i];
+    enterArena();
+    renderGap(i, 'blank');
+    await sayTap(L.flip);
+    S.cards[L.data].mis = L.mis;
+    renderGap(i, 'mis');
+    renderTray();
+    await sayTap(L.misLines);
+  }
+  // 다음 꼬투리로: 카드가 있으면 뒤집어 보이고, 실험실로 돌아와 현미경으로 보낸다
+  async function nextGap(i) {
+    if (S.tray.includes(M.links[i].data)) await openGap(i);
+    exitArena();
+    renderSmallBoard();
+    await say(M.links[i].go, { center: true });
+    S.scope.locked = false;
+    $('#microscope').classList.add('unlocked');
+    glow($('#microscope'), 'scope');
   }
 
   // 학생이 빈칸에 쓴 말을 답 틀의 끝말과 잇는다. 끝 글자에 맞춰 "~다는 / ~라는 / ~이라는 뜻이다"가 된다.
@@ -1402,33 +1505,14 @@
     return t + (batchim ? '이라는 뜻이다.' : '라는 뜻이다.');
   }
 
-  async function askLink(i, value) {
+  async function askLink(i) {
     const L = M.links[i];
+    S.lensOn = null;
+    if (!S.cards[L.data].mis) await openGap(i); // 현미경에서 앞면을 얻은 카드는 이제 뒤집는다
     enterArena();
-    // 단서를 써도 된다는 말은 교수가 아니라 게임 시스템이 한다
-    const sys = $('#arenaSys');
-    sys.textContent = M.system.clues;
-    sys.hidden = false;
-    if (value === undefined) await say(L.ask);
-    linkReply(i, value);
-  }
-  // 단서 카드의 문장을 답의 커서 자리에 붙인다. 답안 짜기와 같은 규칙으로, 현미경 모형 카드는 붙일 수 없다.
-  function insertReply(id) {
-    const ta = $('#replyText'); const c = S.cards[id];
-    if (!ta || ta.disabled || !c) return;
-    if (c.locked) { logAttempt({ stage: 'rebuttal', questId: 'lockedCard', choice: id }); sysPop(M.system.lockedCard, 8000, true); return; }
-    const sentence = c.sentence || c.text;
-    const pos = ta.selectionStart;
-    const before = ta.value.slice(0, pos); const after = ta.value.slice(pos);
-    const head = before + (before && !/\s$/.test(before) ? ' ' : '') + sentence;
-    const next = head + (after && !/^\s/.test(after) ? ' ' : '') + after;
-    if (next.length > ta.maxLength) { blinkOnce(ta); return; }
-    ta.value = next;
-    ta.dispatchEvent(new Event('input'));
-    ta.focus();
-    ta.setSelectionRange(head.length, head.length);
-    logAttempt({ stage: 'rebuttal', questId: 'cardInsert', choice: id });
-    blinkOnce(ta);
+    renderGap(i, 'write');
+    await say(M.lines.writeAsk);
+    linkReply(i);
   }
   function linkReply(i, value) {
     const L = M.links[i]; const qid = L.quest; const stageDef = STAGES[qid];
@@ -1447,7 +1531,7 @@
           linkReply(i, typed);
           return;
         }
-        S.cards[L.card] = { kind: 'concl', title: `드러내기 ${'①②③'[i]}`, text: sentence, sentence };
+        S.cards[L.data].back = sentence;
         updateSession({ ['debate' + (i + 1) + 'Tries']: S.linkTries[i] });
         await passLink(i);
       }
@@ -1461,30 +1545,20 @@
     return (partial ? M.lines.partOk : []).concat(r.nextQuestion);
   }
 
-  // 고리가 이어지면 실험실로 돌아와 칠판의 그 줄이 학생의 문장으로 바뀌고, 콧대가 한 칸 꺾인다.
+  // 통과하면 학생의 문장이 뒷면에 남아 교수의 빨간 글씨를 지우고, 콧대가 한 칸 꺾인다. 그다음 꼬투리로 넘어간다.
   async function passLink(i) {
-    const L = M.links[i];
-    exitArena();
-    closeScope();
     S.link = i < M.links.length - 1 ? i + 1 : null;
-    S.boardView = 'text';
-    renderSmallBoard();
-    blinkOnce($$('.lk-row')[i]);
+    S.lensOn = null;
+    renderGap(i, 'done');
+    renderTray();
+    await sayTap(M.lines.pass);
     await zoomProf(1.7);
     setNose(S.nose - 1);
-    addCard(L.card, $('#board'));
     await sleep(reduced ? 200 : 1300);
     await zoomOut();
-    if (S.link === null) {
-      await say(M.lines.pass);
-      $('#bubble').classList.add('has-more');
-      await waitTap();
-      $('#bubble').classList.remove('has-more');
-      startCombine();
-      return;
-    }
-    await say(M.lines.pass.concat(M.links[S.link].intro), { center: true });
-    glow($('#microscope'), 'scope');
+    closeScope();
+    if (S.link === null) { exitArena(); startCombine(); return; }
+    nextGap(S.link);
   }
 
   /* ───────── 합치기: 세 줄이 다 이어지면 학생의 설명대로 두 실험을 장면으로 확인해 준다 ───────── */
@@ -1496,7 +1570,7 @@
     b.innerHTML = '<div class="chalk q">두 실험에서 벌어진 일</div><svg id="bars" viewBox="0 0 700 230" aria-hidden="true"></svg>'
       + '<div class="bars-foot"><button type="button" class="dev-btn" id="barsReplay" disabled>↻ 다시 보기</button><button type="button" class="chalk-btn" id="barsNext" disabled>다음</button></div>';
     $('#barsReplay').addEventListener('click', () => { logAttempt({ stage: 'rebuttal', questId: 'combineReplay' }); playBars(); });
-    $('#barsNext').addEventListener('click', () => { glow(null); startOrder(); }, { once: true });
+    $('#barsNext').addEventListener('click', () => { glow(null); startCompose(); }, { once: true });
     await say(M.lines.combineLine);
     await playBars();
     logAttempt({ stage: 'rebuttal', questId: 'combine', pass: true });
@@ -1563,83 +1637,22 @@
   }
 
 
-  /* ───────── 완전한 설명 ① 순서 짜기: 백지를 마주하기 전에 답안 어디에 무엇을 놓을지 먼저 정해 본다 ───────── */
-  async function startOrder() {
-    setStage('defense');
-    S.phase = 'order';
-    if (!S.tray.includes('claim')) S.tray.push('claim');
-    const ids = M.orderIds.slice();
-    for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
-    S.orderIds = ids;
-    S.order = ids.map(() => null);
-    S.orderSeen = false;
-    $('#tray').classList.add('hide-in-compose');
-    renderOrder();
-    await say(M.lines.orderAsk, { center: true });
-    S.glowKey = 'order';
+  /* ───────── 완전한 설명: 답안 짜기. 카드를 누르면 앞면(자료)만 붙고, 뜻은 학생이 직접 쓴다 ───────── */
+  function shelfCard(id) {
+    const c = S.cards[id]; const L = M.links.find((x) => x.data === id);
+    return `<div class="card k-${c.kind} look-${c.look || 'slate'} shelf-card" data-card="${id}" tabindex="0"><span>${esc(L ? L.chip.join(' ') : c.text)}</span>${L ? `<button type="button" class="bk ok" data-back="${id}">뒷면 보기</button>` : ''}</div>`;
   }
-  // 놓기 전에는 글자만 보이고, 다 놓으면 라벨(자료·뜻·주장)이 드러난다
-  function renderOrder() {
-    const b = $('#board');
-    const all = S.order.every(Boolean);
-    const pile = S.orderIds.filter((id) => !S.order.includes(id));
-    const strip = (id) => {
-      const k = M.orderKinds[id];
-      const tag = S.orderSeen ? `<em class="ord-tag ${k.cls}">${esc(k.label)}</em>` : '';
-      return `<div class="card ord-card" data-card="${id}" tabindex="0">${tag}<span>${esc(S.cards[id].sentence || S.cards[id].text)}</span></div>`;
-    };
-    b.className = `board big order${all ? ' all' : ''}`;
-    b.innerHTML = `<div class="chalk q ord-q">${esc(M.boardQuestion)}</div><div class="ord">
-      ${all ? '' : `<div class="ord-col"><h5 class="chalk">모은 것</h5><div class="pile" data-drop="ord-pile">${pile.map(strip).join('')}</div></div>`}
-      <div class="ord-col"><h5 class="chalk">내 답안 순서</h5>
-        <div class="slots">${S.order.map((id, i) => `<div class="slot" data-drop="ord-${i}" tabindex="0" role="button" aria-label="${i + 1}번째 자리"><i>${i + 1}</i>${id ? strip(id) : '<div class="empty"></div>'}</div>`).join('')}</div>
-        ${all ? '<button type="button" class="chalk-btn" id="orderDone">이 순서로 쓰기</button>' : ''}
-      </div></div>`;
-    $$('.ord-card', b).forEach(bindCard);
-    const done = $('#orderDone');
-    if (done) done.addEventListener('click', finishOrder);
-  }
-  function dropOrder(id, where) {
-    if (S.phase !== 'order') return;
-    const prev = S.order.indexOf(id);
-    if (where === 'pile') {
-      if (prev < 0) return;
-      S.order[prev] = null;
-    } else {
-      const i = Number(where);
-      if (prev === i) return;
-      const other = S.order[i];
-      S.order[i] = id;
-      if (prev >= 0) S.order[prev] = other; // 이미 놓인 띠끼리는 자리를 바꾼다
-    }
-    const all = S.order.every(Boolean);
-    if (all) S.orderSeen = true;
-    renderOrder();
-    if (all) sayOrderCheck();
-  }
-  // 뜻 띠는 주어 없이 "~라는 뜻이다"로 끝나므로, 제 자료 바로 뒤에 와야 무엇의 뜻인지 읽힌다. 그 밖의 순서는 자유다.
-  function orderIssue() {
-    return Object.keys(M.orderPairs).find((data) => S.order[S.order.indexOf(data) + 1] !== M.orderPairs[data]) || null;
-  }
-  function sayOrderCheck() {
-    const issue = orderIssue();
-    say(issue ? M.lines.orderIssue[issue] : M.lines.orderOk);
-  }
-  function finishOrder() {
-    logAttempt({ stage: 'sort', questId: 'order', choice: S.order.join('>'), pass: !orderIssue() });
-    glow(null);
-    startCompose();
-  }
-
-  /* ───────── 완전한 설명 ② 답안 짜기 ───────── */
   async function startCompose() {
+    setStage('defense');
     S.phase = 'compose';
     S.composeStart = now();
+    if (!S.tray.includes('claim')) S.tray.push('claim');
     $('#tray').classList.add('hide-in-compose');
     const b = $('#board');
     b.className = 'board big compose';
-    const shelf = `<div class="shelf planned"><div class="shelf-h chalk">내 답안 순서</div>${S.order.map((id) => cardHTML(id, 'shelf-card')).join('')}</div>`
-      + `<div class="shelf"><div class="shelf-h chalk">마법 현미경</div>${S.tray.filter((id) => S.cards[id].locked).map((id) => cardHTML(id, 'shelf-card locked-card')).join('')}</div>`;
+    const lenses = S.tray.filter((id) => S.cards[id].kind === 'lens');
+    const shelf = `<div class="shelf my-cards"><div class="shelf-h chalk">내 카드</div>${['claim', ...M.links.map((L) => L.data)].map(shelfCard).join('')}</div>`
+      + `<div class="shelf"><div class="shelf-h chalk">돋보기</div><div class="lens-shelf">${lenses.map((id) => lensHTML(id, 'act')).join('')}</div></div><div class="back-peek" id="backPeek" hidden></div>`;
     // 혼자 힘으로 쓸 때는 카드 대신 단서 그림만 보여 준다(옮겨 적을 글자가 없게)
     const meet = (svg) => svg.replace('xMidYMid slice', 'xMidYMid meet');
     const gallery = [['cA', meet(ART.miniPhoto('A'))], ['cB', meet(ART.miniPhoto('B'))], ['e1', meet(ART.miniSlide('closed'))], ['e2', meet(ART.miniSlide('open'))], ['e3', meet(ART.miniSlide('ledger'))]]
@@ -1653,7 +1666,7 @@
         <div class="sheet-tools">
           <label class="own"><input type="checkbox" id="ownMode"> 혼자 힘으로 설명하기</label>
           <div class="own-note">${M.ownNote.map(esc).join('<br>')}</div>
-          <button type="button" class="hint-book locked" id="hintBook" aria-label="교수의 강의 노트"><span>강의 노트</span></button>
+          <button type="button" class="hint-book glow" id="hintBook" aria-label="교수의 강의 노트"><span>강의 노트</span></button>
         </div>
         <div class="answer-wrap">
           <textarea id="answer" data-drop="answer" rows="9" maxlength="1500" aria-label="최종 답안"></textarea>
@@ -1662,12 +1675,24 @@
         <button type="button" class="chalk-btn" id="finalSubmit" disabled>교수님께 제출</button>
       </div>`;
     $$('#shelves .card').forEach((el) => { bindCard(el); bindPeek(el); });
+    // 뒷면 보기: 카드를 누른 것으로 치지 않는다
+    $$('#shelves [data-back]').forEach((x) => {
+      x.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+      x.addEventListener('keydown', (ev) => ev.stopPropagation());
+      x.addEventListener('click', () => showBack(x.dataset.back));
+    });
+    $$('#shelves .lens').forEach((el) => {
+      bindPeek(el);
+      el.addEventListener('click', () => showLens(el.dataset.card));
+      el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); showLens(el.dataset.card); } });
+    });
     const ta = $('#answer');
     S.answerSnapshot = ''; S.answerOrigins = [];
     ta.addEventListener('input', () => {
       S.answerOrigins = RUBRIC.editOrigins(S.answerSnapshot, ta.value, S.answerOrigins);
       S.answerSnapshot = ta.value;
       S.caret = ta.selectionStart;
+      $('#backPeek').hidden = true; // 쓰기 시작하면 뒷면이 덮인다
       S.lastInput = now(); $('#finalSubmit').disabled = S.submitting || ta.value.trim().length < 1;
     });
     ta.addEventListener('blur', () => { S.caret = ta.selectionStart; });
@@ -1681,9 +1706,28 @@
     $('#finalSubmit').addEventListener('click', submitFinal);
     setNote('처음부터 끝까지 설명하기');
     await say(M.lines.composeAsk, { center: true });
+    say(M.lines.hintOpen);
     S.glowKey = 'compose';
     ta.focus();
-    S.hintTimer = setInterval(checkHintUnlock, 3000);
+  }
+  // 왼쪽 아래 자리에 뒷면이나 돋보기 장면을 잠깐 보여 준다. 같은 것을 다시 누르면 닫힌다.
+  function showPeek(key, html) {
+    const p = $('#backPeek');
+    if (!p.hidden && S.peekKey === key) { p.hidden = true; return; }
+    S.peekKey = key;
+    p.innerHTML = html;
+    p.hidden = false;
+  }
+  function showBack(id) {
+    logAttempt({ stage: 'compose', questId: 'backPeek', choice: id });
+    showPeek(id, `<small>뒷면 · 쓰기 시작하면 덮여요</small><div class="bp-back">${esc(S.cards[id].back)}</div>`);
+  }
+  function showLens(id) {
+    const c = S.cards[id];
+    logAttempt({ stage: 'compose', questId: 'lens', choice: id });
+    showPeek(id, `<small>${esc(c.title)}</small><div class="lens bp-lens">${ART.lensScene(c.mode)}</div><div class="bp-note">${esc(c.sentence)}</div>`);
+    // 현미경은 상상으로 그려 본 모형이다. 처음 볼 때 한 번만 일러 준다.
+    if (!S.modelNoted) { S.modelNoted = true; sysPop(M.system.modelNote, 8000, true); }
   }
   function setOwnMode(on) {
     S.ownMode = on;
@@ -1695,50 +1739,52 @@
     if (S.phase !== 'compose' || S.ownMode || S.submitting) return;
     const c = S.cards[id];
     if (!c) return;
-    // 현미경은 가상의 모형이라 본 장면을 근거로 옮길 수 없다. 왜 안 되는지는 시스템이 말한다.
-    if (c.locked) { logAttempt({ stage: 'compose', questId: 'lockedCard', choice: id }); sysPop(M.system.lockedCard, 8000, true); return; }
     const ta = $('#answer');
     const sentence = c.sentence || c.text;
     const pos = Math.max(0, Math.min(S.caret ?? ta.value.length, ta.value.length));
     const before = ta.value.slice(0, pos); const after = ta.value.slice(pos);
     const sep = before && !/\s$/.test(before) ? ' ' : '';
-    const tailSep = after && !/^\s/.test(after) ? ' ' : '';
+    const tailSep = /^\s/.test(after) ? '' : ' '; // 바로 이어 쓸 수 있게 한 칸 띄운다
     ta.value = before + sep + sentence + tailSep + after;
     S.answerOrigins.splice(pos, 0, ...Array(sep.length).fill('typed'), ...Array(sentence.length).fill(id), ...Array(tailSep.length).fill('typed'));
     S.answerSnapshot = ta.value;
-    S.caret = (before + sep + sentence).length;
+    S.caret = (before + sep + sentence + tailSep).length;
     S.inserted.push(sentence);
     ta.dispatchEvent(new Event('input'));
+    ta.focus();
+    ta.setSelectionRange(S.caret, S.caret);
     blinkOnce(ta);
+    // 앞면이 붙는 순간 교수가 어깨너머로 읽고 묻는다
+    if (M.lines.pasteAsk[id]) say(M.lines.pasteAsk[id]);
   }
   function remainingCardSentences(text) { return S.inserted.filter((s) => text.includes(s)); }
 
-  function checkHintUnlock() {
-    if (S.phase !== 'compose' || S.hint > 0 || S.submitting) return;
-    const len = $('#answer').value.trim().length;
-    if (now() - S.composeStart > 90000 && len < 20) unlockHint('90초·20자 미만');
-    else if (now() - S.lastInput > 60000) unlockHint('60초 무입력');
-  }
-  async function unlockHint(reason, thenLine, lead = []) {
-    if (S.hint > 0) return;
-    S.hint = 1; S.hintReason = reason; S.hintAt = new Date().toISOString();
-    updateSession({ hintLevel: 1, hintReason: reason, hintAt: S.hintAt });
-    const hb = $('#hintBook'); hb.classList.remove('locked');
-    glow(hb, 'compose');
-    await say(lead.concat(M.lines.hintOpen, thenLine || []));
-  }
+  // 강의 노트는 처음부터 떨어져 있다. S.hint는 학생이 실제로 펼쳐 본 쪽수다.
   function onHintBook() {
-    const hb = $('#hintBook');
-    if (hb.classList.contains('locked')) { hb.classList.remove('shake'); void hb.offsetWidth; hb.classList.add('shake'); return; }
-    glow(null);
+    const n = $('#hintNote');
+    $('#hintBook').classList.remove('glow');
+    if (!n.hidden) { n.hidden = true; return; }
     renderHintNote();
   }
   function renderHintNote() {
     const n = $('#hintNote');
-    const lines = S.hint >= 2 ? M.hintNote.level1.map((l, i) => l + (i === 2 ? '  ' + M.hintNote.level2[0] : i === 3 ? '  ' + M.hintNote.level2[1] : i === 4 ? '  ' + M.hintNote.level2[2] : '')) : M.hintNote.level1;
-    n.innerHTML = `<div class="hn-h">강의 노트</div>${lines.map((l) => `<div>${esc(l)}</div>`).join('')}`;
+    const tabs = S.notePages > 1 ? [1, 2].map((p) => `<button type="button" class="pg ${p === S.noteView ? 'on' : ''}" data-page="${p}">${p}쪽</button>`).join('') : '<span class="pg">1쪽</span>';
+    n.innerHTML = `<div class="hn-h">강의 노트 <span class="pgs">${tabs}</span></div>${M.hintNote[S.noteView - 1].map((l) => `<div>${esc(l)}</div>`).join('')}`;
     n.hidden = false;
-    logAttempt({ stage: 'compose', questId: 'hintView', choice: String(S.hint) });
+    $$('[data-page]', n).forEach((b) => b.addEventListener('click', () => { S.noteView = Number(b.dataset.page); renderHintNote(); }));
+    if (S.noteView > S.hint) {
+      S.hint = S.noteView;
+      S.hintAt = new Date().toISOString();
+      updateSession({ hintLevel: S.hint, hintReason: '노트 열람', hintAt: S.hintAt });
+    }
+    logAttempt({ stage: 'compose', questId: 'hintView', choice: String(S.noteView) });
+  }
+  // 첫 제출이 부족하면 노트가 한 장 넘어간다
+  function turnNote() {
+    S.notePages = 2;
+    S.noteView = 2;
+    if (!$('#hintNote').hidden) renderHintNote();
+    else $('#hintBook').classList.add('glow');
   }
 
   // 학생이 교수 대신 꼬투리를 잡는 칠판. 누른 칸의 이름을 돌려준다.
@@ -1746,7 +1792,7 @@
     return new Promise((res) => {
       const box = document.createElement('div');
       box.className = 'board predict-board';
-      box.innerHTML = `<div class="chalk lk-title">${esc(M.predictTitle)}</div>${structHTML({ pick: true })}`;
+      box.innerHTML = `<div class="chalk pick-title">${esc(M.predictTitle)}</div>${structHTML({ pick: true })}`;
       $('#stage').appendChild(box);
       $$('[data-pick]', box).forEach((b) => b.addEventListener('click', () => { box.remove(); res(b.dataset.pick); }));
     });
@@ -1787,8 +1833,9 @@
       const match = M.predictOptions[choice].includes(r.ask);
       logAttempt({ stage: 'compose', questId: 'predict', choice, input: r.ask, pass: match });
       updateSession({ selfPredict: choice, selfPredictMatch: match });
-      if (match) { await say(M.lines.predictMatch.concat([RUBRIC.STAGES.final.question])); ta.focus(); return; }
-      lead = M.lines.predictMiss;
+      turnNote();
+      if (match) { await say(M.lines.predictMatch.concat(M.lines.noteNext, [RUBRIC.STAGES.final.question])); ta.focus(); return; }
+      lead = M.lines.predictMiss.concat(M.lines.noteNext);
     }
     S.submits++;
     const remain = remainingCardSentences(text);
@@ -1797,10 +1844,6 @@
     if (r.pass) { finish('full', text, r); return; }
     if (S.submits >= 3) { finish('partial', text, r); return; }
     const line = feedbackLines('final', r.nextQuestion);
-    // 반박을 받으면 강의 노트가 열린다(1단계). 1단계를 열고도 다시 반박받으면 2단계.
-    // 노트 이야기를 먼저 하고, 교수의 질문이 말풍선에 남게 한다.
-    if (S.hint === 0) { await unlockHint('첫 제출 반박', line, lead); return; }
-    if (S.hint === 1) { S.hint = 2; updateSession({ hintLevel: 2 }); if (!$('#hintNote').hidden) renderHintNote(); }
     await say(lead.concat(line));
     setNose(S.nose);
   }
@@ -1827,7 +1870,6 @@
   }
   function finish(type, text, r) {
     S.phase = 'complete';
-    clearInterval(S.hintTimer);
     const offset = $('#answer').value.indexOf(text);
     const hasCard = RUBRIC.cardSpans(S.answerOrigins || [], offset, text.length).length > 0;
     const own = S.ownMode && !hasCard && type === 'full';
@@ -1859,7 +1901,7 @@
         <div class="col"><h3>처음</h3><p>${esc(first)}</p></div>
         <div class="col"><h3>지금</h3><p class="final">${finalHTML}</p></div>
       </div>
-      ${type === 'full' ? `<div class="st-mini">${structHTML({ all: true })}</div><p class="next-line">${esc(M.lines.clearEcho)}</p>` : ''}
+      ${type === 'full' ? `<div class="st-mini">${structHTML()}</div><p class="next-line">${esc(M.lines.clearEcho)}</p>` : ''}
       ${praise.length ? `<ul class="praise">${praise.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
       ${missLine ? `<p class="next-line">${esc(missLine)}</p>` : ''}
       ${own ? `<section class="keyring-reward" aria-label="혼자 힘으로 설명한 연구원에게 주는 강철솜 키링"><img src="assets/steel-wool-keyring.png" width="120" height="180" alt="안경과 나비넥타이를 단 강철솜 키링"><div><div class="reward-label">교수님의 깜짝 선물</div><h3>“카드 없이 해낸 건 인정하지. 이건… 자네가 가지게.”</h3><p>카드 문장에 기대지 않고 자신의 말로 끝까지 설명했어요!</p><strong>나만의 강철솜 키링 획득</strong></div></section>` : '<div class="next-keyring"><span class="key-sil"><img src="assets/steel-wool-silhouette.webp" width="388" height="520" alt="물음표가 그려진 강철솜 키링 실루엣"><span class="qm" aria-hidden="true">?</span></span><p class="next-line">“다음엔 이걸 줄 수도 있겠군.”</p></div>'}
