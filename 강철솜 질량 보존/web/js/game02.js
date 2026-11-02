@@ -33,7 +33,7 @@
 
   async function evaluateText(stage, text) {
     const displayedPrompt = $('#bubble .body').innerText;
-    await say(['흠…']);
+    await say(stage === 'final' ? M.lines.finalWait : ['흠…']);
     const offset = stage === 'final' ? $('#answer').value.indexOf(text) : 0;
     const started = now();
     try {
