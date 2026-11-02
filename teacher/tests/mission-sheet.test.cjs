@@ -33,7 +33,7 @@ test('legacy mirrors preserve mission-specific fields and retries repair partial
  const m=make();
  const start={action:'startSession',session:{sessionId:'s2',missionId:'m02',classCode:'A',studentNo:'7'}};
  assert.equal(m.post(start).ok,true);
- const update={action:'updateSession',sessionId:'s2',fields:{finalAnswer:'합성 최종 답',finalJudgment:{'D-A':true,W1b:true},ownMode:true}};
+ const update={action:'updateSession',sessionId:'s2',fields:{finalAnswer:'합성 최종 답',finalJudgment:{'D-A':true,W1b:true},ownMode:true,judgedBy:'openai',rubricVersion:'m02-docx-1.1.0',analysis:{checks:{W1b:{status:'met',quote:'합성 최종 답',reason:'합성 근거'}}}}};
  assert.equal(m.post(update).ok,true);
  const attempt={action:'logAttempt',attempt:{attemptId:'a2',sessionId:'s2',input:'합성 시도',choice:'A',pass:true}};
  assert.equal(m.post(attempt).ok,true);
@@ -43,6 +43,10 @@ test('legacy mirrors preserve mission-specific fields and retries repair partial
  assert.equal(row[h.indexOf('finalDA')],'TRUE');
  assert.equal(row[h.indexOf('finalW1b')],'TRUE');
  assert.equal(row[h.indexOf('ownMode')],'true');
+ assert.equal(row[h.indexOf('judgedBy')],'openai');
+ const saved=JSON.parse(m.sheets['강철솜'].rows[1][8]);
+ assert.equal(saved.rubricVersion,'m02-docx-1.1.0');assert.equal(saved.analysis.checks.W1b.quote,'합성 최종 답');
+ const extra=JSON.parse(row[h.indexOf('extra')]);assert.equal(extra.analysis.checks.W1b.status,'met');
  m.sheets.Attempts.rows.pop(); // 미션 쓰기 뒤 기존 시트 쓰기가 실패한 경우 재현
  assert.equal(m.post(attempt).ok,true);assert.equal(m.post(attempt).ok,true);
  assert.equal(m.sheets.Attempts.rows.length,2);assert.equal(m.sheets['강철솜'].rows.length,3);

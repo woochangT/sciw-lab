@@ -10,6 +10,7 @@
   const ordered=ss=>ss.slice().sort((a,b)=>time(a.startedAt)-time(b.startedAt)||String(a.sessionId).localeCompare(String(b.sessionId)));
   function latest(ss){const m=new Map();ordered(ss).forEach(s=>m.set(number(s)||String(s.studentNo),s));return [...m.values()].sort((a,b)=>String(number(a)||a.studentNo).localeCompare(String(number(b)||b.studentNo),'ko',{numeric:true}))}
   function select(db,classCode,missionId,lessonId){const sessions=(Array.isArray(db.sessions)?db.sessions:Object.values(db.sessions||{})).filter(s=>String(s.classCode)===classCode&&String(s.missionId||'m01')===missionId&&(lessonId===undefined||String(s.lessonId||'')===lessonId));const ids=new Set(sessions.map(s=>s.sessionId));return {sessions,attempts:(db.attempts||[]).filter(a=>ids.has(a.sessionId))}}
+  function judgmentMethod(s){if(['openai','llm','anthropic'].includes(s.judgedBy))return 'AI 평가';if(s.judgedBy==='keyword'||/^keyword(?:-|$)/.test(s.judgeVersion||''))return '단어 규칙';return '미기록'}
   function element(s,key){const j=obj(s.finalJudgment),q=obj(s.questPassed),keys=key==='W3/WB'?['W3','WB']:[key];if(keys.some(k=>yes(j[k])))return '기록됨';if(keys.some(k=>Object.hasOwn(j,k)))return '자동 판정 미인정';return keys.some(k=>yes(q[k]))?'퀘스트 기록':'미관찰'}
   function attemptsFor(data,id){return data.attempts.filter(a=>a.sessionId===id).sort((a,b)=>(Number(a.eventOrder)>0&&Number(b.eventOrder)>0 ? Number(a.eventOrder)-Number(b.eventOrder) : time(a.clientOccurredAt||a.createdAt)-time(b.clientOccurredAt||b.createdAt))||String(a.attemptId).localeCompare(String(b.attemptId)))}
   function submissions(data,s){return attemptsFor(data,s.sessionId).filter(a=>a.stage==='compose'&&a.questId==='final'||a.eventCode==='m02.compose.final.submit').sort((a,b)=>Number(a.submissionNo)>0&&Number(b.submissionNo)>0?Number(a.submissionNo)-Number(b.submissionNo):0)}
@@ -33,5 +34,5 @@
     return {...data,reps,groups,review,first,recent,stats,stageCounts,versions:[...new Set(sessions.map(s=>s.missionVersion||'미기록'))],mode};
   }
   const comparable=(a,b)=>Boolean(a&&b&&a.missionVersion&&a.missionVersion===b.missionVersion&&a.eventSchemaVersion&&a.eventSchemaVersion===b.eventSchemaVersion&&a.judgeVersion&&a.judgeVersion===b.judgeVersion);
-  root.TeacherModel={missions,stages,obj,yes,time,normalize,number,test,ordered,latest,select,element,attemptsFor,submissions,hint,state,evidence,observed,analyze,comparable};
+  root.TeacherModel={missions,stages,obj,yes,time,normalize,number,test,ordered,latest,select,judgmentMethod,element,attemptsFor,submissions,hint,state,evidence,observed,analyze,comparable};
 })(typeof window==='undefined'?globalThis:window);
