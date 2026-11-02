@@ -28,7 +28,8 @@
     scope: { mode: 'closed', bonded: { closed: 0, open: 0 }, locked: true }, gas: [],
     link: 0, linkBoard: false, gap: null, lensOn: null, notePages: 1, noteView: 1, linkTries: {}, claimTried: [], inserted: [], ownMode: false, ownEver: false,
     hint: 0, hintReason: '', submits: 0, predicted: false,
-    composeStart: 0, lastInput: now(), glowKey: null, nudged: {}, sel: null, times: {}, firstSubmitText: ''
+    composeStart: 0, lastInput: now(), glowKey: null, nudged: {}, sel: null, times: {}, firstSubmitText: '',
+    tutorial: 'none' // 튜토리얼 시청 여부: none(안 봄) · skipped(건너뜀) · done(끝까지 봄). 처음 생각 진단을 구분해 읽으려고 남긴다.
   };
 
   async function evaluateText(stage, text) {
@@ -1929,11 +1930,36 @@
     const check = () => { $('#goBtn').disabled = !(cc.value.trim() && sn.value.trim()); };
     cc.addEventListener('input', check); sn.addEventListener('input', check);
     $('#startForm').addEventListener('submit', (e) => { e.preventDefault(); start(cc.value.trim(), sn.value.trim()); });
+    $('#tutorialBtn').addEventListener('click', openTutorial);
+  }
+  // 튜토리얼은 별도 페이지(tutorial.html)를 화면 전체에 띄운다. 창이 따로라 본 게임 상태와 기록이 섞이지 않고, 입력한 반·번호도 그대로 남는다.
+  function openTutorial() {
+    if ($('#tutorialFrame')) return;
+    const frame = document.createElement('iframe');
+    frame.id = 'tutorialFrame'; frame.src = 'tutorial.html'; frame.title = '튜토리얼';
+    const screen = $('#startScreen');
+    const onMessage = (e) => {
+      if (e.source !== frame.contentWindow || !e.data || e.data.type !== 'sciw-tutorial') return;
+      window.removeEventListener('message', onMessage);
+      if (S.tutorial !== 'done') S.tutorial = e.data.status; // 끝까지 본 기록은 건너뛰기로 덮어쓰지 않는다
+      frame.remove();
+      screen.inert = false;
+      const empty = [$('#classCode'), $('#studentNo')].find((x) => !x.value.trim());
+      if (empty) { empty.focus(); return; }
+      const go = $('#goBtn');
+      go.focus();
+      go.classList.add('blink');
+      go.addEventListener('animationend', () => go.classList.remove('blink'), { once: true });
+    };
+    window.addEventListener('message', onMessage);
+    frame.addEventListener('load', () => { frame.classList.add('on'); frame.contentWindow.focus(); });
+    screen.inert = true;
+    document.body.appendChild(frame);
   }
   async function start(classCode, studentNo) {
     S.classCode = classCode; S.studentNo = studentNo;
     S.sessionId = API.uid('s');
-    API.startSession({ sessionId: S.sessionId, missionId: M.id, classCode, studentNo, startedAt: new Date().toISOString(), stage: 'explore' });
+    API.startSession({ sessionId: S.sessionId, missionId: M.id, classCode, studentNo, startedAt: new Date().toISOString(), stage: 'explore', tutorial: S.tutorial });
     $('#who').textContent = `${classCode} · ${studentNo}번`;
     $('#startScreen').hidden = true;
     S.started = true;
@@ -1968,8 +1994,10 @@
     await sleep(reduced ? 100 : 400);
   }
 
-  setupStart();
+  if ($('#startForm')) setupStart(); // 튜토리얼 페이지에는 시작 화면이 없다
   setupTrayScroll();
   fit();
   window.__m02 = { S, say, fit, renderTray, setNose }; // 디버그용
+  // 튜토리얼(js/tutorial02.js)이 쓰는 화면 부품
+  window.SCIW_ENGINE02 = { S, M, STAGES, $, $$, esc, sleep, reduced, nextFrame, say, sayTap, drawTail, waitTap, sysPop, openReply, closeReply, glow, blinkOnce, setStage, setNose, zoomProf, zoomOut, fit, acquire, renderTray, renderSmallBoard, renderEvidence, flameDrag, enterArena, exitArena, renderGap, closeScope };
 })();

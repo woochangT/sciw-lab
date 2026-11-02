@@ -131,6 +131,52 @@
     </svg>`;
   }
 
+  // ───── 튜토리얼: 실 전화기 ─────
+  // 손 그림(실험용 장갑). 집게손가락 끝이 위쪽 가운데(30, 4)에 온다.
+  function hand() {
+    const skin = 'fill="#d3e9ef" stroke="#4f7f8c" stroke-width="2"';
+    return `<svg viewBox="0 0 60 120" aria-hidden="true">
+      <rect x="16" y="86" width="30" height="32" rx="5" fill="#1f4a40" stroke="#0f2a24" stroke-width="2"/>
+      <path d="M13 66 Q2 62 5 52 Q8 45 15 52" ${skin}/>
+      <rect x="12" y="44" width="38" height="46" rx="13" ${skin}/>
+      <rect x="23" y="4" width="13" height="52" rx="6.5" ${skin}/>
+      <rect x="25" y="42" width="9" height="14" fill="#d3e9ef"/>
+      <path d="M37 54 V68 M44 56 V68" stroke="#4f7f8c" stroke-width="2" stroke-linecap="round"/>
+    </svg>`;
+  }
+  function soundArcs(id, x, dir) {
+    const arc = (dx, h) => `<path d="M${x + dir * dx} ${120 - h} Q${x + dir * (dx + 7)} 120 ${x + dir * dx} ${120 + h}"/>`;
+    return `<g class="t-arcs" id="${id}">${arc(0, 12)}${arc(9, 18)}${arc(18, 24)}</g>`;
+  }
+  // 실험대의 실 전화기: 스피커 → 컵 → 실 → 컵 → 소리 측정기. 액정 숫자는 HTML로 겹친다. 떨림은 일부러 보이지 않는다.
+  function stringPhone() {
+    const paper = 'fill="#f4efe2" stroke="#b3a88e" stroke-width="1.5"';
+    const stand = (x, y0) => `<rect x="${x - 3}" y="${y0}" width="6" height="${232 - y0}" fill="#6f7377"/><ellipse cx="${x}" cy="233" rx="26" ry="5" fill="#4d5155"/>`;
+    return `<svg viewBox="0 0 720 250" aria-hidden="true">
+      ${stand(28, 150)}${stand(108, 140)}${stand(544, 140)}${stand(670, 180)}
+      <rect x="4" y="82" width="50" height="76" rx="6" fill="#33383d" stroke="#1d2024" stroke-width="2"/><circle cx="29" cy="120" r="22" fill="#565b60"/><circle cx="29" cy="120" r="9" fill="#23262a"/>
+      ${soundArcs('tInArcs', 56, 1)}
+      <path d="M78 88 L146 100 L146 140 L78 152 Z" ${paper}/><ellipse cx="78" cy="120" rx="7" ry="32" fill="#e3dcc8" stroke="#b3a88e" stroke-width="1.5"/>
+      <path d="M506 100 L574 88 L574 152 L506 140 Z" ${paper}/><ellipse cx="574" cy="120" rx="7" ry="32" fill="#e3dcc8" stroke="#b3a88e" stroke-width="1.5"/>
+      <line x1="146" y1="120" x2="506" y2="120" stroke="#3a2a1a" stroke-width="5"/>
+      <line id="tString" x1="146" y1="120" x2="506" y2="120" stroke="#fbf7ea" stroke-width="2.6"/>
+      ${soundArcs('tOutArcs', 584, 1)}
+      <rect x="626" y="70" width="90" height="120" rx="8" fill="#2f3a3e" stroke="#171d20" stroke-width="2"/><circle cx="622" cy="120" r="9" fill="#5a6066" stroke="#171d20"/>
+      <circle cx="652" cy="150" r="6" fill="#c9cdc7"/><circle cx="676" cy="150" r="6" fill="#c9cdc7"/>
+    </svg>`;
+  }
+  // 현미경 속 모형의 바탕: 왼쪽 컵으로 소리를 내는 스피커, 컵 두 개, 건너편 컵에서 나오는 소리 표시. 떨리는 구슬은 tutorial02.js가 그린다.
+  function phoneModel(x0, x1, y) {
+    const paper = 'fill="#f4efe2" stroke="#b3a88e" stroke-width="2"';
+    const arc = (x, h) => `<path d="M${x} ${y - h} Q${x + 10} ${y} ${x} ${y + h}"/>`;
+    const sx = x0 - 172; // 스피커 왼쪽 끝
+    return `<rect x="${sx}" y="${y - 42}" width="46" height="84" rx="7" fill="#3f474d" stroke="#9fb0b5" stroke-width="2"/><circle cx="${sx + 23}" cy="${y}" r="17" fill="#6a7278"/><circle cx="${sx + 23}" cy="${y}" r="7" fill="#23262a"/>
+      <g class="t-arcs">${arc(x0 - 122, 14)}${arc(x0 - 113, 20)}${arc(x0 - 104, 26)}</g>
+      <path d="M${x0 - 90} ${y - 50} L${x0} ${y - 30} L${x0} ${y + 30} L${x0 - 90} ${y + 50} Z" ${paper}/><ellipse cx="${x0 - 90}" cy="${y}" rx="9" ry="50" fill="#e3dcc8" stroke="#b3a88e" stroke-width="2"/>
+      <path d="M${x1} ${y - 30} L${x1 + 90} ${y - 50} L${x1 + 90} ${y + 50} L${x1} ${y + 30} Z" ${paper}/><ellipse cx="${x1 + 90}" cy="${y}" rx="9" ry="50" fill="#e3dcc8" stroke="#b3a88e" stroke-width="2"/>
+      <g class="t-arcs" id="tModelArcs">${arc(x1 + 100, 16)}${arc(x1 + 112, 24)}${arc(x1 + 124, 32)}</g>`;
+  }
+
   function microscope() {
     const id = `scope-${++serial}`;
     return `<svg viewBox="0 0 120 180" aria-hidden="true">
@@ -150,6 +196,16 @@
   // ───── 단서 카드 속 작은 그림 ─────
   // 사진: 실험 장치를 찍은 모습. 액정 숫자가 결과를 보여 준다.
   function miniPhoto(which) {
+    if (which === 'phone') {
+      return `<svg viewBox="0 0 120 76" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <rect width="120" height="76" fill="#3b2c22"/><rect y="52" width="120" height="24" fill="#7a5233"/>
+        <path d="M8 24 L22 27 L22 37 L8 40 Z" fill="#f4efe2" stroke="#b3a88e"/><path d="M76 27 L90 24 L90 40 L76 37 Z" fill="#f4efe2" stroke="#b3a88e"/>
+        <line x1="22" y1="32" x2="76" y2="32" stroke="#fbf7ea" stroke-width="1.2"/>
+        <rect x="46" y="31" width="6" height="26" rx="3" fill="#d3e9ef" stroke="#4f7f8c"/>
+        <rect x="92" y="20" width="26" height="30" rx="3" fill="#2f3a3e"/><rect x="94" y="24" width="22" height="11" rx="1.5" fill="#b9c7a5" stroke="#171d20"/>
+        <text x="115" y="32.5" font-size="8" text-anchor="end" font-family="'Share Tech Mono', monospace" fill="#1b261c">20 dB</text>
+      </svg>`;
+    }
     const lcd = which === 'A' ? '2.5' : '150.0';
     const top = which === 'A'
       ? `<path d="M34 40 Q60 50 86 40 L83 45 Q60 53 37 45 Z" fill="#f6f4ef" stroke="#c9c4b8"/>${wool(60, 36, 34, 10, true, 11)}`
@@ -170,6 +226,9 @@
       <rect x="2" y="6" width="116" height="64" rx="4" fill="rgba(210,236,240,.55)" stroke="#9cc3c9"/>
       <circle cx="60" cy="38" r="31" fill="#123536" stroke="#c79a4a" stroke-width="2.5"/>${inner}</svg>`;
     const pair = (x, y, col) => `<circle cx="${x - 2.2}" cy="${y}" r="2.4" fill="${col}"/><circle cx="${x + 2.2}" cy="${y}" r="2.4" fill="${col}"/>`;
+    if (mode === 'phone') {
+      return frame('<path d="M34 34 q4 -8 8 0 t8 0 t8 0 L86 34" fill="none" stroke="#e6c77a" stroke-width="2.2"/><rect x="55" y="36" width="7" height="22" rx="3.5" fill="#d3e9ef" stroke="#4f7f8c"/>');
+    }
     if (mode === 'ledger') {
       const row = (y, col, n) => { let g = ''; for (let i = 0; i < n; i++) g += pair(44 + i * 10, y, col); return g; };
       return frame(`${row(24, '#3f7fd6', 4)}${row(36, '#e2553a', 2)}<path d="M66 36 h8" stroke="#ffe39a" stroke-width="1.6"/><path d="M78 33 l5 3 l-5 3" fill="none" stroke="#ffe39a" stroke-width="1.6"/>${pair(90, 36, '#e2553a')}<circle cx="46" cy="48" r="2.6" fill="#d9b23f"/><circle cx="58" cy="48" r="2.2" fill="#34383c"/><circle cx="54" cy="48" r="1.8" fill="#e2553a"/><circle cx="62" cy="48" r="1.8" fill="#e2553a"/>`);
@@ -195,6 +254,12 @@
     const lcd = (t, cls = '') => `<text class="${cls}" x="82" y="107" font-size="10" text-anchor="end" font-family="'Share Tech Mono', monospace" fill="#1b261c">${t}</text>`;
     const scale = (txt) => `<rect x="26" y="94" width="68" height="20" rx="3" fill="#d9dcd7"/><rect x="34" y="97" width="52" height="13" rx="2" fill="#b9c7a5" stroke="#2f3a3e" stroke-width=".8"/>${txt}`;
     const wrap = (inner) => `<svg viewBox="0 0 120 120" aria-hidden="true"><rect width="120" height="120" fill="#123536"/>${inner}</svg>`;
+    if (mode === 'phone') {
+      const cups = '<path d="M6 32 L22 36 L22 52 L6 56 Z" fill="#f4efe2" stroke="#b3a88e"/><path d="M98 36 L114 32 L114 56 L98 52 Z" fill="#f4efe2" stroke="#b3a88e"/>';
+      const free = '<path class="ls-a" d="M22 44 q6 -12 12 0 t12 0 t12 0 t12 0 t12 0 t16 0" fill="none" stroke="#e6c77a" stroke-width="2.6"/>';
+      const stopped = '<g class="ls-b"><path d="M22 44 q6 -12 12 0 t12 0 t12 0 L98 44" fill="none" stroke="#e6c77a" stroke-width="2.6"/><rect x="54" y="46" width="11" height="42" rx="5.5" fill="#d3e9ef" stroke="#4f7f8c" stroke-width="1.5"/></g>';
+      return wrap(`${cups}${free}${stopped}${scale(lcd('60 dB', 'ls-a') + lcd('20 dB', 'ls-b'))}`);
+    }
     if (mode === 'closed') {
       return wrap(`${still([[11, 58], [109, 46]], '#e2553a')}${still([[14, 36], [106, 70]], '#3f7fd6')}<path d="M46 12 L46 20 Q24 24 24 38 L24 84 Q24 90 30 90 L90 90 Q96 90 96 84 L96 38 Q96 24 74 20 L74 12 Z" fill="rgba(214,240,246,.18)" stroke="#d7eef2" stroke-width="2"/><rect x="42" y="6" width="36" height="8" rx="2" fill="#6b4630"/>${iron}${bond([[40, 36], [60, 30], [80, 38], [46, 52], [74, 54]])}${scale(lcd('150.0 g'))}`);
     }
@@ -205,5 +270,5 @@
     return wrap(`${still([[38, 26], [84, 22], [14, 62], [106, 62]], '#3f7fd6')}<g class="ls-x">${pair(60, 44, '#3f7fd6')}</g>${iron}${bond([[20, 36], [60, 12], [102, 34], [28, 54], [96, 50]])}<rect x="34" y="94" width="52" height="17" rx="3" fill="#fffdf6"/>${count('산소 8', 'ls-a')}${count('산소 3', 'ls-b')}`);
   }
 
-  window.SCIW_ART02 = { flames, wool, deviceA, deviceB, torch, power, clip, microscope, miniPhoto, miniSlide, lensMini, lensScene };
+  window.SCIW_ART02 = { flames, wool, deviceA, deviceB, torch, power, clip, microscope, miniPhoto, miniSlide, lensMini, lensScene, hand, stringPhone, phoneModel };
 })();
