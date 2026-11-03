@@ -1930,10 +1930,7 @@
     $('#missionTitle').textContent = `${M.label} · ${M.title}`;
     $('#startTag').textContent = M.label;
     $('#startTitle').textContent = M.title;
-    const cc = $('#classCode'); const sn = $('#studentNo');
-    const check = () => { $('#goBtn').disabled = !(cc.value.trim() && sn.value.trim()); };
-    cc.addEventListener('input', check); sn.addEventListener('input', check);
-    $('#startForm').addEventListener('submit', (e) => { e.preventDefault(); start(cc.value.trim(), sn.value.trim()); });
+    window.SciwClassEntry.bindStart((classCode,studentNo)=>start(classCode,studentNo));
   }
   // 튜토리얼은 미션 고르기 화면에서 따로 열린다(js/tutorial02.js가 남긴다). 같은 탭의 다음 학생에게 넘어가지 않게 읽으면 지운다.
   function takeTutorialStatus() {
@@ -1944,6 +1941,7 @@
     } catch (e) { /* 저장소를 못 쓰면 none으로 남는다 */ }
   }
   async function start(classCode, studentNo) {
+    if(!window.SciwClassEntry.valid(classCode))return;
     S.classCode = classCode; S.studentNo = studentNo;
     S.sessionId = API.uid('s');
     takeTutorialStatus();

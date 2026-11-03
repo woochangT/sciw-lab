@@ -1712,19 +1712,11 @@
     $('#modeNote').textContent = API.isLocal
       ? '연구 기록은 이 기기에 저장돼요.'
       : '기록은 선생님 화면으로 전송됩니다.';
-    const cc = $('#classCode'); const sn = $('#studentNo'); const go = $('#goBtn');
-    try { cc.value = localStorage.getItem('sciw_class') || ''; } catch (e) { /* noop */ }
-    const sync = () => { go.disabled = !(cc.value.trim() && /^\d{1,3}$/.test(sn.value.trim())); };
-    cc.oninput = sync; sn.oninput = sync; sync();
-    $('#startForm').onsubmit = (e) => {
-      e.preventDefault();
-      if (go.disabled) return;
-      try { localStorage.setItem('sciw_class', cc.value.trim()); } catch (err) { /* noop */ }
-      start(cc.value.trim(), String(Number(sn.value.trim())));
-    };
+    window.SciwClassEntry.bindStart((classCode,studentNo)=>start(classCode,studentNo));
   }
 
   function start(classCode, studentNo) {
+    if(!window.SciwClassEntry.valid(classCode))return;
     $('#startScreen').hidden = true;
     $('#who').textContent = `${classCode} · ${studentNo}번`;
     S.session = {

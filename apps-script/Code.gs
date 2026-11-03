@@ -31,6 +31,8 @@ const FINAL_KEYS_BY_MISSION = {
   m02: ['C', 'D-A', 'D-B', 'W1a', 'W1b', 'W2a', 'W2b']
 };
 const DEFAULT_MISSION = 'm01';
+function validClassCode_(code){return typeof code==='string'&&/^[1-3]-[1-9]\d?$/.test(code);}
+function requireClassCode_(code){if(!validClassCode_(code))throw new Error('학년은 1~3, 반은 1~99 형식(예: 3-2)으로 입력해 주세요.');}
 
 // ───────────────────────── 진입점 ─────────────────────────
 
@@ -102,6 +104,7 @@ function locate_(kind,id) {
   return hits[0] || null;
 }
 function putRecord_(kind, id, record, mission, existing) {
+  requireClassCode_(record.classCode);
   const clean=Object.assign({},record),history=Array.isArray(clean.attempts)?clean.attempts:[];
   delete clean.attempts;
   const serialized=JSON.stringify(clean),journal=JSON.stringify(history);
@@ -154,6 +157,7 @@ function writeMissionOp_(op) {
   if (!op || ['startSession','updateSession','logAttempt'].indexOf(op.action)<0) throw new Error('지원하지 않는 기록 작업');
   const fields=op.action==='startSession'?op.session:op.action==='updateSession'?op.fields:op.attempt;
   if (!fields || typeof fields !== 'object' || Array.isArray(fields)) throw new Error('잘못된 기록');
+  if(op.action==='startSession'||fields.classCode!==undefined)requireClassCode_(fields.classCode);
   const sid=op.action==='startSession'?fields.sessionId:op.action==='updateSession'?op.sessionId:fields.sessionId;
   if (typeof sid !== 'string' || !sid || sid.length>128) throw new Error('세션 ID 오류');
   const existing=locate_('session',sid) || (op.action==='startSession' ? null : restoreLegacySession_(sid));
@@ -168,6 +172,7 @@ function writeMissionOp_(op) {
   }
   if (!existing) throw new Error('세션이 없어 기록을 보류합니다');
   const old=readPayload_(existing.values), mission=existing.mission;
+  requireClassCode_(old.classCode);
   if (op.action==='updateSession') {
     ['sessionId','missionId','classCode','studentNo'].forEach(function(k){ if (fields[k]!==undefined && String(fields[k])!==String(old[k])) throw new Error('세션 범위 변경 불가'); });
     if(Object.prototype.hasOwnProperty.call(fields,'attempts'))throw new Error('대화는 logAttempt로 기록해 주세요');
@@ -189,6 +194,33 @@ function getMissionClassData_(classCode, missionId) {
   const attempts=all.filter(r=>r[0]==='attempt' && ids.has(r[2])).map(readPayload_);
   return {sessions:sessions,attempts:attempts.concat(...sessions.map(function(s){return s.attempts||[];}))};
 }
+// 편집기에서만 실행하는 관리 작업. doPost로 노출하지 않는다.
+function classCleanupPlan_(){
+  const ss=SpreadsheetApp.openById(TARGET_SPREADSHEET_ID),invalidIds=new Set();
+  const specs=[{name:'Sessions',headers:['sessionId','classCode','studentNo','missionId','startedAt'],classColumn:1,sessionColumn:0},
+    {name:'Attempts',headers:['attemptId','sessionId','classCode','studentNo','missionId'],classColumn:2,sessionColumn:1},
+    {name:'감자',headers:RECORD_HEADERS.slice(0,5),classColumn:3,sessionColumn:2},
+    {name:'강철솜',headers:RECORD_HEADERS.slice(0,5),classColumn:3,sessionColumn:2}];
+  const tables=specs.map(function(spec){const sh=ss.getSheetByName(spec.name);if(!sh)throw new Error('정리 대상 탭 없음: '+spec.name);
+    const last=sh.getLastRow(),head=sh.getRange(1,1,1,5).getDisplayValues()[0];if(JSON.stringify(head)!==JSON.stringify(spec.headers))throw new Error('정리 대상 헤더 불일치: '+spec.name);
+    return Object.assign({},spec,{sh:sh,rows:last<2?[]:sh.getRange(2,1,last-1,5).getDisplayValues()});});
+  tables.forEach(function(t){t.rows.forEach(function(r){if(r[t.sessionColumn]&&(t.name==='Sessions'||r[0]==='session')&&!validClassCode_(r[t.classColumn]))invalidIds.add(String(r[t.sessionColumn]));});});
+  return {invalidSessions:invalidIds.size,tables:tables.map(function(t){return Object.assign({},t,{remove:t.rows.map(function(r,i){return {values:r,row:i+2};}).filter(function(x){return x.values.some(Boolean)&&(!validClassCode_(x.values[t.classColumn])||invalidIds.has(String(x.values[t.sessionColumn])));}).map(function(x){return x.row;})});})};
+}
+function previewInvalidClassRecords(){return cleanInvalidClassRecords_(false);}
+function deleteInvalidClassRecords(){return cleanInvalidClassRecords_(true);}
+function cleanInvalidClassRecords_(apply){
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try{const plan=classCleanupPlan_(),counts={};
+    plan.tables.forEach(function(t){counts[t.name]=t.remove.length;if(!apply)return;
+      const rows=t.remove.slice().sort(function(a,b){return b-a;});let end=null,start=null;
+      rows.forEach(function(row){if(start!==null&&row===start-1){start=row;return;}if(start!==null)t.sh.deleteRows(start,end-start+1);start=end=row;});
+      if(start!==null)t.sh.deleteRows(start,end-start+1);
+    });
+    const report={applied:apply,invalidSessions:plan.invalidSessions,removedRows:counts};console.log(JSON.stringify(report));return report;
+  }finally{lock.releaseLock();}
+}
+
 // 운영 중인 구버전 쓰기를 멈춘 뒤, 기존 탭을 읽어 최신 분을 다시 반영한다. 원본 탭은 수정하지 않는다.
 function reconcileLegacy() {
   const lock=LockService.getScriptLock(); lock.waitLock(20000);
@@ -238,6 +270,7 @@ function upsertSession_(sessionId, fields) {
     const keys = FINAL_KEYS_BY_MISSION[merged.missionId || DEFAULT_MISSION] || FINAL_KEYS;
     keys.forEach(function (k) { merged[finalCol_(k)] = fields.finalJudgment[k] ? 'TRUE' : 'FALSE'; });
   }
+  requireClassCode_(merged.classCode);
   merged.extra = withExtra_(current.extra, fields, headers);
   const values = [headers.map(function (h) { return cell_(h, merged[h]); })];
   const target = row || sh.getLastRow() + 1;
