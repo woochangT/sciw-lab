@@ -26,7 +26,7 @@
     tray: [], cards: Object.assign({}, M.cards), done: {}, firstAnswer: '', firstTag: '',
     claim: null, evidence: [null, null], q: null, errCount: {}, concl: {},
     scope: { mode: 'closed', bonded: { closed: 0, open: 0 }, locked: true }, gas: [],
-    link: 0, linkBoard: false, gap: null, lensOn: null, notePages: 1, noteView: 1, linkTries: {}, claimTried: [], inserted: [], ownMode: false, ownEver: false,
+    link: 0, linkBoard: false, gap: null, lensOn: null, notePages: 1, noteView: 1, linkTries: {}, inserted: [], ownMode: false, ownEver: false,
     hint: 0, hintReason: '', submits: 0, predicted: false,
     composeStart: 0, lastInput: now(), glowKey: null, nudged: {}, sel: null, times: {}, firstSubmitText: '',
     tutorial: 'none' // 튜토리얼 시청 여부: none(안 봄) · skipped(건너뜀) · done(끝까지 봄). 처음 생각 진단을 구분해 읽으려고 남긴다.
@@ -271,6 +271,7 @@
     box.innerHTML = html;
     box.hidden = false;
     box.classList.toggle('under-board', !!cfg.underBoard);
+    box.classList.toggle('framed', !!cfg.frame);
     placeReply();
     box.classList.remove('pop'); void box.offsetWidth; box.classList.add('pop');
     let choice = null;
@@ -899,7 +900,6 @@
     logAttempt({ stage: 'claim', questId: 'claim', choice: opt.id, input: evKey, diag: opt.correct ? 'pass' : opt.diag });
     glow(null);
     if (!opt.correct) {
-      S.claimTried.push(opt.diag);
       await say(M.lines.claimWrong[opt.diag]);
       blinkOnce($('#trayCards [data-card="cB"]'));
       return;
@@ -927,12 +927,11 @@
     // 콧대 게이지는 이때 처음 나타난다
     $('#noseMeter').hidden = false;
     await sysPop(M.system.press);
-    // 교수가 잡은 꼬투리 셋이 칠판에 적힌다. 학생이 앞에서 고르지 않은 까닭을 빌려 첫 꼬투리를 짚는다.
+    // 교수가 잡은 꼬투리 셋이 칠판에 적힌다. 학생이 그 주장을 고른 까닭을 물어 첫 꼬투리를 짚는다.
     S.link = 0;
     S.linkBoard = true;
     renderSmallBoard();
-    const lead = M.lines.linkLead[S.claimTried[0]] || M.lines.linkLead.direct;
-    await say(M.lines.linkIntro.concat(lead), { center: true });
+    await say(M.lines.linkIntro.concat(M.lines.linkLead), { center: true });
     await nextGap(0);
   }
 
@@ -1406,7 +1405,7 @@
       : state === 'done' ? `<div class="mine">${esc(STAGES[L.quest].starter + c.back)}</div><div class="stamp">뒷면 완성</div>` : '';
     $('#gapView').innerHTML = `
       <div class="gap-front" id="gapFront">${cardHTML(L.data, 'big').replace('xMidYMid slice', 'xMidYMid meet')}</div>
-      <div class="paper ${state === 'done' ? 'done' : ''} ${state === 'blank' && prev !== 'blank' ? 'flip-in' : ''}" id="gapPaper"><div id="gapHead"><div class="hd">뒷면 · 이 숫자의 뜻</div>${mis}</div>${body}</div>`;
+      <div class="paper ${state === 'done' ? 'done' : ''} ${state === 'blank' && prev !== 'blank' ? 'flip-in' : ''}" id="gapPaper" data-state="${state}"><div id="gapHead"><div class="hd">뒷면 · 이 숫자의 뜻</div>${mis}</div>${body}</div>`;
     renderLens();
     placeGap();
   }

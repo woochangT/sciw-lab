@@ -285,12 +285,19 @@ body.arena .r-frame { font-size: 20px; }
 /* 꼬투리 화면: 왼쪽 카드 앞면, 오른쪽 그 뒷면(종이) */
 .gap-front { position: absolute; left: 36px; top: 162px; width: 316px; }
 .gap-front .card { width: 100%; cursor: default; }
-.paper { position: absolute; left: 372px; top: 162px; right: 300px; bottom: 118px; padding: 12px 22px 16px; border-radius: 6px; color: var(--ink); background: #fbf6e6 repeating-linear-gradient(#fbf6e6 0 37px, #dfd6b8 38px); box-shadow: 0 14px 30px #000a; display: flex; flex-direction: column; transform-origin: left center; }
+.paper { position: absolute; left: 372px; top: 162px; right: 300px; bottom: 118px; padding: 12px 22px 16px; border-radius: 6px; color: var(--ink); background: #fbf6e6 repeating-linear-gradient(#fbf6e6 0 37px, #dfd6b8 38px); box-shadow: 0 14px 30px #000a; display: flex; flex-direction: column; transform-origin: left center; container-type: size; }
 .paper.flip-in { animation: paperFlip .55s ease-out; }
 @keyframes paperFlip { from { transform: perspective(1000px) rotateY(-88deg); opacity: 0; } }
-.paper .hd { font: 800 14px 'Pretendard', sans-serif; letter-spacing: .08em; color: #8a6a4a; }
+.paper .hd { font: 800 20px 'Pretendard', sans-serif; letter-spacing: .06em; color: #8a6a4a; }
 .paper .faint { position: absolute; left: 0; right: 0; top: 46%; text-align: center; font: 700 30px 'Gaegu', cursive; color: #c8bd9b; }
-.mis { width: fit-content; margin-top: 6px; font: 700 28px/1.2 'Gaegu', cursive; color: #c0392b; transform: rotate(-1.6deg); transform-origin: left center; position: relative; }
+/* 빨간 글씨: 가로는 가운데, 세로는 가운데보다 조금 위. 아래에 답 틀이나 학생의 문장이 들어가므로, 말풍선이 길어져 종이가 줄면 그만큼 올라간다. */
+.mis { width: fit-content; max-width: 100%; margin: 40px auto 0; margin-top: clamp(10px, calc(100cqh - 250px), 78px); font: 700 40px/1.2 'Gaegu', cursive; color: #c0392b; text-align: center; word-break: keep-all; transform: rotate(-1.6deg); transform-origin: center; position: relative; }
+/* 학생의 문장이 들어오면 지워진 빨간 글씨는 위로 밀려 올라간다 */
+.paper.done .mis { margin-top: 14px; animation: misUp .5s ease-out; }
+@keyframes misUp { from { transform: translateY(64px) rotate(-1.6deg); } }
+/* 튜토리얼은 빨간 글씨가 길어 한 줄에 들어가게 줄이고, 답 틀은 보기가 많아 키가 커서 더 위에 둔다 */
+.tutorial .mis { font-size: 36px; }
+.tutorial .paper[data-state=write] .mis { margin-top: 8px; }
 .mis.fresh { animation: misWrite .9s ease-out; }
 @keyframes misWrite { from { clip-path: inset(-10px 100% -10px 0); } to { clip-path: inset(-10px 0 -10px 0); } }
 .mis.off { opacity: .55; }
@@ -373,6 +380,10 @@ body.arena #bubble, body.arena #reply { pointer-events: auto; }
 body.arena #reply { left: -498px; right: 300px; bottom: auto; max-height: none; overflow: visible; padding: 4px 22px 0; background: none; border: 0; box-shadow: none; }
 body.arena #reply input[type=text], body.arena #reply textarea { font-size: 21px; padding: 10px 14px; border: 2px solid #3a6df0; background: #fffef9; }
 body.arena .r-send { font-size: 18px; padding: 10px 22px; }
+/* 답 틀의 끝말과 '말하기'를 한 줄에 놓아 빨간 글씨 아래 자리를 아낀다 */
+body.arena #reply.framed { display: grid; grid-template-columns: 1fr auto; align-items: center; }
+body.arena #reply.framed > :not(.r-frame-end, .r-send) { grid-column: 1 / -1; }
+body.arena #reply.framed .r-send { align-self: center; }
 .scope-frame { position: relative; height: 100%; border-radius: 26px; padding: 44px 26px 38px; background: radial-gradient(ellipse at 50% 40%, #183f45, #0b1f22 80%); border: 10px solid #8a6038; box-shadow: inset 0 0 0 3px #d5ad62, inset 0 0 60px #000a, 0 18px 40px #0009; display: flex; flex-direction: column; }
 .scope-strip { position: absolute; left: 26px; right: 26px; top: 9px; text-align: center; font-family: 'Gaegu', cursive; font-weight: 700; font-size: 22px; color: #ffe39a; }
 /* 현미경에서 눈여겨볼 판: 그림 바로 오른편에 놓는다. 위는 공기 쪽의 기체 표, 아래는 저울과 이어진 게이지 */
