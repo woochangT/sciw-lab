@@ -916,14 +916,16 @@
     renderSmallBoard();
     renderTray();
     $('#stage').classList.add('spot');
-    // 왜 다음 단계로 넘어가는지 교수가 먼저 정리한다
-    await say(M.lines.rebuttalWhy, { center: true });
-    // 교수 얼굴로 다가가 콧대가 솟는 것을 보여 준다. 콧대 게이지는 이때 처음 나타난다.
+    // 교수 얼굴로 다가가 콧대가 솟는 것부터 보여 준다
     await zoomProf(2.2);
-    $('#noseMeter').hidden = false;
     setNose(4);
     await sleep(reduced ? 200 : 1200);
     await zoomOut();
+    // 왜 다음 단계로 넘어가는지 교수가 정리한다
+    await say(M.lines.rebuttalWhy, { center: true });
+    await sleep(reduced ? 100 : 400); // 말풍선이 제자리로 옮겨 간 뒤에 나오도록 잠깐 쉰다
+    // 콧대 게이지는 이때 처음 나타난다
+    $('#noseMeter').hidden = false;
     await sysPop(M.system.press);
     // 교수가 잡은 꼬투리 셋이 칠판에 적힌다. 학생이 앞에서 고르지 않은 까닭을 빌려 첫 꼬투리를 짚는다.
     S.link = 0;
