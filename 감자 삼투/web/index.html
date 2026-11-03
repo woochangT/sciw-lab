@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="css/classroom.css">
   <link rel="preload" as="image" href="assets/laboratory-room.png">
   <link rel="preload" as="image" href="assets/professor-expressions.png">
-  <link rel="stylesheet" href="../../ui/class-entry.css?v=class-limits-v1">
+  <link rel="stylesheet" href="../../ui/class-entry.css?v=class-input-v2">
 </head>
 <body>
   <div id="app">
@@ -73,8 +73,7 @@
       <div class="tag" id="startTag"></div>
       <h1 id="startTitle"></h1>
       <p class="start-intro">오늘의 미션을 해결할 연구원은 누구인가요?</p>
-      <div class="class-entry-fields"><div><label for="grade">학년</label><select id="grade" required><option value="">선택</option><option value="1">1학년</option><option value="2">2학년</option><option value="3">3학년</option></select></div><div><label for="classNo">반</label><input id="classNo" type="number" inputmode="numeric" min="1" max="99" step="1" placeholder="1~99" required></div></div>
-      <p class="class-entry-help">학년은 1~3학년, 반은 1~99반으로 입력해 주세요.</p>
+      <div class="class-entry-fields"><div><label for="grade">학년</label><input id="grade" type="text" inputmode="numeric" maxlength="2" pattern="[1-3]" placeholder="3" required></div><div><label for="classNo">반</label><input id="classNo" type="text" inputmode="numeric" maxlength="3" pattern="[1-9][0-9]?" placeholder="1" required></div></div>
       <label for="studentNo">출석번호</label>
       <input id="studentNo" inputmode="numeric" maxlength="3" placeholder="예: 12" required>
       <button class="go" type="submit" id="goBtn" disabled>실험실 들어가기</button>
@@ -86,7 +85,7 @@
   <!-- 클리어 화면 -->
   <div class="screen" id="clearScreen" hidden><div class="wrap"></div></div>
 
-  <script src="../../ui/class-entry.js?v=class-limits-v1"></script>
+  <script src="../../ui/class-entry.js?v=class-input-v2"></script>
   <script src="js/config.js"></script>
   <script src="missions/mission01.js"></script>
   <script src="js/judge.js"></script>
@@ -94,6 +93,6 @@
   <script src="js/art.js"></script>
   <script src="js/scene-art.js"></script>
   <script src="js/learning.js"></script>
-  <script src="js/game.js?v=class-limits-v1"></script>
+  <script src="js/game.js?v=class-input-v2"></script>
 </body>
 </html>

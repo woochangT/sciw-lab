@@ -66,16 +66,17 @@
       "No ability scores or ranks",
       "False and unobserved must differ",
       "Keep private source files out of repository",
-      "Preserve Woochang main intro layout, background, two silhouette mission cards; apply additive motion and teacher-link improvements only",
       "Default to live connected sheet; never silently replace failed live reads with demo data",
       "Separate test data from real classroom counts; QA remains excluded",
       "Keep mission and class report scopes separate; do not infer unrecorded grades",
       "Put saved teaching focus first within the selected class/game analysis; detailed report includes frozen evidence and classroom materials",
       "Never call LLM from page load, selection, sheet refresh or report navigation; regenerate only on explicit click",
-      "Selecting the class opens its dashboard immediately: game-by-game metrics and saved teaching summaries first, then class-and-game analysis on game choice",
       "Teacher starts at a multi-class achievement overview, with optional grade/test filters; no selection stepper or initial gate",
       "Class and student heatmaps show explicit final judgment counts; unknown, zero and different rubric versions must remain separate",
-      "Rubric 1.2 note pages 0/1/2 differ from old hint levels; removed sorting is not failure"
+      "Rubric 1.2 note pages 0/1/2 differ from old hint levels; removed sorting is not failure",
+      "Keep intro and student game identity; replace teacher page with a compact dashboard using only restrained lab theme accents",
+      "Persistent game tabs in overview and class detail; class selection enters the same current-game student matrix directly",
+      "Desktop key metrics, evidence table and summary rail fit viewport; larger data use table pagination and search, not whole-page scrolling"
     ],
     "avoid": [
       "Framework migration",
@@ -123,6 +124,10 @@
     {
       "date": "2026-11-03",
       "decision": "Readable 16px body / minimum 14px labels; stored criterion quotes and reasons first, then stage-grouped conversations using existing board and paper primitives."
+    },
+    {
+      "date": "2026-11-03",
+      "decision": "User explicitly requests dashboard redesign: stable sidebar/game tabs/KPI/matrix/summary layout for all-class and student views, adaptive pagination, neutral surfaces, minimal lab theme; numeric text entry placeholders grade 3 and room 1 without helper prose."
     }
   ],
   "evidence": [],
