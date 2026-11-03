@@ -655,10 +655,6 @@ body.arena .r-send { font-size: 18px; padding: 10px 22px; }
 }
 
 /* ───── 튜토리얼 ───── */
-.start-card .tutorial-btn { margin-top: 10px; min-height: 48px; border-radius: 14px; border: 2px solid var(--accent); background: none; color: var(--accent); font-weight: 800; font-size: 18px; }
-.start-card .tutorial-btn:hover { background: #1c62511a; }
-#tutorialFrame { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 10001; border: 0; background: #0d201d; opacity: 0; transition: opacity .25s; }
-#tutorialFrame.on { opacity: 1; }
 /* 말풍선을 넘기려고 화면을 누르는 동안에도 건너뛸 수 있게 #catcher보다 위에 둔다 */
 .tutorial #who { position: relative; z-index: 950; }
 .t-skip { padding: 6px 14px; border: 1.5px solid #cfc6ad88; border-radius: 8px; background: none; color: #efe7d2; font-size: 14px; font-weight: 700; }

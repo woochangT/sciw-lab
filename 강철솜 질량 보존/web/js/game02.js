@@ -1930,35 +1930,19 @@
     const check = () => { $('#goBtn').disabled = !(cc.value.trim() && sn.value.trim()); };
     cc.addEventListener('input', check); sn.addEventListener('input', check);
     $('#startForm').addEventListener('submit', (e) => { e.preventDefault(); start(cc.value.trim(), sn.value.trim()); });
-    $('#tutorialBtn').addEventListener('click', openTutorial);
   }
-  // 튜토리얼은 별도 페이지(tutorial.html)를 화면 전체에 띄운다. 창이 따로라 본 게임 상태와 기록이 섞이지 않고, 입력한 반·번호도 그대로 남는다.
-  function openTutorial() {
-    if ($('#tutorialFrame')) return;
-    const frame = document.createElement('iframe');
-    frame.id = 'tutorialFrame'; frame.src = 'tutorial.html'; frame.title = '튜토리얼';
-    const screen = $('#startScreen');
-    const onMessage = (e) => {
-      if (e.source !== frame.contentWindow || !e.data || e.data.type !== 'sciw-tutorial') return;
-      window.removeEventListener('message', onMessage);
-      if (S.tutorial !== 'done') S.tutorial = e.data.status; // 끝까지 본 기록은 건너뛰기로 덮어쓰지 않는다
-      frame.remove();
-      screen.inert = false;
-      const empty = [$('#classCode'), $('#studentNo')].find((x) => !x.value.trim());
-      if (empty) { empty.focus(); return; }
-      const go = $('#goBtn');
-      go.focus();
-      go.classList.add('blink');
-      go.addEventListener('animationend', () => go.classList.remove('blink'), { once: true });
-    };
-    window.addEventListener('message', onMessage);
-    frame.addEventListener('load', () => { frame.classList.add('on'); frame.contentWindow.focus(); });
-    screen.inert = true;
-    document.body.appendChild(frame);
+  // 튜토리얼은 미션 고르기 화면에서 따로 열린다(js/tutorial02.js가 남긴다). 같은 탭의 다음 학생에게 넘어가지 않게 읽으면 지운다.
+  function takeTutorialStatus() {
+    try {
+      const status = sessionStorage.getItem('sciw_tutorial');
+      sessionStorage.removeItem('sciw_tutorial');
+      if (status) S.tutorial = status;
+    } catch (e) { /* 저장소를 못 쓰면 none으로 남는다 */ }
   }
   async function start(classCode, studentNo) {
     S.classCode = classCode; S.studentNo = studentNo;
     S.sessionId = API.uid('s');
+    takeTutorialStatus();
     API.startSession({ sessionId: S.sessionId, missionId: M.id, classCode, studentNo, startedAt: new Date().toISOString(), stage: 'explore', tutorial: S.tutorial, missionVersion: 'm02-1.2', eventSchemaVersion: 'm02-events-v2', hintSchemaVersion: 'm02-note-pages-v1', rubricVersion: RUBRIC.VERSION, hintLevel: 0 });
     $('#who').textContent = `${classCode} · ${studentNo}번`;
     $('#startScreen').hidden = true;

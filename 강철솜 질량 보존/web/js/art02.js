@@ -132,16 +132,14 @@
   }
 
   // ───── 튜토리얼: 실 전화기 ─────
-  // 손 그림(실험용 장갑). 집게손가락 끝이 위쪽 가운데(30, 4)에 온다.
+  // 손 그림(실험용 장갑). 주먹의 왼쪽 끝에 집게손가락을 세운다. 끌 때 포인터가 오는 위쪽 가운데(30, 4)가 손가락 끝이라 주먹은 그 오른쪽으로 치우친다.
   function hand() {
     const skin = 'fill="#d3e9ef" stroke="#4f7f8c" stroke-width="2"';
     return `<svg viewBox="0 0 60 120" aria-hidden="true">
-      <rect x="16" y="86" width="30" height="32" rx="5" fill="#1f4a40" stroke="#0f2a24" stroke-width="2"/>
-      <path d="M13 66 Q2 62 5 52 Q8 45 15 52" ${skin}/>
-      <rect x="12" y="44" width="38" height="46" rx="13" ${skin}/>
-      <rect x="23" y="4" width="13" height="52" rx="6.5" ${skin}/>
-      <rect x="25" y="42" width="9" height="14" fill="#d3e9ef"/>
-      <path d="M37 54 V68 M44 56 V68" stroke="#4f7f8c" stroke-width="2" stroke-linecap="round"/>
+      <rect x="26" y="88" width="26" height="30" rx="5" fill="#1f4a40" stroke="#0f2a24" stroke-width="2"/>
+      <path d="M24 10 A6 6 0 0 1 36 10 V47 A3.5 3.5 0 0 1 43 47 A3.5 3.5 0 0 1 50 47 A3.5 3.5 0 0 1 57 47 V78 Q57 94 41 94 H37 Q21 94 21 78 V56 Q21 52 24 50 Z" ${skin}/>
+      <path d="M43 47 V60 M50 47 V60" stroke="#4f7f8c" stroke-width="2" stroke-linecap="round"/>
+      <path d="M23 86 Q11 77 15 67 Q18 60 27 61 L45 63 Q52 64 51 70 Q50 76 44 75 L33 74 Q29 79 30 86" ${skin}/>
     </svg>`;
   }
   function soundArcs(id, x, dir) {

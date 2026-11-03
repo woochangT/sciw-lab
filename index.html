@@ -62,7 +62,19 @@
   .sign h1 { margin: 0; font-family: 'Gaegu', 'Pretendard', cursive; font-weight: 700; font-size: 46px; letter-spacing: 1px; line-height: 1; }
   .sign p { margin: 10px 0 0; font-family: 'Gaegu', 'Pretendard', cursive; font-size: 21px; color: var(--chalk-soft); }
 
-  .prompt { margin: 34px 0 14px; font-size: 15px; font-weight: 700; letter-spacing: .5px; color: #e9e4da; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+  /* 튜토리얼 버튼: 미션을 고르기 전에 눈에 들어오도록 간판 바로 아래에 둔다 */
+  .tutorial-link {
+    margin-top: 18px; padding: 10px 22px; border-radius: 999px;
+    border: 2px solid var(--brass); background: rgba(20,18,16,.6); backdrop-filter: blur(4px);
+    color: var(--chalk); text-decoration: none; font-weight: 800; font-size: 16px;
+    box-shadow: 0 5px 16px rgba(0,0,0,.35);
+    transition: background .18s ease, transform .18s ease;
+    animation: chalk-arrive .6s .05s ease-out both;
+  }
+  .tutorial-link:hover { background: rgba(47,84,70,.85); transform: translateY(-2px); }
+  .tutorial-link:focus-visible { outline: 3px solid var(--glow); outline-offset: 3px; }
+
+  .prompt { margin: 26px 0 14px; font-size: 15px; font-weight: 700; letter-spacing: .5px; color: #e9e4da; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
 
   /* 미션 카드: 고리에 매달린 열쇠고리 + 메모 카드 */
   .missions { display: grid; grid-template-columns: repeat(2, minmax(0, 300px)); gap: 32px; justify-content: center; width: 100%; }
@@ -117,14 +129,16 @@
     .sign { padding: 16px 18px; border-width: 6px; }
     .sign h1 { font-size: 36px; }
     .sign p { font-size: 18px; }
-    .prompt { margin-top: 24px; }
+    .tutorial-link { margin-top: 14px; font-size: 15px; }
+    .prompt { margin-top: 20px; }
     .missions { grid-template-columns: minmax(0, 340px); gap: 26px; }
     .mission .art { height: 150px; }
     .mission .qm { font-size: 58px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .mission, .mission .key { transition: none; }
-    .mission:hover, .mission:hover .key { transform: none; }
+    .mission, .mission .key, .tutorial-link { transition: none; }
+    .mission:hover, .mission:hover .key, .tutorial-link:hover { transform: none; }
+    .tutorial-link { animation: none; }
   }
 </style>
 <link rel="stylesheet" href="intro/enhancements.css">
@@ -138,6 +152,8 @@
       </div>
       <p>콧대 교수를 설득할 수 있을까?</p>
     </header>
+
+    <a class="tutorial-link" data-path="강철솜 질량 보존/web/tutorial.html" href="%EA%B0%95%EC%B2%A0%EC%86%9C%20%EC%A7%88%EB%9F%89%20%EB%B3%B4%EC%A1%B4/web/tutorial.html">처음이라면? 튜토리얼 먼저 해 보기 →</a>
 
     <p class="prompt">도전할 미션을 고르세요</p>
 
@@ -164,9 +180,9 @@
   </footer>
 
 <script>
-  // 반 코드처럼 이 주소에 붙어 온 값(?class=…)을 고른 미션에도 그대로 넘긴다
+  // 반 코드처럼 이 주소에 붙어 온 값(?class=…)을 고른 미션과 튜토리얼에도 그대로 넘긴다
   if (location.search) {
-    document.querySelectorAll('.mission[data-path]').forEach(function (a) {
+    document.querySelectorAll('a[data-path]').forEach(function (a) {
       a.href = encodeURI(a.dataset.path) + location.search;
     });
   }

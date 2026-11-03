@@ -14,10 +14,13 @@
   const CHAIN_TALK_TOP = 170;
   const MAP_TALK_TOP = 330;
 
-  // 끝나면 시작 화면으로 돌아간다. 주소로 바로 열었을 때는 시작 화면으로 옮겨 간다.
+  // 끝까지 보면 미션 02 시작 화면으로, 건너뛰면 미션 고르기 화면으로 간다. 시청 여부는 본 게임이 세션을 시작할 때 읽어 간다.
   function leave(status) {
-    if (window.parent !== window) window.parent.postMessage({ type: 'sciw-tutorial', status }, '*');
-    else location.href = 'index.html';
+    try {
+      // 끝까지 본 기록은 건너뛰기로 덮어쓰지 않는다
+      if (sessionStorage.getItem('sciw_tutorial') !== 'done') sessionStorage.setItem('sciw_tutorial', status);
+    } catch (e) { /* 저장소를 못 쓰면 기록 없이 넘어간다 */ }
+    location.href = (status === 'done' ? 'index.html' : '../../index.html') + location.search;
   }
 
   // 답장 카드에서 고른 것을 돌려준다. after는 카드가 열린 뒤에 부른다.
