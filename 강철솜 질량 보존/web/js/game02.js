@@ -1874,23 +1874,160 @@
 
   /* ───────── 클리어 ───────── */
   function aiFeedback(text, r) {
-    // 원문을 바꾸지 않고 겹치는 표시를 한 번만 칠한다. 모델 HTML은 사용하지 않는다.
+    // 원문을 바꾸지 않고 겹치는 표시를 한 번만 나눈다. 모델 HTML은 사용하지 않는다.
+    // 조각마다 어떤 칭찬 항목(data-h)에 속하는지 남겨, 결과 화면에서 항목 순서대로 형광펜을 칠한다.
     const marks = r.highlights;
     const cuts = [...new Set([0, text.length, ...marks.flatMap((h) => [h.start, h.end])])].sort((a, b) => a - b);
     const finalHTML = cuts.slice(0, -1).map((start, i) => {
       const end = cuts[i + 1];
-      const here = marks.filter((h) => h.start < end && h.end > start);
-      if (!here.length) return esc(text.slice(start, end));
+      const ids = marks.map((h, k) => (h.start < end && h.end > start ? k : -1)).filter((k) => k >= 0);
+      if (!ids.length) return esc(text.slice(start, end));
+      const here = ids.map((k) => marks[k]);
       const isNew = here.some((h) => h.isNew);
       const roles = [...new Set(here.flatMap((h) => h.roles))].join(', ');
-      return `<span class="w ${isNew ? 'new-connection' : ''}" title="${esc(roles + (isNew ? ' · 처음 생각에서 새롭게 발전한 연결' : ' · 잘 드러난 연결'))}">${esc(text.slice(start, end))}</span>`;
+      return `<span class="hl ${isNew ? 'new-connection' : ''}" data-h="${ids.join(' ')}" title="${esc(roles + (isNew ? ' · 처음 생각에서 새롭게 발전한 연결' : ' · 잘 드러난 연결'))}">${esc(text.slice(start, end))}</span>`;
     }).join('');
     const praise = marks.map((h) => {
       const source = h.source === 'mixed' ? ' 카드 구절과 직접 쓴 부분이 함께 있어요.' : '';
       const growth = h.isNew ? ' 처음 생각보다 새롭게 드러난 연결이에요.' : '';
       return `“${h.quote}” — ${h.explanation}${source}${growth}`;
     });
-    return { finalHTML, praise };
+    const pops = marks.map((h) => h.explanation + (h.isNew ? ' 처음 생각보다 새롭게 드러난 연결이에요.' : ''));
+    return { finalHTML, praise, pops };
+  }
+  // 결과 화면은 처음 → 지금(글) → 형광펜 항목별 → 피드백 모음 순으로 천천히 드러낸다. 화면을 누르면 다음으로 넘어간다.
+  const SUBMIT_LOCK_S = 60;
+  function revealWait(ms) {
+    return new Promise((resolve) => {
+      const scr = $('#clearScreen');
+      const done = () => { clearTimeout(t); scr.removeEventListener('pointerdown', done); resolve(); };
+      const t = setTimeout(done, reduced ? Math.min(ms, 400) : ms);
+      scr.addEventListener('pointerdown', done);
+    });
+  }
+  // 편지를 쓰듯 한 글자씩 나타낸다. 글자는 미리 자리를 잡아 두어(투명) 화면이 출렁이지 않는다.
+  function prepType(el) {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+    const chars = [];
+    nodes.forEach((node) => {
+      const frag = document.createDocumentFragment();
+      Array.from(node.textContent).forEach((c) => {
+        if (/\s/.test(c)) { frag.append(c); return; }
+        const sp = document.createElement('span'); sp.className = 'ch'; sp.textContent = c;
+        frag.append(sp); chars.push(sp);
+      });
+      node.replaceWith(frag);
+    });
+    return chars;
+  }
+  // 화면을 누르면 지금 쓰는 글을 한 번에 마저 보여 준다. 문장 부호 뒤에서는 잠깐 숨을 고른다.
+  function typeOut(chars, ms = 40) {
+    return new Promise((resolve) => {
+      const scr = $('#clearScreen');
+      let i = 0; let t;
+      const end = () => { clearTimeout(t); scr.removeEventListener('pointerdown', end); chars.forEach((c) => c.classList.add('on')); resolve(); };
+      if (reduced || !chars.length) { end(); return; }
+      const step = () => {
+        if (i >= chars.length) { end(); return; }
+        const c = chars[i++]; c.classList.add('on');
+        t = setTimeout(step, /[.,?!…”]/.test(c.textContent) ? ms + 220 : ms);
+      };
+      scr.addEventListener('pointerdown', end);
+      step();
+    });
+  }
+  async function revealResult(pops) {
+    const wrap = $('#clearScreen .wrap');
+    const show = (sel) => wrap.querySelectorAll(sel).forEach((el) => el.classList.add('show'));
+    const typed = (sel) => [...wrap.querySelectorAll(sel)].map(prepType);
+    const [sayChars] = typed('.top .say');
+    const [wasChars] = typed('.col.was p');
+    const [nowChars] = typed('.col.now .final');
+    const finalEls = [...wrap.querySelectorAll('.rv-final .next-line, .rv-final .praise-title, .rv-final .praise li, .rv-final .reward-label, .rv-final .keyring-reward h3, .rv-final .keyring-reward p, .rv-final .keyring-reward strong')];
+    finalEls.forEach((el) => el.classList.add('tw-wait')); // 글머리 점까지 차례가 올 때 나타나게
+    const finalChars = finalEls.map(prepType);
+    await sleep(30);
+    show('.top');
+    lockSubmit(); // 60초는 첫 글이 나타나기 시작할 때부터 센다
+    await sleep(reduced ? 0 : 500);
+    await typeOut(sayChars, 70);
+    await revealWait(900);
+    show('.col.was');
+    await sleep(reduced ? 0 : 500);
+    await typeOut(wasChars, 55);
+    await revealWait(1200);
+    show('.col.now');
+    await sleep(reduced ? 0 : 500);
+    await typeOut(nowChars, 45);
+    await revealWait(1400);
+    const col = wrap.querySelector('.col.now');
+    const pop = col.querySelector('.hl-pop');
+    for (let k = 0; k < pops.length; k++) {
+      const segs = [...col.querySelectorAll('.hl')].filter((s) => s.dataset.h.split(' ').includes(String(k)));
+      if (!segs.length) continue;
+      segs.forEach((s) => s.classList.add('lit'));
+      // 피드백 창은 글을 가리지 않게 '지금' 글 바로 아래에 띄우고, 꼬리가 칠한 구절을 가리킨다
+      const box = col.getBoundingClientRect();
+      const last = [...segs[segs.length - 1].getClientRects()].pop();
+      pop.querySelector('.n').textContent = `${k + 1} / ${pops.length}`;
+      const tEl = pop.querySelector('.t'); tEl.textContent = pops[k];
+      const popChars = prepType(tEl);
+      const aim = (last.left + last.right) / 2 - box.left;
+      const left = Math.max(12, Math.min(aim - 40, box.width - pop.offsetWidth - 12));
+      pop.style.top = `${col.querySelector('.final').getBoundingClientRect().bottom - box.top + 14}px`;
+      pop.style.left = `${left}px`;
+      pop.style.setProperty('--tail', `${Math.max(14, Math.min(aim - left, pop.offsetWidth - 14))}px`);
+      pop.classList.add('show');
+      pop.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+      await sleep(reduced ? 0 : 900); // 형광펜이 칠해지는 동안 기다렸다가 쓴다
+      await typeOut(popChars, 50);
+      await revealWait(2600);
+      pop.classList.remove('show');
+      await sleep(reduced ? 50 : 350);
+    }
+    show('.rv-final');
+    wrap.querySelector('.rv-final').scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+    for (let i = 0; i < finalEls.length; i++) { finalEls[i].classList.remove('tw-wait'); await typeOut(finalChars[i], 32); }
+  }
+  function lockSubmit() {
+    const btn = $('#submitBtn');
+    const until = Date.now() + SUBMIT_LOCK_S * 1000;
+    const tick = () => {
+      const left = Math.ceil((until - Date.now()) / 1000);
+      if (left > 0) {
+        btn.querySelector('.lock').textContent = `${left}초 뒤에 낼 수 있어요`;
+        btn.style.setProperty('--lock', String(left / SUBMIT_LOCK_S));
+        setTimeout(tick, 250);
+        return;
+      }
+      btn.disabled = false;
+      btn.querySelector('.lock').textContent = '';
+      btn.style.setProperty('--lock', '0');
+    };
+    tick();
+  }
+  async function submitToTeacher() {
+    const btn = $('#submitBtn');
+    btn.disabled = true;
+    btn.querySelector('.label').textContent = '제출하는 중…';
+    if (S.sessionId) API.updateSession(S.sessionId, { submittedToTeacher: true, submittedAt: new Date().toISOString() }, true);
+    await waitSaved(5000);
+    const wrap = $('#clearScreen .wrap');
+    wrap.classList.add('submitted');
+    wrap.innerHTML = `
+      <div class="top show"><div class="professor-art" data-expression="acknowledging"></div>
+        <div class="say">${esc(M.lines.submitted)}</div></div>
+      <div class="btns two show"><button type="button" class="ghost" id="exitBtn">나가기</button><button type="button" id="againBtn">다시하기</button></div>`;
+    $('#againBtn').addEventListener('click', () => location.reload());
+    $('#exitBtn').addEventListener('click', () => { location.href = '../../index.html'; });
+    typeOut(prepType(wrap.querySelector('.say')), 60);
+  }
+  // 기록이 저장될 때까지(또는 시간이 다 될 때까지) 기다린다. 못 보낸 기록은 브라우저에 남아 다음에 다시 보낸다.
+  async function waitSaved(ms) {
+    const until = Date.now() + ms;
+    API.flush();
+    while (API.pending() && Date.now() < until) await sleep(200);
   }
   function finish(type, text, r) {
     S.phase = 'complete';
@@ -1899,7 +2036,7 @@
     const own = S.ownMode && !hasCard && type === 'full';
     updateSession(Object.assign({ clearType: type, finalAnswer: text, finalJudgment: r.elements, path: r.path || '', ownReward: own, endedAt: new Date().toISOString() }, judgmentRecord(r)), true);
     API.flush();
-    const { finalHTML, praise } = aiFeedback(text, r);
+    const { finalHTML, praise, pops } = aiFeedback(text, r);
     // 게임 중 교수의 nextQuestion과 결과 페이지의 안내 문체를 분리한다.
     const resultNextSteps = {
       W2a: '다음엔 150.0 g이 그대로인 이유를 플라스크 안 산소의 이동과 연결해 보세요.',
@@ -1919,29 +2056,32 @@
     const missLine = type === 'partial' ? (resultNextSteps[r.ask] || '다음엔 숫자가 무슨 뜻인지까지 설명해 보세요.') : '';
     const first = S.firstAnswer || '(없음)';
     $('#clearScreen .wrap').innerHTML = `
-      <div class="top"><div class="professor-art" data-expression="${type === 'full' ? 'acknowledging' : 'skeptical'}"></div>
+      <div class="top rv"><div class="professor-art" data-expression="${type === 'full' ? 'acknowledging' : 'skeptical'}"></div>
         <div class="say">${esc(type === 'full' ? M.lines.clearFull : M.lines.clearPartial)}</div></div>
       <div class="compare">
-        <div class="col"><h3>처음</h3><p>${esc(first)}</p></div>
-        <div class="col"><h3>지금</h3><p class="final">${finalHTML}</p></div>
+        <div class="col was rv"><h3>처음</h3><p>${esc(first)}</p></div>
+        <div class="col now rv"><h3>지금</h3><p class="final">${finalHTML}</p><div class="hl-pop" role="status"><span class="n"></span><span class="t"></span></div></div>
       </div>
-      ${type === 'full' ? `<div class="st-mini">${structHTML()}</div><p class="next-line">${esc(M.lines.clearEcho)}</p>` : ''}
-      ${praise.length ? `<ul class="praise">${praise.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
-      ${missLine ? `<p class="next-line">${esc(missLine)}</p>` : ''}
-      ${own ? `<section class="keyring-reward" aria-label="혼자 힘으로 설명한 연구원에게 주는 강철솜 키링"><img src="assets/steel-wool-keyring.png" width="120" height="180" alt="안경과 나비넥타이를 단 강철솜 키링"><div><div class="reward-label">교수님의 깜짝 선물</div><h3>“카드 없이 해낸 건 인정하지. 이건… 자네가 가지게.”</h3><p>카드 문장에 기대지 않고 자신의 말로 끝까지 설명했어요!</p><strong>나만의 강철솜 키링 획득</strong></div></section>` : '<div class="next-keyring"><span class="key-sil"><img src="assets/steel-wool-silhouette.webp" width="388" height="520" alt="물음표가 그려진 강철솜 키링 실루엣"><span class="qm" aria-hidden="true">?</span></span><p class="next-line">“다음엔 이걸 줄 수도 있겠군.”</p></div>'}
-      <div class="btns"><button type="button" id="againBtn">처음부터 다시</button></div>`;
-    $('#againBtn').addEventListener('click', () => location.reload());
+      <div class="rv rv-final">
+        ${type === 'full' ? `<div class="st-mini">${structHTML()}</div><p class="next-line">${esc(M.lines.clearEcho)}</p>` : ''}
+        ${praise.length ? `<h3 class="praise-title">교수의 피드백 모음</h3><ul class="praise">${praise.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
+        ${missLine ? `<p class="next-line">${esc(missLine)}</p>` : ''}
+        ${own ? `<section class="keyring-reward" aria-label="혼자 힘으로 설명한 연구원에게 주는 강철솜 키링"><img src="assets/steel-wool-keyring.png" width="120" height="180" alt="안경과 나비넥타이를 단 강철솜 키링"><div><div class="reward-label">교수님의 깜짝 선물</div><h3>“카드 없이 해낸 건 인정하지. 이건… 자네가 가지게.”</h3><p>카드 문장에 기대지 않고 자신의 말로 끝까지 설명했어요!</p><strong>나만의 강철솜 키링 획득</strong></div></section>` : '<div class="next-keyring"><span class="key-sil"><img src="assets/steel-wool-silhouette.webp" width="388" height="520" alt="물음표가 그려진 강철솜 키링 실루엣"><span class="qm" aria-hidden="true">?</span></span><p class="next-line">“다음엔 이걸 줄 수도 있겠군.”</p></div>'}
+        <div class="btns"><button type="button" id="submitBtn" disabled><span class="label">선생님께 제출하기</span><span class="lock"></span></button></div>
+      </div>`;
+    $('#submitBtn').addEventListener('click', submitToTeacher);
+    const open = () => { $('#clearScreen').hidden = false; $('#clearScreen').scrollTop = 0; revealResult(pops); };
     // 완전 클리어면 마지막 콧대가 꺾이는 것을 보여 준 뒤 결과를 띄운다
     if (type === 'full') {
       (async () => {
         await zoomProf(2);
         setNose(0);
         await sleep(reduced ? 200 : 1400);
-        $('#clearScreen').hidden = false;
+        open();
         zoomOut();
       })();
     }
-    else $('#clearScreen').hidden = false;
+    else open();
   }
 
   /* ───────── 시작 ───────── */
@@ -2002,7 +2142,7 @@
   if ($('#startForm')) setupStart(); // 튜토리얼 페이지에는 시작 화면이 없다
   setupTrayScroll();
   fit();
-  window.__m02 = { S, say, fit, renderTray, setNose }; // 디버그용
+  window.__m02 = { S, say, fit, renderTray, setNose, finish }; // 디버그용
   // 튜토리얼(js/tutorial02.js)이 쓰는 화면 부품
   window.SCIW_ENGINE02 = { S, M, STAGES, $, $$, esc, sleep, reduced, nextFrame, say, sayTap, drawTail, waitTap, sysPop, openReply, closeReply, glow, blinkOnce, setStage, setNose, zoomProf, zoomOut, fit, acquire, renderTray, renderSmallBoard, renderEvidence, flameDrag, enterArena, exitArena, renderGap, closeScope };
 })();

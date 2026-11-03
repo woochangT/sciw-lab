@@ -116,6 +116,7 @@
     updateSession(sessionId, fields, immediate) { enqueue({ action: 'updateSession', sessionId, fields }, immediate); },
     logAttempt(attempt) { enqueue({ action: 'logAttempt', attempt }); },
     flush,
+    pending: () => queue.length,
 
     // AI 장애를 오답/null로 바꾸지 않는다. 기록 주소에는 판정 요청을 보내지 않는다.
     async judge(payload, timeoutMs = cfg.LLM_TIMEOUT_MS || 65000) {
