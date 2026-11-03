@@ -13,7 +13,7 @@
   ];
   const ORDER = ['W2b', 'W2a', 'W1b', 'W1a', 'D-B', 'D-A', 'C'];
   const STAGES = {
-    first: { question: '실험 A에서 강철솜이 왜 무거워졌다고 생각하나?', starter: '', keys: ELEMENTS },
+    first: { question: '실험 B의 저울은 그대로였는데, 실험 A의 강철솜은 왜 무거워졌다고 생각하나?', starter: '', keys: ELEMENTS },
     Q1: { question: '마개를 막은 플라스크 전체가 150.0 g 그대로였다는 것은 무슨 뜻인가?', starter: '마개를 막은 플라스크 전체가 150.0 g 그대로였다는 것은 ', ending: '라는 뜻이다.', keys: ['wholeMass'] },
     Q2: { question: '강철솜이 0.5 g 늘었다는 것은 무슨 뜻인가?', starter: '강철솜이 0.5 g 늘었다는 것은 ', ending: '라는 뜻이다.', keys: ['origin'] },
     Q3: { question: '공기 중에서 산소만 줄었다는 것은 무슨 뜻인가?', starter: '공기 중에서 산소만 줄었다는 것은 ', ending: '라는 뜻이다.', keys: ['oxygenMass'] },
