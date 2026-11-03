@@ -271,6 +271,7 @@
     box.innerHTML = html;
     box.hidden = false;
     box.classList.toggle('under-board', !!cfg.underBoard);
+    box.classList.toggle('framed', !!cfg.frame);
     placeReply();
     box.classList.remove('pop'); void box.offsetWidth; box.classList.add('pop');
     let choice = null;
@@ -1404,7 +1405,7 @@
       : state === 'done' ? `<div class="mine">${esc(STAGES[L.quest].starter + c.back)}</div><div class="stamp">뒷면 완성</div>` : '';
     $('#gapView').innerHTML = `
       <div class="gap-front" id="gapFront">${cardHTML(L.data, 'big').replace('xMidYMid slice', 'xMidYMid meet')}</div>
-      <div class="paper ${state === 'done' ? 'done' : ''} ${state === 'blank' && prev !== 'blank' ? 'flip-in' : ''}" id="gapPaper"><div id="gapHead"><div class="hd">뒷면 · 이 숫자의 뜻</div>${mis}</div>${body}</div>`;
+      <div class="paper ${state === 'done' ? 'done' : ''} ${state === 'blank' && prev !== 'blank' ? 'flip-in' : ''}" id="gapPaper" data-state="${state}"><div id="gapHead"><div class="hd">뒷면 · 이 숫자의 뜻</div>${mis}</div>${body}</div>`;
     renderLens();
     placeGap();
   }
