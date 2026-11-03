@@ -1645,7 +1645,7 @@
   /* ───────── 완전한 설명: 답안 짜기. 카드를 누르면 앞면(자료)만 붙고, 뜻은 학생이 직접 쓴다 ───────── */
   function shelfCard(id) {
     const c = S.cards[id]; const L = M.links.find((x) => x.data === id);
-    return `<div class="card k-${c.kind} look-${c.look || 'slate'} shelf-card" data-card="${id}" tabindex="0"><span>${esc(L ? L.chip.join(' ') : c.text)}</span>${L ? `<button type="button" class="bk ok" data-back="${id}">뒷면 보기</button>` : ''}</div>`;
+    return `<div class="card k-${c.kind} look-${c.look || 'slate'} shelf-card ${L ? 'has-back' : ''}" data-card="${id}" tabindex="0"><span>${esc(L ? L.chip.join(' ') : c.text)}</span>${L ? `<button type="button" class="curl-btn" data-back="${id}" aria-label="뒷면 보기"><i class="curl-label">뒷면</i><i class="curl-flap">${ART.cardCorner()}</i></button>` : ''}</div>`;
   }
   async function startCompose() {
     setStage('defense');
@@ -1685,6 +1685,7 @@
       x.addEventListener('pointerdown', (ev) => ev.stopPropagation());
       x.addEventListener('keydown', (ev) => ev.stopPropagation());
       x.addEventListener('click', () => showBack(x.dataset.back));
+      x.addEventListener('mouseenter', () => { $('#cardPeek').hidden = true; }); // 모서리에서는 앞면 문장 말풍선을 띄우지 않는다
     });
     $$('#shelves .lens').forEach((el) => {
       bindPeek(el);
@@ -1698,6 +1699,7 @@
       S.answerSnapshot = ta.value;
       S.caret = ta.selectionStart;
       $('#backPeek').hidden = true; // 쓰기 시작하면 뒷면이 덮인다
+      syncCorners();
       S.lastInput = now(); $('#finalSubmit').disabled = S.submitting || ta.value.trim().length < 1;
     });
     ta.addEventListener('blur', () => { S.caret = ta.selectionStart; });
@@ -1714,14 +1716,31 @@
     say(M.lines.hintOpen);
     S.glowKey = 'compose';
     ta.focus();
+    waveCorners();
+  }
+  // 답안 화면이 열리면 뒷면이 있는 카드의 모서리가 차례로 한 번씩 들린다. 커서가 없는 터치 화면에서도 뒷면이 있다는 걸 알린다.
+  async function waveCorners() {
+    if (reduced) return;
+    await sleep(500);
+    for (const c of $$('#shelves .card.has-back')) {
+      c.classList.add('wave');
+      c.addEventListener('animationend', () => c.classList.remove('wave'), { once: true });
+      await sleep(260);
+    }
+  }
+  // 뒷면을 열어 둔 카드는 모서리가 들린 채로 남아, 아래 쪽지가 어느 카드의 것인지 보여 준다
+  function syncCorners() {
+    const p = $('#backPeek');
+    $$('#shelves .card.has-back').forEach((c) => c.classList.toggle('peeking', !p.hidden && S.peekKey === c.dataset.card));
   }
   // 왼쪽 아래 자리에 뒷면이나 돋보기 장면을 잠깐 보여 준다. 같은 것을 다시 누르면 닫힌다.
   function showPeek(key, html) {
     const p = $('#backPeek');
-    if (!p.hidden && S.peekKey === key) { p.hidden = true; return; }
+    if (!p.hidden && S.peekKey === key) { p.hidden = true; syncCorners(); return; }
     S.peekKey = key;
     p.innerHTML = html;
     p.hidden = false;
+    syncCorners();
   }
   function showBack(id) {
     logAttempt({ stage: 'compose', questId: 'backPeek', choice: id });

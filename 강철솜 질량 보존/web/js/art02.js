@@ -131,6 +131,20 @@
     </svg>`;
   }
 
+  // 답안 화면 카드의 접혀 올라온 모서리. 뒷면에 글씨가 있다는 것만 보이고 읽히지는 않는다.
+  function cardCorner() {
+    return `<svg viewBox="0 0 100 100" aria-hidden="true">
+      <defs><linearGradient id="cornerShade" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#fdf9ec"/><stop offset=".3" stop-color="#fbf6e6"/><stop offset=".42" stop-color="#fffdf6"/><stop offset=".5" stop-color="#cfc29c"/>
+      </linearGradient></defs>
+      <path d="M100 0 C 66 5 30 8 0 0 C 8 30 5 66 0 100 Z" fill="url(#cornerShade)" stroke="#b9ac87" stroke-width="1.5"/>
+      <g fill="none" stroke="#2f55a8" stroke-width="4" stroke-linecap="round" opacity=".75">
+        <path d="M16 22 q7 -5 13 0 t13 0 t13 0"/>
+        <path d="M16 36 q6 -5 11 0 t11 0"/>
+      </g>
+    </svg>`;
+  }
+
   // ───── 튜토리얼: 실 전화기 ─────
   // 손 그림(실험용 장갑). 주먹의 왼쪽 끝에 집게손가락을 세운다. 끌 때 포인터가 오는 위쪽 가운데(30, 4)가 손가락 끝이라 주먹은 그 오른쪽으로 치우친다.
   function hand() {
@@ -268,5 +282,5 @@
     return wrap(`${still([[38, 26], [84, 22], [14, 62], [106, 62]], '#3f7fd6')}<g class="ls-x">${pair(60, 44, '#3f7fd6')}</g>${iron}${bond([[20, 36], [60, 12], [102, 34], [28, 54], [96, 50]])}<rect x="34" y="94" width="52" height="17" rx="3" fill="#fffdf6"/>${count('산소 8', 'ls-a')}${count('산소 3', 'ls-b')}`);
   }
 
-  window.SCIW_ART02 = { flames, wool, deviceA, deviceB, torch, power, clip, microscope, miniPhoto, miniSlide, lensMini, lensScene, hand, stringPhone, phoneModel };
+  window.SCIW_ART02 = { flames, wool, deviceA, deviceB, torch, power, clip, microscope, miniPhoto, miniSlide, lensMini, lensScene, cardCorner, hand, stringPhone, phoneModel };
 })();
