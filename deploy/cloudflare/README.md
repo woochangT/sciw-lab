@@ -27,7 +27,7 @@ Wrangler 4.156.1을 프로젝트에 고정했다. 현재 로그인 계정을 `np
 
 기존 `/api/sheet/classes`, `/api/sheet/class`, `/api/sheet/analysis` 경로를 유지한다. 두 탭 A:I의 CSV를 8MB/20초로 제한해 읽고, CSV 따옴표·여러 줄·JSON 필드를 보존한다. 전체 원문을 디스크나 배포 자산에 저장하지 않는다. 조회 실패를 빈 반/예시로 바꾸지 않는다. API 응답은 `private, no-store`이다.
 
-반 정규화·게임 분리와 LLM 입력은 기존 `teacher/model.js`, `scope.js`, `evidence.js`를 재사용한다. 브라우저의 임의 답안/집계는 무시하고 선택한 시트 기록으로 분석 자료를 재구성한다. POST는 동일 Origin·JSON·1024바이트 제한을 적용한다. 기존 Apps Script의 캐시·재생성·호출 상한은 유지하며, AI는 생성/재생성 버튼에서만 요청한다.
+반 정규화·게임 분리와 LLM 입력은 기존 `teacher/model.js`, `scope.js`, `evidence.js`를 재사용한다. 브라우저의 임의 답안/집계는 무시하고 선택한 시트 기록으로 분석 자료를 재구성한다. POST는 허용한 수업 화면 Origin·JSON·1024바이트 제한을 적용한다. 기존 Apps Script의 캐시·재생성·호출 상한은 유지하며, AI는 생성/재생성 버튼에서만 요청한다.
 
 Worker 로그에는 실패 종류/HTTP 상태만 기록한다. 답안·API 키를 출력하지 않고 기본 invocation 로그는 끈다. 학생 저장 및 강철솜 평가 API, 시트 권한·기존 교사 키 인증은 변경하지 않았다.
 
@@ -42,3 +42,7 @@ Worker 로그에는 실패 종류/HTTP 상태만 기록한다. 답안·API 키�
 설정 근거: [Workers 정적 자산과 바인딩](https://developers.cloudflare.com/workers/static-assets/binding/), [Workers 플랫폼 한도](https://developers.cloudflare.com/workers/platform/limits/).
 
 2026-11-03: `/api/sheet/classes`에 익명 집계 오버뷰를 포함한다. `teacher/insights.js`를 브라우저와 Workers에서 재사용하며, Python은 같은 함수를 Node로 호출한다. 여러 반의 같은 번호를 합치지 않고, 판정 버전과 노트 열람 의미를 구분한다. 오버뷰 응답에는 개별 학생 번호·세션 ID·답안 원문을 넣지 않는다.
+
+2026-11-03 GitHub Pages 연결: `https://woochangt.github.io/sciw-lab/teacher.html`은 정적 호스팅이므로 `teacher/config.js`에서 기존 Workers의 `/api/sheet`를 사용한다. Workers는 자기 Origin과 `https://woochangt.github.io`만 허용하며 와일드카드·쿠키 허용을 사용하지 않는다. 교차 출처 JSON 분석 요청은 `OPTIONS`로 경로별 메서드와 `Content-Type`만 사전 확인한다. 성공·오류 응답 모두 허용된 Origin의 CORS 헤더와 `Vary: Origin`을 반환한다. Origin은 경로를 포함하지 않으므로 허용 단위는 GitHub Pages 계정 출처다. 로컬 미리보기는 기존 로컬 API를 계속 사용한다.
+
+CORS 동작은 [Cloudflare의 공식 예제](https://developers.cloudflare.com/workers/examples/cors-header-proxy/)를 참고했다. 자동 검사는 Pages 조회·분석 사전 요청·합성 분석·오류 응답·허용하지 않은 출처 거부를 포함한다.
