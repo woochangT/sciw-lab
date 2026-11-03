@@ -63,3 +63,38 @@ test('failed upstream reads produce an error instead of an empty class',async()=
  const handler=createHandler(async()=>new Response('not csv',{status:403}));
  const res=await handler(request('/api/sheet/classes'),{});assert.equal(res.status,502);assert.equal((await res.json()).ok,false);
 });
+
+const pagesOrigin='https://woochangt.github.io';
+const pagesHeaders={Origin:pagesOrigin,'Sec-Fetch-Site':'cross-site'};
+test('GitHub Pages reads the catalog and scoped answers with explicit CORS; unrelated sites stay blocked',async()=>{
+ const s=setup();
+ for(const path of ['/api/sheet/classes','/api/sheet/class?classKey=g:3:r:2&missionId=m02']){
+  const res=await s.handler(request(path,undefined,pagesHeaders),{}),value=await res.json();
+  assert.equal(res.status,200);assert.equal(value.ok,true);assert.equal(res.headers.get('Access-Control-Allow-Origin'),pagesOrigin);
+  assert.match(res.headers.get('Vary'),/Origin/);assert.equal(res.headers.has('Access-Control-Allow-Credentials'),false);
+  if(value.sessions)assert.deepEqual(value.sessions.map(s=>s.sessionId),['d']);
+ }
+ const count=s.calls.length;
+ for(const Origin of ['https://evil.example','https://woochangt.github.io.evil.example','http://woochangt.github.io','null']){
+  const res=await s.handler(request('/api/sheet/classes',undefined,{Origin,'Sec-Fetch-Site':'cross-site'}),{});
+  assert.equal(res.status,403);assert.equal(res.headers.has('Access-Control-Allow-Origin'),false);
+ }
+ const noOrigin=await s.handler(request('/api/sheet/classes',undefined,{'Sec-Fetch-Site':'cross-site'}),{});
+ assert.equal(noOrigin.status,403);assert.equal(s.calls.length,count);
+});
+test('Pages JSON preflight makes no upstream call and explicit analysis preserves authoritative evidence',async()=>{
+ const s=setup(),preflight=(path,method,extra={})=>new Request('https://preview.example'+path,{method:'OPTIONS',headers:{...pagesHeaders,'Access-Control-Request-Method':method,'Access-Control-Request-Headers':'content-type',...extra}});
+ const res=await s.handler(preflight('/api/sheet/analysis','POST'),{});
+ assert.equal(res.status,204);assert.equal(res.headers.get('Access-Control-Allow-Origin'),pagesOrigin);
+ assert.equal(res.headers.get('Access-Control-Allow-Methods'),'POST');assert.equal(res.headers.get('Access-Control-Allow-Headers'),'Content-Type');
+ for(const req of [preflight('/api/sheet/analysis','POST',{Origin:'https://evil.example'}),preflight('/api/sheet/analysis','DELETE'),preflight('/api/sheet/analysis','POST',{'Access-Control-Request-Headers':'Authorization'}),preflight('/api/not-supported','POST')])assert.equal((await s.handler(req,{})).status,403);
+ assert.equal(s.calls.length,0);
+ const analysis=await s.handler(request('/api/sheet/analysis',{classKey:'g:3:r:2',missionId:'m01',regenerate:true,evidence:{participants:999}},pagesHeaders),{}),value=await analysis.json();
+ assert.equal(analysis.status,200);assert.equal(analysis.headers.get('Access-Control-Allow-Origin'),pagesOrigin);
+ assert.equal(value.basis.participants,1);assert.equal(s.calls.length,3);assert.equal(JSON.parse(s.calls[2].opts.body).regenerate,true);
+});
+test('Pages can read API errors without turning a failed Sheet read into an empty class',async()=>{
+ const handler=createHandler(async()=>new Response('unavailable',{status:403}));
+ const res=await handler(request('/api/sheet/classes',undefined,pagesHeaders),{});
+ assert.equal(res.status,502);assert.equal(res.headers.get('Access-Control-Allow-Origin'),pagesOrigin);assert.equal((await res.json()).ok,false);
+});

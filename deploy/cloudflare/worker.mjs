@@ -8,6 +8,9 @@ const MISSIONS={m01:{name:'감자 삼투',gid:'807310001'},m02:{name:'강철솜 
 const SCRIPT='https://script.google.com/macros/s/AKfycbxS7kGYURyYRhRZHWZZw0B0sChUE5UAFP3TqUhxLcAMDty_1OGk0OrxVQzKv2RdhCG4/exec';
 const HEADERS=['recordType','recordId','sessionId','classCode','studentNo','missionId','createdAt','updatedAt','payload'];
 const JSON_FIELDS=['stageTimes','clueCards','modelCards','questPassed','finalJudgment','errorCounts','hintMax','judgment','extra'];
+const PAGES_ORIGIN='https://woochangt.github.io';
+const API_PATHS=new Map([['/api/sheet/classes','GET'],['/api/sheet/class','GET'],['/api/sheet/analysis','POST']]);
+const allowedOrigin=(origin,url)=>origin===url.origin||origin===PAGES_ORIGIN;
 const sheetUrl=m=>`https://docs.google.com/spreadsheets/d/${SHEET}/edit#gid=${MISSIONS[m].gid}`;
 class HttpError extends Error{constructor(status,message){super(message);this.status=status}}
 export async function boundedText(message,limit){
@@ -71,7 +74,7 @@ function validScope(body){
   return {classKey,classCode,missionId,mode,includeTests,regenerate};
 }
 function json(value,status=200){return Response.json(value,{status,headers:{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow, noarchive'}})}
-export function createHandler(fetcher){return async(request,env)=>{
+function coreHandler(fetcher){return async(request,env)=>{
   const url=new URL(request.url);
   try{
     if(url.pathname==='/api/health')return json({ok:true,service:'sciw-lab-hosted-preview',hosting:'cloudflare-workers'});
@@ -81,7 +84,8 @@ export function createHandler(fetcher){return async(request,env)=>{
       const res=await env.ASSETS.fetch(new Request(assetUrl,request)),headers=new Headers(res.headers);headers.set('X-Robots-Tag','noindex, nofollow, noarchive');
       return new Response(res.body,{status:res.status,headers});
     }
-    if(request.headers.get('Origin')&&request.headers.get('Origin')!==url.origin||request.headers.get('Sec-Fetch-Site')==='cross-site')throw new HttpError(403,'같은 수업 화면에서 요청해 주세요.');
+    const origin=request.headers.get('Origin');
+    if(origin?!allowedOrigin(origin,url):request.headers.get('Sec-Fetch-Site')==='cross-site')throw new HttpError(403,'같은 수업 화면에서 요청해 주세요.');
     if(request.method==='GET'&&['/api/sheet/classes','/api/sheet/class'].includes(url.pathname)){
       if(url.pathname.endsWith('/classes')){const d=await readSheet(fetcher);return json({ok:true,classes:catalog(d),overview:I.overview(d),fetchedAt:d.fetchedAt,sheetUrl:d.sheetUrl,invalidRows:d.invalidRows})}
       const scope=validScope({classKey:url.searchParams.get('classKey')||'',classCode:url.searchParams.get('classCode')||'',missionId:url.searchParams.get('missionId')||'m02',includeTests:url.searchParams.get('includeTests')==='1'});
@@ -89,7 +93,7 @@ export function createHandler(fetcher){return async(request,env)=>{
     }
     if(url.pathname!=='/api/sheet/analysis')throw new HttpError(404,'지원하지 않는 조회');
     if(request.method!=='POST')throw new HttpError(405,'지원하지 않는 요청');
-    if(request.headers.get('Origin')!==url.origin)throw new HttpError(403,'같은 수업 화면에서 요청해 주세요.');
+    if(!allowedOrigin(origin,url))throw new HttpError(403,'같은 수업 화면에서 요청해 주세요.');
     if(request.headers.get('Content-Type')?.split(';')[0]!=='application/json')throw new HttpError(400,'잘못된 분석 요청입니다.');
     let body;try{body=JSON.parse(await boundedText(request,1024))}catch(error){if(error instanceof HttpError)throw error;throw new HttpError(400,'잘못된 분석 요청입니다.')}
     if(!body||Array.isArray(body)||typeof body!=='object')throw new HttpError(400,'잘못된 분석 요청입니다.');
@@ -107,4 +111,24 @@ export function createHandler(fetcher){return async(request,env)=>{
     return json({ok:false,error:error instanceof HttpError?error.message:'서버 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.'},status);
   }
 }}
+export function createHandler(fetcher){
+  const handle=coreHandler(fetcher);
+  return async(request,env)=>{
+    const url=new URL(request.url),origin=request.headers.get('Origin');
+    if(!url.pathname.startsWith('/api/'))return handle(request,env);
+    let response;
+    if(request.method==='OPTIONS'){
+      const method=API_PATHS.get(url.pathname),requestedHeaders=(request.headers.get('Access-Control-Request-Headers')||'').split(',').map(h=>h.trim().toLowerCase()).filter(Boolean);
+      if(!allowedOrigin(origin,url)||!method||request.headers.get('Access-Control-Request-Method')!==method||requestedHeaders.some(h=>h!=='content-type')){
+        response=json({ok:false,error:'허용하지 않는 교사 화면 요청입니다.'},403);
+      }else{
+        response=new Response(null,{status:204,headers:{'Access-Control-Allow-Methods':method,'Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'600','Cache-Control':'private, no-store'}});
+      }
+    }else response=await handle(request,env);
+    const headers=new Headers(response.headers);
+    headers.append('Vary','Origin');
+    if(allowedOrigin(origin,url))headers.set('Access-Control-Allow-Origin',origin);
+    return new Response(response.body,{status:response.status,headers});
+  };
+}
 export default {fetch:(request,env)=>createHandler(fetch)(request,env)};
