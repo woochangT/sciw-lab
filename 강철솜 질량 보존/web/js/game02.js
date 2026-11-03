@@ -156,6 +156,7 @@
     if (opts.center) centerIn(); else centerOff();
     for (let p = 0; p < pages.length; p++) {
       if (my !== sayToken) return;
+      logAttempt({stage:S.stage,questId:'professorSpeech',feedbackText:pages[p],inReplyTo:S.lastAnswerAttempt||'',feedbackSource:'displayed'});
       bubble.querySelector('.body').innerHTML = pages[p].map((l) => `<p>${esc(l)}</p>`).join('');
       bubble.classList.add('show');
       bubble.classList.remove('pop'); void bubble.offsetWidth; bubble.classList.add('pop');
@@ -393,6 +394,7 @@
     if (diag !== undefined) a.diagnosis = diag;
     if (hint !== undefined) a.hintLevel = hint;
     if (elements !== undefined) a.judgment = elements;
+    if(a.input)S.lastAnswerAttempt=a.attemptId;
     API.logAttempt(a);
   }
 
@@ -832,11 +834,11 @@
       text: true, rows: 3, send: '교수님께 말하기', underBoard: true,
       onSubmit: async ({ text }) => {
         const r = await evaluateText('first', text);
+        logAttempt(Object.assign({stage:'claim',questId:'first',input:text,diag:r.diag,pass:r.pass},judgmentRecord(r)));
         if (!r.pass) { await say(feedbackLines('first', r.nextQuestion)); return false; }
         S.firstAnswer = text;
         S.firstTag = r.diag;
         closeReply();
-        logAttempt(Object.assign({ stage: 'claim', questId: 'first', input: text, diag: S.firstTag }, judgmentRecord(r)));
         updateSession(Object.assign({ firstAnswer: text, firstError: S.firstTag }, judgmentRecord(r)));
         renderSmallBoard();
         await say(M.lines.firstThanks, { center: true });

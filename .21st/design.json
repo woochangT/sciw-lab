@@ -119,6 +119,10 @@
     {
       "date": "2026-11-03",
       "decision": "Teacher manages multiple classes: overview first, then class and game analysis. Adapt 21st Heat Map XL 2407 and InlineAnalyticsTable 7475 metadata with native accessible tables and paper/board primitives. Separate missing judgments and rubric versions; version note-page exposure and preserve latest frontend tutorial/card changes."
+    },
+    {
+      "date": "2026-11-03",
+      "decision": "Readable 16px body / minimum 14px labels; stored criterion quotes and reasons first, then stage-grouped conversations using existing board and paper primitives."
     }
   ],
   "evidence": [],

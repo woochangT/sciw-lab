@@ -46,3 +46,5 @@ Worker 로그에는 실패 종류/HTTP 상태만 기록한다. 답안·API 키�
 2026-11-03 GitHub Pages 연결: `https://woochangt.github.io/sciw-lab/teacher.html`은 정적 호스팅이므로 `teacher/config.js`에서 기존 Workers의 `/api/sheet`를 사용한다. Workers는 자기 Origin과 `https://woochangt.github.io`만 허용하며 와일드카드·쿠키 허용을 사용하지 않는다. 교차 출처 JSON 분석 요청은 `OPTIONS`로 경로별 메서드와 `Content-Type`만 사전 확인한다. 성공·오류 응답 모두 허용된 Origin의 CORS 헤더와 `Vary: Origin`을 반환한다. Origin은 경로를 포함하지 않으므로 허용 단위는 GitHub Pages 계정 출처다. 로컬 미리보기는 기존 로컬 API를 계속 사용한다.
 
 CORS 동작은 [Cloudflare의 공식 예제](https://developers.cloudflare.com/workers/examples/cors-header-proxy/)를 참고했다. 자동 검사는 Pages 조회·분석 사전 요청·합성 분석·오류 응답·허용하지 않은 출처 거부를 포함한다.
+
+2026-11-03 대화 기록 v2: A:T 범위를 읽어 J:Q의 분할 대화 배열을 복원하고, 기존 개별 attempt 행과 함께 반/게임별로 필터링한다. 대화의 세션·미션·반이 행과 다르면 해당 행을 오류로 집계한다. 오버뷰에는 여전히 개별 답안·대화를 포함하지 않는다. 교사 페이지는 `record-ui.js`의 항목별 근거와 단계별 대화를 사용하며, GitHub Pages 자산 버전을 journal-v2로 갱신한다.

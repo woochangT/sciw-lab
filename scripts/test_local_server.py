@@ -144,4 +144,4 @@ class MultiMissionReaderTests(unittest.TestCase):
         with patch('local_server.urllib.request.urlopen',side_effect=read):data=SheetReader().read()
         self.assertEqual({s['missionId'] for s in data['sessions']},{'m01','m02'})
         self.assertEqual(len(requested),2)
-        self.assertTrue(all(q['range']==['A:I'] for q in requested))
+        self.assertTrue(all(q['range']==['A:T'] for q in requested))

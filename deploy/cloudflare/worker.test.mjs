@@ -10,7 +10,7 @@ const toCSV=(records,mission)=>[head,...records.map(s=>['session',s.sessionId,s.
 const fixtures={m01:[session('a','3-2'),session('b','03-02'),session('c','3-3'),session('qa_auto','3-2'),session('t','test')],m02:[session('d','3-2','m02')]};
 function setup(){const calls=[];return {calls,handler:createHandler(async(url,opts={})=>{
   calls.push({url:String(url),opts});
-  if(String(url).startsWith('https://docs.google.com/')){const q=new URL(url).searchParams;assert.equal(q.get('range'),'A:I');const m=q.get('gid')==='807310001'?'m01':'m02';return new Response(toCSV(fixtures[m],m),{headers:{'Content-Type':'text/csv'}})}
+  if(String(url).startsWith('https://docs.google.com/')){const q=new URL(url).searchParams;assert.equal(q.get('range'),'A:T');const m=q.get('gid')==='807310001'?'m01':'m02';return new Response(toCSV(fixtures[m],m),{headers:{'Content-Type':'text/csv'}})}
   return Response.json({ok:true,analysis:{model:'gpt-6-luna',effort:'medium',result:{headline:'합성 헤드라인'}}});
 })}}
 const request=(path,body,headers={})=>new Request('https://preview.example'+path,body===undefined?{headers}:{method:'POST',headers:{Origin:'https://preview.example','Content-Type':'application/json',...headers},body:JSON.stringify(body)});

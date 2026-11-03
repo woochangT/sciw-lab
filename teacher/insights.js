@@ -9,12 +9,12 @@
  function evaluation(data,s){
   const last=M.submissions(data,s).at(-1),candidate=M.obj(last?.judgment),saved=M.obj(s.finalJudgment);
   const judgment=Object.keys(candidate).length?candidate:saved;
-  const record=Object.keys(candidate).length?{...s,...last}:s;
+  const record=Object.keys(candidate).length?{...s,...last,analysis:last.analysis||M.obj(last.extra).analysis||{}}:s;
   const has=(M.missions[s.missionId||'m01']?.elements||[]).some(k=>(k==='W3/WB'?['W3','WB']:[k]).some(id=>known(judgment[id])));
   const rubric=typeof record.rubricVersion==='string'?record.rubricVersion.slice(0,100):'',method=M.judgmentMethod(record),version=typeof record.judgeVersion==='string'?record.judgeVersion.slice(0,100):'버전 미기록';
   const key=has?(rubric||[method,version||'버전 미기록'].join(' · ')):'';
   const label=rubric?rubric.replace('m02-docx-','AI 루브릭 '):key;
-  return {judgment,key,label,has,written:Boolean(s.finalAnswer||last)};
+  return {judgment,key,label,has,record,analysis:M.obj(record.analysis||M.obj(record.extra).analysis),written:Boolean(s.finalAnswer||last)};
  }
  function element(judgment,key){
   const keys=key==='W3/WB'?['W3','WB']:[key],values=keys.map(k=>judgment[k]);

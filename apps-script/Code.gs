@@ -37,10 +37,12 @@ const DEFAULT_MISSION = 'm01';
 // 미션별 탭에 기록하고 기존 Sessions/Attempts에도 같은 기록을 반영한다.
 const TARGET_SPREADSHEET_ID = '1oA71tk0hqCXC0ImV3c5MZq938hZFKcj2XkJnB3XNnAU';
 const RECORD_HEADERS = ['recordType','recordId','sessionId','classCode','studentNo','missionId','createdAt','updatedAt','payload'];
+const HISTORY_HEADERS = ['history1','history2','history3','history4','history5','history6','history7','history8','처음 생각','최종 답안','단계별 대화'];
+const ALL_RECORD_HEADERS = RECORD_HEADERS.concat(HISTORY_HEADERS);
 const MISSION_SHEETS = {m01:'감자', m02:'강철솜'};
 function doGet(e) {
   const p = e && e.parameter || {};
-  if (p.action === 'ping') return json_({ok:true, schema:'mission-records-v1', missions:['m01','m02']});
+  if (p.action === 'ping') return json_({ok:true, schema:'session-journal-v2', missions:['m01','m02']});
   if (p.action === 'classData') return json_({ok:false,error:'교사 인증이 필요합니다'});
   return json_({ok:true});
 }
@@ -84,11 +86,14 @@ function missionSheet_(missionId) {
   if (!sh) throw new Error('미션 탭이 없습니다');
   const header = sh.getRange(1,1,1,RECORD_HEADERS.length).getValues()[0].map(String);
   if (header.join('\t') !== RECORD_HEADERS.join('\t')) throw new Error('미션 탭 헤더가 다릅니다');
+  const tail=sh.getRange(1,10,1,HISTORY_HEADERS.length).getValues()[0];
+  if(tail.some(function(v,i){return v && String(v)!==HISTORY_HEADERS[i];})) throw new Error('대화 기록 열 헤더가 다릅니다');
+  if(tail.some(function(v,i){return String(v)!==HISTORY_HEADERS[i];})) sh.getRange(1,10,1,HISTORY_HEADERS.length).setValues([HISTORY_HEADERS]);
   return sh;
 }
 function missionRows_(missionId) {
   const sh = missionSheet_(missionId), last = sh.getLastRow();
-  return {sh:sh, rows:last < 2 ? [] : sh.getRange(2,1,last-1,RECORD_HEADERS.length).getDisplayValues()};
+  return {sh:sh, rows:last < 2 ? [] : sh.getRange(2,1,last-1,ALL_RECORD_HEADERS.length).getDisplayValues()};
 }
 function locate_(kind,id) {
   const hits=[];
@@ -97,14 +102,26 @@ function locate_(kind,id) {
   return hits[0] || null;
 }
 function putRecord_(kind, id, record, mission, existing) {
-  if (!id || typeof id !== 'string' || id.length > 128 || JSON.stringify(record).length > 40000) throw new Error('기록이 잘못되었거나 너무 큽니다');
+  const clean=Object.assign({},record),history=Array.isArray(clean.attempts)?clean.attempts:[];
+  delete clean.attempts;
+  const serialized=JSON.stringify(clean),journal=JSON.stringify(history);
+  if (!id || typeof id !== 'string' || id.length > 128 || serialized.length > 45000 || journal.length>360000) throw new Error('기록이 잘못되었거나 너무 큽니다. 전송 기록을 보관하고 다시 확인해 주세요.');
   const sh = existing ? existing.sh : missionSheet_(mission), timestamp = new Date().toISOString();
-  const row = [kind,id,String(record.sessionId || ''),String(record.classCode || ''),String(record.studentNo || ''),mission,String(record.createdAt || record.startedAt || timestamp),String(record.updatedAt || timestamp),JSON.stringify(record)];
-  sh.getRange(existing ? existing.row : sh.getLastRow()+1,1,1,RECORD_HEADERS.length).setNumberFormat('@').setValues([row]);
+  const row = [kind,id,String(record.sessionId || ''),String(record.classCode || ''),String(record.studentNo || ''),mission,String(record.createdAt || record.startedAt || timestamp),String(record.updatedAt || timestamp),serialized];
+  const chunks=[];let offset=0;
+  while(offset<journal.length){let end=Math.min(offset+45000,journal.length);const code=journal.charCodeAt(end-1);if(end<journal.length&&code>=0xD800&&code<=0xDBFF)end--;chunks.push(journal.slice(offset,end));offset=end;}
+  if(chunks.length>8)throw new Error('대화 기록 크기 한도: 대기 기록을 보관하고 확인해 주세요.');
+  for(let i=0;i<8;i++)row.push(kind==='session'?(chunks[i]||''):'');
+  const conversation=history.filter(function(a){return a.input||a.feedbackText||a.feedbackQuestion;}).map(function(a){return '['+(a.stage||'활동')+' · '+(a.questId||'')+']\n학생: '+(a.input||'입력 미기록')+'\n교수: '+([].concat(a.feedbackText||a.feedbackQuestion||'피드백 미기록').join('\n'));}).join('\n\n');
+  const display=function(v){v=String(v||'');return v.charAt(0)==='='?"'"+v:v;};
+  row.push(display(record.firstAnswer),display(record.finalAnswer),conversation.length>44000?conversation.slice(0,44000)+'\n[전체 대화는 history 열에 보존됨]':conversation);
+  sh.getRange(existing ? existing.row : sh.getLastRow()+1,1,1,ALL_RECORD_HEADERS.length).setNumberFormat('@').setValues([row]);
 }
 function readPayload_(record) {
   let value; try { value=JSON.parse(record[8]); } catch(e) { throw new Error('기록 payload를 읽을 수 없습니다'); }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('기록 payload가 잘못되었습니다');
+  const journal=record.slice(9,17).join('');
+  if(journal){value.attempts=JSON.parse(journal);if(!Array.isArray(value.attempts))throw new Error('대화 기록 형식 오류');}
   // 이전 이관본에 JSON 문자열로 남은 필드도 새 기록과 같은 형태로 읽는다.
   return rowToObj_(Object.keys(value), Object.keys(value).map(function(k) { return value[k]; }));
 }
@@ -113,13 +130,11 @@ function applyMissionOp_(op) {
   writeMissionOp_(op);
   if (op.action === 'startSession') {
     const saved = locate_('session', op.session.sessionId);
-    upsertSession_(op.session.sessionId, readPayload_(saved.values));
+    const copy=readPayload_(saved.values);delete copy.attempts;upsertSession_(op.session.sessionId, copy);
   } else if (op.action === 'updateSession') {
     const saved = locate_('session', op.sessionId);
-    upsertSession_(op.sessionId, readPayload_(saved.values));
-  } else if (op.action === 'logAttempt') {
-    const saved = locate_('attempt', op.attempt.attemptId);
-    appendAttempt_(readPayload_(saved.values));
+    const copy=readPayload_(saved.values);delete copy.attempts;upsertSession_(op.sessionId, copy);
+
   }
 }
 
@@ -149,12 +164,13 @@ function writeMissionOp_(op) {
       if (existing.mission!==mission || String(old.classCode)!==String(fields.classCode) || String(old.studentNo)!==String(fields.studentNo)) throw new Error('세션 범위 충돌');
       return; // 재시작 재전송이 기존 진행을 되돌리지 않는다.
     }
-    putRecord_('session',sid,Object.assign({},fields,{missionId:mission}),mission,null); return;
+    putRecord_('session',sid,Object.assign({},fields,{missionId:mission,recordSchema:'session-journal-v2',attempts:[]}),mission,null); return;
   }
   if (!existing) throw new Error('세션이 없어 기록을 보류합니다');
   const old=readPayload_(existing.values), mission=existing.mission;
   if (op.action==='updateSession') {
     ['sessionId','missionId','classCode','studentNo'].forEach(function(k){ if (fields[k]!==undefined && String(fields[k])!==String(old[k])) throw new Error('세션 범위 변경 불가'); });
+    if(Object.prototype.hasOwnProperty.call(fields,'attempts'))throw new Error('대화는 logAttempt로 기록해 주세요');
     const merged=Object.assign({},old,fields,{sessionId:sid,missionId:mission,updatedAt:new Date().toISOString()});
     putRecord_('session',sid,merged,mission,existing); return;
   }
@@ -162,13 +178,16 @@ function writeMissionOp_(op) {
   ['missionId','classCode','studentNo'].forEach(function(k){const expected=k==='missionId' ? mission : old[k]; if(fields[k]!==undefined && String(fields[k])!==String(expected)) throw new Error('시도 범위 충돌');});
   const previous=locate_('attempt',fields.attemptId);
   if (previous) { if(previous.mission!==mission || previous.values[2]!==sid) throw new Error('시도 ID 충돌'); return; }
-  putRecord_('attempt',fields.attemptId,Object.assign({},fields,{missionId:mission,classCode:old.classCode,studentNo:old.studentNo}),mission,null);
+  const history=old.attempts||[];
+  if(history.some(function(a){return a.attemptId===fields.attemptId;}))return;
+  history.push(Object.assign({},fields,{missionId:mission,classCode:old.classCode,studentNo:old.studentNo,eventOrder:fields.eventOrder||history.length+1,createdAt:fields.createdAt||new Date().toISOString()}));
+  putRecord_('session',sid,Object.assign({},old,{attempts:history,recordSchema:'session-journal-v2',updatedAt:new Date().toISOString()}),mission,existing);
 }
 function getMissionClassData_(classCode, missionId) {
   const all=missionRows_(missionId).rows, sessions=all.filter(r=>r[0]==='session' && r[3]===classCode).map(readPayload_);
   const ids=new Set(sessions.map(s=>String(s.sessionId)));
   const attempts=all.filter(r=>r[0]==='attempt' && ids.has(r[2])).map(readPayload_);
-  return {sessions:sessions,attempts:attempts};
+  return {sessions:sessions,attempts:attempts.concat(...sessions.map(function(s){return s.attempts||[];}))};
 }
 // 운영 중인 구버전 쓰기를 멈춘 뒤, 기존 탭을 읽어 최신 분을 다시 반영한다. 원본 탭은 수정하지 않는다.
 function reconcileLegacy() {

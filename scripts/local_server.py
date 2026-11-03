@@ -25,6 +25,7 @@ MISSIONS = {'m01':{'name':'감자 삼투','gid':'807310001'}, 'm02':{'name':'강
 SHEET_URL = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit#gid=807310002'
 HEADERS = ['recordType','recordId','sessionId','classCode','studentNo','missionId','createdAt','updatedAt','payload']
 SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxS7kGYURyYRhRZHWZZw0B0sChUE5UAFP3TqUhxLcAMDty_1OGk0OrxVQzKv2RdhCG4/exec'
+HISTORY_HEADERS = ['history1','history2','history3','history4','history5','history6','history7','history8','처음 생각','최종 답안','단계별 대화']
 JSON_FIELDS = ('stageTimes','clueCards','modelCards','questPassed','finalJudgment','errorCounts','hintMax','judgment','extra')
 
 def flag(value):
@@ -38,7 +39,7 @@ def test_record(record):
 
 def parse_records(text, mission_id='m02'):
     reader = csv.DictReader(io.StringIO(text))
-    if reader.fieldnames != HEADERS:
+    if not reader.fieldnames or reader.fieldnames[:9] != HEADERS or any(h and h != (HISTORY_HEADERS[i] if i < len(HISTORY_HEADERS) else None) for i,h in enumerate(reader.fieldnames[9:])):
         raise ValueError('미션 탭의 제목 행을 확인해 주세요. 기존 9개 열이 필요합니다.')
     sessions, attempts, seen, invalid = [], [], set(), 0
     for row in reader:
@@ -67,7 +68,13 @@ def parse_records(text, mission_id='m02'):
                         record[field] = json.loads(record[field])
                     except ValueError:
                         pass
+            journal = ''.join(row.get(h,'') or '' for h in HISTORY_HEADERS[:8])
+            history = json.loads(journal) if journal else []
+            if not isinstance(history,list) or any(not isinstance(a,dict) or not isinstance(a.get('attemptId'),str) or a.get('sessionId') != record['sessionId'] or a.get('missionId') != mission_id or str(a.get('classCode')) != str(record.get('classCode')) for a in history):
+                raise ValueError('대화 기록 범위가 일치하지 않습니다.')
             (sessions if kind == 'session' else attempts).append(record)
+            if kind == 'session':
+                attempts.extend(history)
         except (ValueError, KeyError, TypeError):
             invalid += 1
     return {'sessions':sessions, 'attempts':attempts, 'invalidRows':invalid}
@@ -83,7 +90,7 @@ class SheetReader:
                 return self.cached
             data={'sessions':[], 'attempts':[], 'invalidRows':0}
             for mission_id, mission in MISSIONS.items():
-                query = urllib.parse.urlencode({'tqx':'out:csv','headers':'1','gid':mission['gid'],'range':'A:I'})
+                query = urllib.parse.urlencode({'tqx':'out:csv','headers':'1','gid':mission['gid'],'range':'A:T'})
                 request = urllib.request.Request(f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?{query}', headers={'User-Agent':'SciwLab-LocalPreview/2.0'})
                 try:
                     with urllib.request.urlopen(request, timeout=20) as response:

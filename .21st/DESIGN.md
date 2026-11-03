@@ -13,3 +13,5 @@ Retain saved GPT-6 Luna medium teaching focus and printable reports in class/gam
 21st metadata references: Heat Map XL 2407 and InlineAnalyticsTable 7475 informed a matrix with numeric cell evidence and row drill-in. Adapt using the existing native HTML/CSS/JS primitives rather than importing a React dependency. Existing game summary cards and board/paper controls are reused. Preserve responsive table-only scrolling, keyboard focus, reduced motion, error/loading/empty states and source separation.
 
 Tokens: ink #2b2a28, board #2f5446/#1f3a30, wood #8a6a45, chalk #f6f3ea, paper #fffdf8, brass #c99a3e. Use color and text together for cell meaning.
+
+2026-11-03 follow-up: increase body copy to 16px and supporting labels to at least 14px. A clicked student/criterion cell opens the stored reason and exact matching quote before the full answer. Stage-grouped student/professor conversations reuse the paper detail folds; use board color for actual professor speech and cream for student answers. Missing historical explanations remain explicitly missing. Preserve the current lab identity.

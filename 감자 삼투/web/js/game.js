@@ -256,6 +256,7 @@
     updateDo();
     for (let i = 0; i < bubbles.length; i++) {
       const last = i === bubbles.length - 1;
+      if(S.session)logAttempt({stage:S.stage,questId:'professorSpeech',feedbackText:bubbles[i],inReplyTo:S.lastAnswerAttempt||'',feedbackSource:'displayed'});
       showBubble(bubbles[i], { tap: true, model: last ? opts.model : null });
       await waitTap();
     }
@@ -478,6 +479,7 @@
     const n = (S.attemptNo[o.questId] = (S.attemptNo[o.questId] || 0) + 1);
     const t = now();
     const attempt = {
+      ...o,
       attemptId: API.uid('a'),
       sessionId: S.session.sessionId,
       classCode: S.session.classCode,
@@ -497,6 +499,7 @@
       createdAt: new Date(t).toISOString()
     };
     S.attemptClock = t;
+    if(attempt.input)S.lastAnswerAttempt=attempt.attemptId;
     API.logAttempt(attempt);
     const fields = {};
     if (attempt.errorType) {

@@ -11,7 +11,7 @@ test('two missions save to separate tabs, retry safely, and teacher access is sc
  const m=make(), key='synthetic-test-key-1234567890';
  const ops=id=>[{action:'startSession',session:{sessionId:id,missionId:id==='s1'?'m01':'m02',classCode:'A',studentNo:'1',firstAnswer:'가상 답'}},{action:'logAttempt',attempt:{attemptId:'a'+id,sessionId:id,input:'가상 시도'}},{action:'updateSession',sessionId:id,fields:{finalAnswer:'가상 최종 답'}}];
  for(const id of ['s1','s2']) {assert.equal(m.post({action:'batch',ops:ops(id)}).ok,true);assert.equal(m.post({action:'batch',ops:ops(id)}).ok,true)}
- assert.equal(m.sheets['감자'].rows.length,3);assert.equal(m.sheets['강철솜'].rows.length,3);
+ assert.equal(m.sheets['감자'].rows.length,2);assert.equal(m.sheets['강철솜'].rows.length,2);
  assert.equal(m.post({action:'classData',classCode:'A',missionId:'m01',teacherKey:key}).ok,false);
  assert.equal(m.get({action:'classData',classCode:'A',missionId:'m01'}).ok,false);
  m.setAccess([{classCode:'A',missionId:'m01',keySha256:crypto.createHash('sha256').update(key).digest('hex')}]);
@@ -47,9 +47,10 @@ test('legacy mirrors preserve mission-specific fields and retries repair partial
  const saved=JSON.parse(m.sheets['강철솜'].rows[1][8]);
  assert.equal(saved.rubricVersion,'m02-docx-1.1.0');assert.equal(saved.analysis.checks.W1b.quote,'합성 최종 답');
  const extra=JSON.parse(row[h.indexOf('extra')]);assert.equal(extra.analysis.checks.W1b.status,'met');
- m.sheets.Attempts.rows.pop(); // 미션 쓰기 뒤 기존 시트 쓰기가 실패한 경우 재현
+ assert.equal(m.sheets.Attempts,undefined); // 새 로그는 행을 추가하지 않고 세션의 대화 열을 갱신한다.
  assert.equal(m.post(attempt).ok,true);assert.equal(m.post(attempt).ok,true);
- assert.equal(m.sheets.Attempts.rows.length,2);assert.equal(m.sheets['강철솜'].rows.length,3);
+ const history=JSON.parse(m.sheets['강철솜'].rows[1].slice(9,17).join(''));
+ assert.equal(history.length,1);assert.equal(history[0].input,'합성 시도');assert.equal(m.sheets['강철솜'].rows.length,2);
 });
 test('an in-flight legacy session resumes and rejects mission changes',()=>{
  const m=make();
@@ -67,4 +68,22 @@ test('previously migrated JSON fields remain typed and do not erase final judgme
  assert.equal(m.post({action:'updateSession',sessionId:'old',fields:{hintTotal:1}}).ok,true);
  const h=m.sheets.Sessions.rows[0];assert.equal(m.sheets.Sessions.rows[1][h.indexOf('finalC')],'TRUE');
  assert.equal(JSON.parse(m.sheets['감자'].rows[1][8]).questPassed.C,true);
+});
+
+test('one login stays one mission row across many answers, feedback pages and retries; hosted/local readers round-trip chunked dialogue',async()=>{
+ const m=make(),start={action:'startSession',session:{sessionId:'journal',missionId:'m02',classCode:'3-2',studentNo:'2'}};
+ assert.equal(m.post(start).ok,true);
+ const answer={action:'logAttempt',attempt:{attemptId:'answer',sessionId:'journal',stage:'compose',questId:'final',input:('합성 답안😀').repeat(10000),judgment:{W1b:true},analysis:{checks:{W1b:{status:'met',quote:'합성 답안',reason:'합성 이유'}}}}};
+ const feedback={action:'logAttempt',attempt:{attemptId:'feedback',sessionId:'journal',stage:'compose',questId:'professorSpeech',feedbackText:['산소의 출처를 설명해 보겠나?'],feedbackSource:'displayed',inReplyTo:'answer'}};
+ for(const op of [answer,feedback,answer,feedback])assert.equal(m.post(op).ok,true);
+ assert.equal(m.sheets['강철솜'].rows.length,2);assert.equal(m.sheets['감자'].rows.length,1);assert.equal(m.sheets.Sessions.rows.length,2);assert.equal(m.sheets.Attempts,undefined);
+ const {parseRecords}=await import('../../deploy/cloudflare/worker.mjs');
+ const quote=v=>'"'+String(v??'').replaceAll('"','""')+'"';
+ const csv=m.sheets['강철솜'].rows.map(r=>r.map(quote).join(',')).join('\r\n');
+ const parsed=parseRecords(csv,'m02');assert.equal(parsed.invalidRows,0);assert.equal(parsed.sessions.length,1);assert.equal(parsed.attempts.length,2);assert.equal(parsed.attempts[0].input,answer.attempt.input);assert.equal(parsed.attempts[0].eventOrder,1);assert.equal(parsed.attempts[1].eventOrder,2);assert.equal(parsed.attempts[1].feedbackText[0],feedback.attempt.feedbackText[0]);
+ const {spawnSync}=require('node:child_process');
+ const py=spawnSync('python3',['-c',"import sys,json;sys.path.insert(0,'scripts');from local_server import parse_records;print(json.dumps(parse_records(sys.stdin.read(),'m02'),ensure_ascii=False))"],{input:csv,encoding:'utf8'});
+ assert.equal(py.status,0,py.stderr);assert.deepEqual(JSON.parse(py.stdout),parsed);
+ assert.equal(m.post({action:'logAttempt',attempt:{attemptId:'conflict',sessionId:'journal',missionId:'m01',input:'다른 미션'}}).ok,false);
+ assert.equal(m.sheets['강철솜'].rows.length,2);
 });

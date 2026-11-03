@@ -7,6 +7,7 @@ const SHEET='1oA71tk0hqCXC0ImV3c5MZq938hZFKcj2XkJnB3XNnAU';
 const MISSIONS={m01:{name:'감자 삼투',gid:'807310001'},m02:{name:'강철솜 질량 보존',gid:'807310002'}};
 const SCRIPT='https://script.google.com/macros/s/AKfycbxS7kGYURyYRhRZHWZZw0B0sChUE5UAFP3TqUhxLcAMDty_1OGk0OrxVQzKv2RdhCG4/exec';
 const HEADERS=['recordType','recordId','sessionId','classCode','studentNo','missionId','createdAt','updatedAt','payload'];
+const HISTORY_HEADERS=['history1','history2','history3','history4','history5','history6','history7','history8','처음 생각','최종 답안','단계별 대화'];
 const JSON_FIELDS=['stageTimes','clueCards','modelCards','questPassed','finalJudgment','errorCounts','hintMax','judgment','extra'];
 const PAGES_ORIGIN='https://woochangt.github.io';
 const API_PATHS=new Map([['/api/sheet/classes','GET'],['/api/sheet/class','GET'],['/api/sheet/analysis','POST']]);
@@ -36,23 +37,27 @@ export function csv(text){
 }
 export function parseRecords(text,mission){
   const rows=csv(text),head=rows.shift();
-  if(JSON.stringify(head)!==JSON.stringify(HEADERS))throw new HttpError(502,'미션 탭의 제목 행을 확인해 주세요.');
+  if(JSON.stringify(head?.slice(0,9))!==JSON.stringify(HEADERS)||head.slice(9).some((h,i)=>h&&h!==HISTORY_HEADERS[i]))throw new HttpError(502,'미션 탭의 제목 행을 확인해 주세요.');
   const result={sessions:[],attempts:[],invalidRows:0},seen=new Set();
   for(const values of rows){
     if(!values[1])continue;
     try{
       const r=Object.fromEntries(HEADERS.map((key,i)=>[key,values[i]])),record=JSON.parse(r.payload),key=r.recordType+':'+r.recordId;
-      if(values.length!==9||!['session','attempt'].includes(r.recordType)||!record||Array.isArray(record)||typeof record!=='object'||r.missionId!==mission||(record.missionId&&record.missionId!==mission)||seen.has(key)||String(record.sessionId??'')!==r.sessionId||String(record.classCode??'')!==r.classCode)throw Error();
+      if(values.length<9||values.length>20||!['session','attempt'].includes(r.recordType)||!record||Array.isArray(record)||typeof record!=='object'||r.missionId!==mission||(record.missionId&&record.missionId!==mission)||seen.has(key)||String(record.sessionId??'')!==r.sessionId||String(record.classCode??'')!==r.classCode)throw Error();
       seen.add(key);record.missionId=mission;
       for(const field of JSON_FIELDS)if(typeof record[field]==='string'&&record[field]){try{record[field]=JSON.parse(record[field])}catch{}}
+      const journal=values.slice(9,17).join('');
+      const history=journal?JSON.parse(journal):[];
+      if(!Array.isArray(history)||history.some(a=>!a||typeof a.attemptId!=='string'||a.sessionId!==record.sessionId||a.missionId!==mission||String(a.classCode)!==String(record.classCode)))throw Error();
       result[r.recordType==='session'?'sessions':'attempts'].push(record);
+      if(r.recordType==='session')result.attempts.push(...history);
     }catch{result.invalidRows++}
   }
   return result;
 }
 export async function readSheet(fetcher){
   const parts=await Promise.all(Object.entries(MISSIONS).map(async([mission,info])=>{
-    const query=new URLSearchParams({tqx:'out:csv',headers:'1',gid:info.gid,range:'A:I'});
+    const query=new URLSearchParams({tqx:'out:csv',headers:'1',gid:info.gid,range:'A:T'});
     try{
       const res=await fetcher(`https://docs.google.com/spreadsheets/d/${SHEET}/gviz/tq?${query}`,{signal:AbortSignal.timeout(20000)});
       if(!res.ok||!res.headers.get('Content-Type')?.includes('text/csv'))throw Error();
