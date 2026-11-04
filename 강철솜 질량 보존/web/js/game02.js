@@ -34,6 +34,7 @@
 
   async function evaluateText(stage, text) {
     const displayedPrompt = $('#bubble .body').innerText;
+    S.lastAnswerAttempt = API.recordInput(S.sessionId, {stage:S.stage,input:text,displayedPrompt,evaluationStage:stage});
     await say(stage === 'final' ? M.lines.finalWait : ['흠…']);
     const offset = stage === 'final' ? $('#answer').value.indexOf(text) : 0;
     const started = now();
@@ -386,7 +387,7 @@
   }
 
   /* ───────── 기록 ───────── */
-  function updateSession(fields) { if (S.sessionId) API.updateSession(S.sessionId, fields); }
+  function updateSession(fields, immediate) { if (S.sessionId) API.updateSession(S.sessionId, fields, immediate); }
   // 시트(Apps Script) 열 이름에 맞춘다: diag→diagnosis, hint→hintLevel, elements→judgment. 나머지 값은 extra 열에 모인다.
   function logAttempt(o) {
     if (!S.sessionId) return;
@@ -2011,7 +2012,15 @@
     btn.disabled = true;
     btn.querySelector('.label').textContent = '제출하는 중…';
     if (S.sessionId) API.updateSession(S.sessionId, { submittedToTeacher: true, submittedAt: new Date().toISOString() }, true);
-    await waitSaved(5000);
+    const saved = await API.whenSaved(S.sessionId, 20000);
+    if (!saved) {
+      btn.disabled = false;
+      btn.querySelector('.label').textContent = '저장 다시 시도';
+      let notice = $('#submissionSaveNotice');
+      if (!notice) { notice = document.createElement('p'); notice.id = 'submissionSaveNotice'; notice.setAttribute('role','status'); btn.after(notice); }
+      notice.textContent = '서버 저장을 아직 확인하지 못했어요. 답안은 이 브라우저에 보관 중입니다. 연결을 확인하고 다시 눌러 주세요.';
+      return;
+    }
     const wrap = $('#clearScreen .wrap');
     wrap.classList.add('submitted');
     wrap.innerHTML = `
@@ -2021,12 +2030,6 @@
     $('#againBtn').addEventListener('click', () => location.reload());
     $('#exitBtn').addEventListener('click', () => { location.href = '../../index.html'; });
     typeOut(prepType(wrap.querySelector('.say')), 60);
-  }
-  // 기록이 저장될 때까지(또는 시간이 다 될 때까지) 기다린다. 못 보낸 기록은 브라우저에 남아 다음에 다시 보낸다.
-  async function waitSaved(ms) {
-    const until = Date.now() + ms;
-    API.flush();
-    while (API.pending() && Date.now() < until) await sleep(200);
   }
   function finish(type, text, r) {
     S.phase = 'complete';
@@ -2053,6 +2056,7 @@
       E6: '다음엔 실험 결과와 설명이 서로 맞는지 확인해 보세요.'
     };
     const missLine = type === 'partial' ? (resultNextSteps[r.ask] || '다음엔 숫자가 무슨 뜻인지까지 설명해 보세요.') : '';
+    logAttempt({stage:'compose',questId:'resultFeedback',feedbackText:[type === 'full' ? M.lines.clearFull : M.lines.clearPartial,...praise,...pops,missLine].filter(Boolean),feedbackSource:'result'});
     const first = S.firstAnswer || '(없음)';
     $('#clearScreen .wrap').innerHTML = `
       <div class="top rv"><div class="professor-art" data-expression="${type === 'full' ? 'acknowledging' : 'skeptical'}"></div>
@@ -2104,6 +2108,8 @@
     S.sessionId = API.uid('s');
     takeTutorialStatus();
     API.startSession({ sessionId: S.sessionId, missionId: M.id, classCode, studentNo, startedAt: new Date().toISOString(), stage: 'explore', tutorial: S.tutorial, missionVersion: 'm02-1.2', eventSchemaVersion: 'm02-events-v2', hintSchemaVersion: 'm02-note-pages-v1', rubricVersion: RUBRIC.VERSION, hintLevel: 0 });
+    API.watchDrafts(() => ({stage:S.stage}));
+    API.flush();
     $('#who').textContent = `${classCode} · ${studentNo}번`;
     $('#startScreen').hidden = true;
     S.started = true;

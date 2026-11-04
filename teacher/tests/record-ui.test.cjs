@@ -20,3 +20,8 @@ test('potato final defense submissions provide their own judgment and not the in
  const potato={...s,missionId:'m01',finalJudgment:{C:false}},last={attemptId:'p',sessionId:'s',stage:'defense',questId:'FINAL',input:'최종 감자 답',judgment:{C:true}};
  assert.equal(M.submissions({attempts:[last]},potato).length,1);assert.equal(I.evaluation({attempts:[last]},potato).judgment.C,true);
 });
+test('unfinished inputs are visible without being mistaken for a final answer or an automatic judgment',()=>{
+ const html=U.timeline({attempts:[]},{...s,endedAt:'',stage:'compose',draftAnswer:'작성 중인 <원문>',draftQuestion:'질문 <내용>',draftSavedAt:'2026-11-04'});
+ assert.match(html,/작성 중인 답안 · 최종 서술/);assert.match(html,/아직 평가되지 않은 입력/);assert.match(html,/작성 중인 &lt;원문&gt;/);assert.doesNotMatch(html,/<원문>/);
+ assert.doesNotMatch(U.timeline({attempts:[]},{...s,endedAt:'2026-11-04',draftAnswer:'이전 초안'}),/작성 중인 답안/);
+});

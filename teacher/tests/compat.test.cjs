@@ -4,7 +4,8 @@ function setup(path, config, failure=false){
  const localStorage={getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)};
  const window={SCIW_CONFIG:config,addEventListener(){}};
  const document={readyState:'loading',addEventListener(){},getElementById(){return null}};
- const context={window,document,localStorage,AbortController,setTimeout(){},clearTimeout(){},fetch:async (url,opts)=>{requests.push({url,body:JSON.parse(opts.body)});if(fail)throw Error('offline');return {ok:true,json:async()=>({ok:true})}}};
+ const context={TextEncoder,window,document,localStorage,AbortController,setTimeout(){},clearTimeout(){},fetch:async (url,opts)=>{requests.push({url,body:JSON.parse(opts.body)});if(fail)throw Error('offline');return {ok:true,json:async()=>({ok:true})}}};
+ vm.runInNewContext(fs.readFileSync('ui/record-sync.js','utf8'),context);
  vm.runInNewContext(fs.readFileSync(path,'utf8'),context);return {api:window.SCIW_API,requests,values,online(){fail=false}};
 }
 test('m01 sends existing batch protocol without credentials and retries queued operations',async()=>{

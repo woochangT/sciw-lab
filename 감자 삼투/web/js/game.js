@@ -137,6 +137,7 @@
       S.session.stageTimes[S.stage] = (S.session.stageTimes[S.stage] || 0) + (t - S.stageStart);
     }
     S.stage = stage;
+    if (S.session) API.updateSession(S.session.sessionId, {stage:stage || 'complete',stageTimes:S.session.stageTimes});
     $('#app').dataset.stage = stage || 'clear';
     document.body.dataset.stage = stage || 'clear';
     $('#questArea').hidden = !stage;
@@ -1300,6 +1301,7 @@
     const q = S.q;
     const quest = q.quest;
     const a = quest.answer;
+    S.lastAnswerAttempt = API.recordInput(S.session.sessionId, {stage:S.stage,input:q.draft.text || '',choice:q.draft.choice,questionId:quest.id});
     closeSheet();
     S.busy = true; updateDo();
     let result;
@@ -1548,6 +1550,7 @@
 
   async function submitDefense() {
     const text = S.defenseText.trim();
+    S.lastAnswerAttempt = API.recordInput(S.session.sessionId, {stage:'defense',input:text,questionId:'FINAL',displayedPrompt:S.defenseQuestion || ''});
     closeSheet();
     S.busy = true; updateDo();
     showBubble(M.thinkingLine);
@@ -1664,6 +1667,7 @@
       if (miss) next.push(M.clear.nextTime[miss]);
     }
     if (['W1', 'W2a', 'W2b', 'W3', 'C', 'D'].some((k) => el[k] && !own[k])) next.push(M.clear.cardsUsed);
+    logAttempt({stage:'defense',questId:'resultFeedback',feedbackSource:'result',feedbackText:[...praise.map(p => [p.title,...p.quotes,(p.before||'')+(p.focus||'')+(p.after||'')].join('\n')),...next]});
     const legend = cardSentences.length
       ? `<div class="hl-legend"><span><mark>${tx(M.clear.legend.own)}</mark></span><span><span class="from-card">${tx(M.clear.legend.card)}</span></span></div>`
       : '';
@@ -1728,6 +1732,8 @@
       firstError: '', errorCounts: {}, hintTotal: 0, hintMax: {}, defenseTries: 0, judgedBy: ''
     };
     API.startSession(S.session);
+    API.watchDrafts(() => ({stage:S.stage,questionId:S.q?.quest?.id || ''}));
+    API.flush();
     buildScene();
     setNose(2);
     setStage('explore');

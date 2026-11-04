@@ -39,11 +39,13 @@ function client(fetcher, configured=true) {
   const window = {SCIW_RUBRIC02:rubric,addEventListener(){}};
   vm.runInNewContext(fs.readFileSync('강철솜 질량 보존/web/js/config.js','utf8'),{window});
   if (!configured) window.SCIW_CONFIG.JUDGE_API_URL = '';
-  vm.runInNewContext(fs.readFileSync('강철솜 질량 보존/web/js/api.js','utf8'),{
+  const context = {TextEncoder,
     window,document:{readyState:'loading',addEventListener(){},getElementById(){return null}},AbortController,
     localStorage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)},
     fetch:fetcher,setTimeout(){return 1},clearTimeout(){}
-  });
+  };
+  vm.runInNewContext(fs.readFileSync('ui/record-sync.js','utf8'),context);
+  vm.runInNewContext(fs.readFileSync('강철솜 질량 보존/web/js/api.js','utf8'),context);
   return {api:window.SCIW_API,config:window.SCIW_CONFIG,values};
 }
 

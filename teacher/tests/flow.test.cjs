@@ -8,8 +8,9 @@ function api(path, url = '') {
   const values = new Map(), calls = [];
   const window = {SCIW_CONFIG:{API_URL:url,MISSION_ID:'m02',M02_SERVER_VERIFIED:true},addEventListener(){}};
   const document = {readyState:'loading',addEventListener(){},getElementById(){return null;}};
-  const context = {window, document, localStorage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)},setTimeout(){},clearTimeout(){},AbortController,fetch:async url=>{calls.push(url);return {ok:true,json:async()=>({ok:true,sessions:[],attempts:[]})}}};
-  vm.runInNewContext(fs.readFileSync(path,'utf8'),context);
+  const context = {TextEncoder,window, document, localStorage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)},setTimeout(){},clearTimeout(){},AbortController,fetch:async url=>{calls.push(url);return {ok:true,json:async()=>({ok:true,sessions:[],attempts:[]})}}};
+  vm.runInNewContext(fs.readFileSync('ui/record-sync.js','utf8'),context);
+ vm.runInNewContext(fs.readFileSync(path,'utf8'),context);
   return {api:window.SCIW_API,values,calls};
 }
 test('local submission survives retry without duplicates and appears only in its mission', async () => {
