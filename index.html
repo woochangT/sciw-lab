@@ -124,6 +124,9 @@
   footer a:hover { background: rgba(47,84,70,.7); }
   footer a:focus-visible { outline: 3px solid var(--glow); outline-offset: 2px; }
 
+  @media (min-width: 1340px) {
+    .missions { grid-template-columns: repeat(4, minmax(0, 300px)); }
+  }
   @media (max-width: 700px) {
     .wrap { padding-top: 24px; }
     .sign { padding: 16px 18px; border-width: 6px; }
@@ -170,6 +173,20 @@
         <span class="no">MISSION 02</span>
         <h2>늘어난 강철솜</h2>
         <p class="q">강철솜이 무거워진 까닭은?</p>
+        <span class="go">시작하기 →</span>
+      </a>
+      <a class="mission" data-path="주스 미각과 후각/web/index.html" href="%EC%A3%BC%EC%8A%A4%20%EB%AF%B8%EA%B0%81%EA%B3%BC%20%ED%9B%84%EA%B0%81/web/index.html">
+        <div class="art"><span class="key" style="--qx:52%;--qy:71%"><img src="intro/juice-silhouette.webp" alt="" width="265" height="520"><span class="qm" aria-hidden="true">?</span></span></div>
+        <span class="no">MISSION 03</span>
+        <h2>코를 막은 주스</h2>
+        <p class="q">주스를 구분 못 한 까닭은?</p>
+        <span class="go">시작하기 →</span>
+      </a>
+      <a class="mission" data-path="무릎 반사/web/index.html" href="%EB%AC%B4%EB%A6%8E%20%EB%B0%98%EC%82%AC/web/index.html">
+        <div class="art"><span class="key" style="--qx:46%;--qy:70%"><img src="intro/knee-silhouette.webp" alt="" width="244" height="520"><span class="qm" aria-hidden="true">?</span></span></div>
+        <span class="no">MISSION 04</span>
+        <h2>먼저 올라간 다리</h2>
+        <p class="q">다리가 먼저 올라간 까닭은?</p>
         <span class="go">시작하기 →</span>
       </a>
     </nav>
