@@ -3,7 +3,7 @@
  */
 (function (root) {
   'use strict';
-  const VERSION = 'm02-docx-1.2.0';
+  const VERSION = 'm02-docx-1.2.1'; // 1.2.1: Q1은 출입 없음과 플라스크 안의 결합을 함께 써야 통과
   const ELEMENTS = ['C', 'D-A', 'D-B', 'W1a', 'W1b', 'W2a', 'W2b'];
   const ROLES = ['W1a', 'W1b', 'W2a', 'W2b', 'W3', 'W4', 'W5'];
   const ERRORS = ['E1', 'E2', 'E3', 'E4', 'E5', 'E6'];
