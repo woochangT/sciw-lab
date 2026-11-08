@@ -47,6 +47,7 @@ button:focus-visible, .card:focus-visible, textarea:focus-visible, input:focus-v
 .chalk { font-family: 'Gaegu', cursive; font-weight: 700; line-height: 1.35; }
 .chalk.q { font-size: 30px; }
 .chalk.first { font-size: 22px; opacity: .92; }
+.chalk.first small { font-size: 18px; opacity: .75; margin-bottom: 2px; }
 .chalk.first small, .ev-slot small { display: block; font-size: 15px; opacity: .7; font-weight: 400; }
 .chalk.claim { font-size: 22px; color: #ffe39a; }
 .chalk.line { font-size: 24px; color: #ffe39a; text-align: center; min-height: 32px; }
@@ -151,6 +152,7 @@ button:focus-visible, .card:focus-visible, textarea:focus-visible, input:focus-v
 .card.lifted { opacity: .35; }
 .card.dim { opacity: .4; pointer-events: none; }
 .card.ghost { position: fixed; z-index: 1000; pointer-events: none; transform: translate(-50%, -50%) rotate(-3deg) scale(1.04); box-shadow: 0 14px 28px #0007; }
+.card.ghost[class*="look-"] { transform: translate(-50%, -50%) rotate(-3deg) scale(1.04); }
 .fly { position: fixed; z-index: 999; border-radius: 6px; background: var(--memo); transition: transform .6s ease, opacity .6s ease; pointer-events: none; }
 .mini { font-family: 'Pretendard', sans-serif; font-size: 14px; line-height: 1.4; padding: 6px 10px; border-radius: 6px; color: var(--ink); background: var(--memo); }
 .mini.k-concl { background: var(--concl); }
@@ -768,3 +770,24 @@ body.arena #reply.framed .r-send { align-self: center; }
 .tutorial .r-choice:only-child:hover { background: #dfe8ff; }
 /* 시스템의 말이 뒷면의 빨간 글씨를 가리지 않게 아래에 둔다 */
 .tutorial.arena #sysPop.wide { top: 340px; }
+
+/* 단서 카드의 접힌 귀퉁이: 빈 뒷면이 비친다. 얻는 순간에는 한 바퀴 돌며 빈 뒷면을 잠깐 보여 준다. */
+.mini.folded { position: relative; }
+.card.folded, .mini.folded { --fold: 16px; clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--fold)), calc(100% - var(--fold)) 100%, 0 100%); }
+.card.big.folded { --fold: 26px; }
+.mini.folded { --fold: 12px; padding-right: 18px; }
+.fold-flap { position: absolute; right: 0; bottom: 0; width: var(--fold); height: var(--fold); filter: drop-shadow(-2px -2px 2.5px #0006); pointer-events: none; }
+.fold-flap svg { display: block; width: 100%; height: 100%; }
+.back-face { display: none; }
+.acq-panel .card.folded { animation: cardPeek .6s ease-in-out .5s both; }
+.acq-panel .card.folded .back-face { display: block; position: absolute; inset: 0; border-radius: 2px; background: #fbf6e6 repeating-linear-gradient(#fbf6e6 0 25px, #dfd6b8 26px); opacity: 0; animation: backShow .6s linear .5s both; }
+@keyframes cardPeek { from { transform: perspective(700px) rotateY(0); } to { transform: perspective(700px) rotateY(360deg); } }
+@keyframes backShow { 0%, 24.9% { opacity: 0; } 25%, 74.9% { opacity: 1; } 75%, 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .acq-panel .card.folded, .acq-panel .card.folded .back-face { animation: none; } }
+
+/* 끌어 놓기 시범 */
+.demo-cursor { position: fixed; z-index: 1001; width: 34px; height: 34px; margin: -3px 0 0 -6px; pointer-events: none; filter: drop-shadow(0 2px 3px #0008); }
+.demo-cursor svg { display: block; width: 100%; height: 100%; transform-origin: 6px 3px; transition: transform .15s; }
+.demo-cursor.press svg { transform: scale(.86); }
+.demo-cursor.press::after { content: ''; position: absolute; left: -10px; top: -13px; width: 32px; height: 32px; border-radius: 50%; border: 3px solid #ffe39a; animation: ringOut .5s ease-out forwards; }
+.card.ghost.demo { opacity: .85; }

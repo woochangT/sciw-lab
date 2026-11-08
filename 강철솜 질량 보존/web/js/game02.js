@@ -366,9 +366,13 @@
     const idle = now() - S.lastInput;
     const key = S.glowKey;
     // 12초 동안 아무것도 안 하면 한마디. 계속 막혀 있으면 20초마다 다시 한다.
-    if (idle > 12000 && now() - (S.nudged[key] || 0) > 20000 && M.lines.nudge[key]) {
+    // 근거 칸의 두 번째 한마디만 첫 한마디 8초 뒤(무조작 20초째)에 나온다. 그 뒤로는 20초마다 되풀이한다.
+    const gap = key === 'evidence2' && !S.evNudged2 ? 8000 : 20000;
+    if (idle > 12000 && now() - (S.nudged[key] || 0) > gap && M.lines.nudge[key]) {
       S.nudged[key] = now();
       say(M.lines.nudge[key]);
+      if (key === 'evidence') { S.evNudged = true; S.glowKey = 'evidence2'; S.nudged.evidence2 = now(); }
+      if (key === 'evidence2') { S.evNudged2 = true; setTimeout(demoDrag, 700); }
     }
   }, 1000);
   ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, () => { S.lastInput = now(); }, true));
@@ -408,7 +412,8 @@
     const look = c.look || ({ concl: 'memo', claim: 'slate', model: 'lens' }[c.kind]) || 'note';
     const title = c.title ? `<b>${esc(c.title)}</b>` : '';
     const pic = look === 'photo' ? `<div class="pic">${ART.miniPhoto(c.art)}</div>` : look === 'slide' ? `<div class="pic">${ART.miniSlide(c.art)}</div>` : '';
-    return `<div class="card k-${c.kind} look-${look} ${extra}" data-card="${id}" tabindex="0">${badge}${pic}${title}<span>${esc(c.text)}</span></div>`;
+    const fold = c.kind === 'clue' ? `<i class="fold-flap" aria-hidden="true">${ART.blankCorner()}</i><i class="back-face" aria-hidden="true"></i>` : '';
+    return `<div class="card k-${c.kind} look-${look} ${c.kind === 'clue' ? 'folded' : ''} ${extra}" data-card="${id}" tabindex="0">${badge}${pic}${title}<span>${esc(c.text)}</span>${fold}</div>`;
   }
   // 돋보기. on-card면 카드에 댄 모습으로, 방금 본 장면이 되풀이된다.
   function lensHTML(id, extra = '') {
@@ -480,6 +485,37 @@
   }
 
   // 끌어 놓기와 눌러서 놓기를 함께 지원한다. 놓을 곳은 [data-drop].
+  // 끌어 놓기 시범: 커서가 수집함 카드를 집어 빈 근거 칸까지 끌고 갔다가 사라진다. 실제로 놓지는 않는다.
+  const CURSOR_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 2 L4 19 L8.5 14.8 L11.6 21.6 L14.6 20.3 L11.6 13.6 L17.6 13.6 Z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+  async function demoDrag() {
+    if (reduced || S.demoing || S.stage !== 'claim') return;
+    const slotIdx = S.evidence.indexOf(null);
+    if (slotIdx < 0) return;
+    const slot = $(`[data-drop="ev${slotIdx}"]`);
+    const src = $$('#trayCards .card').find((c) => S.cards[c.dataset.card].kind === 'clue' && !S.evidence.includes(c.dataset.card));
+    if (!slot || !src) return;
+    S.demoing = true;
+    const a = src.getBoundingClientRect(); const b = slot.getBoundingClientRect();
+    const ax = a.left + a.width / 2; const ay = a.top + a.height / 2; const bx = b.left + b.width / 2; const by = b.top + b.height / 2;
+    const px = (x, y) => ({ left: x + 'px', top: y + 'px' });
+    const cur = document.createElement('div'); cur.className = 'demo-cursor'; cur.innerHTML = CURSOR_SVG;
+    document.body.appendChild(cur);
+    await cur.animate([Object.assign({ opacity: 0 }, px(ax + 70, ay + 40)), Object.assign({ opacity: 1 }, px(ax, ay))], { duration: 450, easing: 'ease-out', fill: 'forwards' }).finished;
+    cur.classList.add('press');
+    await sleep(200);
+    const ghost = src.cloneNode(true); ghost.classList.add('ghost', 'demo'); ghost.style.width = a.width + 'px';
+    Object.assign(ghost.style, px(ax, ay));
+    document.body.appendChild(ghost); src.classList.add('lifted'); slot.classList.add('can-drop');
+    const go = { duration: 1000, easing: 'cubic-bezier(.45, 0, .25, 1)', fill: 'forwards' };
+    await Promise.all([cur.animate([px(ax, ay), px(bx, by)], go).finished, ghost.animate([px(ax, ay), px(bx, by)], go).finished]);
+    await sleep(250);
+    cur.classList.remove('press');
+    await Promise.all([ghost.animate([{ opacity: 0.85 }, { opacity: 0 }], { duration: 350, fill: 'forwards' }).finished,
+      cur.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, delay: 150, fill: 'forwards' }).finished]);
+    ghost.remove(); cur.remove(); src.classList.remove('lifted'); slot.classList.remove('can-drop');
+    S.demoing = false;
+  }
+
   function bindCard(el) {
     const id = el.dataset.card;
     el.addEventListener('pointerdown', (e) => {
@@ -854,14 +890,22 @@
     b.className = 'board big';
     b.innerHTML = `
       <div class="chalk q">${esc(M.boardQuestion)}</div>
-      <div class="chalk first">${esc(S.firstAnswer)}</div>
+      <div class="chalk first"><small>자네가 한 말</small>${esc(S.firstAnswer)}</div>
       <div class="claim-opts">${M.claimOptions.map((o) => `<button type="button" class="claim-opt" data-id="${o.id}">${esc(o.text)}</button>`).join('')}</div>
-      <div class="ev-row"><div class="ev-slot" data-drop="ev0" tabindex="0" role="button" aria-label="근거 칸 1"></div><div class="ev-slot" data-drop="ev1" tabindex="0" role="button" aria-label="근거 칸 2"></div></div>
+      <div class="ev-row" id="evRow" hidden><div class="ev-slot" data-drop="ev0" tabindex="0" role="button" aria-label="근거 칸 1"></div><div class="ev-slot" data-drop="ev1" tabindex="0" role="button" aria-label="근거 칸 2"></div></div>
       <button type="button" class="chalk-btn" id="claimSubmit" disabled>교수님께 제출</button>`;
     $$('.claim-opt', b).forEach((x) => x.addEventListener('click', () => {
       S.claimPick = x.dataset.id;
       $$('.claim-opt', b).forEach((y) => y.classList.toggle('on', y === x));
       updateClaimSubmit();
+      // 주장을 처음 고르는 순간 교수가 근거를 요구하고, 근거 칸이 열린다. 수집함 카드가 들썩이고 칸이 빛난다.
+      if (!S.evAsked) {
+        S.evAsked = true;
+        $('#evRow').hidden = false;
+        $('#tray').classList.add('call');
+        glow($('#evRow'), 'evidence');
+        say(M.lines.evidenceAsk, { center: true });
+      }
     }));
     $('#claimSubmit').addEventListener('click', submitClaim);
     S.evidence = [null, null];
@@ -881,7 +925,7 @@
     S.evidence.forEach((id, i) => {
       const slot = $(`[data-drop="ev${i}"]`);
       if (!slot) return;
-      slot.innerHTML = id ? `<div class="mini k-${S.cards[id].kind}">${esc(S.cards[id].text)}</div>` : `<span class="ev-hint">${esc(M.system.evSlot)}</span>`;
+      slot.innerHTML = id ? `<div class="mini k-${S.cards[id].kind} folded">${esc(S.cards[id].text)}<i class="fold-flap" aria-hidden="true">${ART.blankCorner()}</i></div>` : `<span class="ev-hint">${esc(M.system.evSlot)}</span>`;
       slot.classList.toggle('filled', !!id);
     });
     updateClaimSubmit();
@@ -890,6 +934,7 @@
     const btn = $('#claimSubmit');
     if (!btn) return;
     const ok = S.claimPick && S.evidence.every(Boolean);
+    if (ok) $('#tray').classList.remove('call');
     btn.disabled = !ok;
     if (ok) glow(btn, null);
   }
@@ -902,7 +947,9 @@
     glow(null);
     if (!opt.correct) {
       await say(M.lines.claimWrong[opt.diag]);
-      blinkOnce($('#trayCards [data-card="cB"]'));
+      // 학생이 근거로 올린 칸의 플라스크 카드를 가리킨다
+      const bSlot = $(`[data-drop="ev${S.evidence.indexOf('cB')}"]`);
+      if (bSlot) { bSlot.classList.remove('blink'); void bSlot.offsetWidth; bSlot.classList.add('blink'); }
       return;
     }
     S.claim = opt;
@@ -923,7 +970,7 @@
     await sleep(reduced ? 200 : 1200);
     await zoomOut();
     // 왜 다음 단계로 넘어가는지 교수가 정리한다
-    await say(M.lines.rebuttalWhy, { center: true });
+    await say(S.evNudged ? M.lines.rebuttalWhyNudged : M.lines.rebuttalWhy, { center: true });
     await sleep(reduced ? 100 : 400); // 말풍선이 제자리로 옮겨 간 뒤에 나오도록 잠깐 쉰다
     // 콧대 게이지는 이때 처음 나타난다
     $('#noseMeter').hidden = false;

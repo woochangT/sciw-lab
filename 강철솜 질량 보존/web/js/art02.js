@@ -282,5 +282,9 @@
     return wrap(`${still([[38, 26], [84, 22], [14, 62], [106, 62]], '#3f7fd6')}<g class="ls-x">${pair(60, 44, '#3f7fd6')}</g>${iron}${bond([[20, 36], [60, 12], [102, 34], [28, 54], [96, 50]])}<rect x="34" y="94" width="52" height="17" rx="3" fill="#fffdf6"/>${count('산소 8', 'ls-a')}${count('산소 3', 'ls-b')}`);
   }
 
-  window.SCIW_ART02 = { flames, wool, deviceA, deviceB, torch, power, clip, microscope, miniPhoto, miniSlide, lensMini, lensScene, cardCorner, hand, stringPhone, phoneModel };
+  // 빈 뒷면이 비치는 접힌 귀퉁이 (cardCorner에서 글씨를 뺀 것)
+  function blankCorner() {
+    return `<svg viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="blankShade" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fdf9ec"/><stop offset=".3" stop-color="#fbf6e6"/><stop offset=".42" stop-color="#fffdf6"/><stop offset=".5" stop-color="#cfc29c"/></linearGradient></defs><path d="M100 0 C 66 5 30 8 0 0 C 8 30 5 66 0 100 Z" fill="url(#blankShade)" stroke="#b9ac87" stroke-width="1.5"/></svg>`;
+  }
+  window.SCIW_ART02 = { blankCorner, flames, wool, deviceA, deviceB, torch, power, clip, microscope, miniPhoto, miniSlide, lensMini, lensScene, cardCorner, hand, stringPhone, phoneModel };
 })();
