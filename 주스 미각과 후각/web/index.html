@@ -11,6 +11,9 @@
   <link rel="preload" as="image" href="../../강철솜 질량 보존/web/assets/laboratory-room.png">
   <link rel="preload" as="image" href="../../강철솜 질량 보존/web/assets/professor-expressions.png">
   <link rel="stylesheet" href="../../ui/class-entry.css?v=class-input-v2">
+  <style>
+    .start-card .go:disabled { background: #2d2b29; color: #fff; }
+  </style>
 </head>
 <body>
   <div class="screen" id="startScreen">
@@ -28,17 +31,13 @@
         <div class="class-entry-fields"><div><label for="grade">학년</label><input id="grade" type="text" inputmode="numeric" maxlength="2" pattern="[1-3]" placeholder="3" required></div><div><label for="classNo">반</label><input id="classNo" type="text" inputmode="numeric" maxlength="3" pattern="[1-9][0-9]?" placeholder="1" required></div></div>
         <label for="studentNo">출석번호</label>
         <input id="studentNo" inputmode="numeric" maxlength="3" placeholder="예: 12" required>
-        <button class="go" type="submit" id="goBtn" disabled>실험실 들어가기</button>
-        <div class="mode" id="setupStatus" role="status" hidden></div>
+        <button class="go" type="button" id="goBtn" disabled>아직 실험실 세팅 중</button>
       </form>
     </div>
   </div>
-  <script src="../../ui/class-entry.js?v=class-input-v2"></script>
   <script>
-    SciwClassEntry.bindStart(function () {
-      var status = document.getElementById('setupStatus');
-      status.textContent = '아직 실험실 세팅 중';
-      status.hidden = false;
+    document.getElementById('startForm').addEventListener('submit', function (event) {
+      event.preventDefault();
     });
   </script>
 </body>
