@@ -88,6 +88,7 @@ test('missing judge setup and server rate limits never become a keyword result o
 test('separate evaluator reserves its budget and rejects unsupported actions before provider calls',()=>{
   const s=server({props:{M02_DAILY_LIMIT:'1'}});
   assert.equal(s.post({action:'batch',ops:[]}).code,'INVALID_REQUEST');
+  assert.equal(s.post({action:'rejudge',stage:'final',text}).code,'INVALID_REQUEST');
   assert.equal(s.post({action:'judgeM02',stage:'final',text}).ok,true);
   assert.equal(s.post({action:'judgeM02',stage:'final',text}).code,'DAILY_LIMIT');
   assert.equal(s.requests.length,1);

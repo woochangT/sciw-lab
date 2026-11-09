@@ -15,6 +15,15 @@ function setup(){const calls=[];return {calls,handler:createHandler(async(url,op
 })}}
 const request=(path,body,headers={})=>new Request('https://preview.example'+path,body===undefined?{headers}:{method:'POST',headers:{Origin:'https://preview.example','Content-Type':'application/json',...headers},body:JSON.stringify(body)});
 
+test('rejudgment is not exposed through the current public worker',async()=>{
+ const s=setup();
+ for(const req of [request('/api/sheet/rejudge',{classKey:'g:3:r:2',missionId:'m01',sessionId:'a'}),new Request('https://preview.example/api/sheet/rejudge',{method:'OPTIONS',headers:{Origin:'https://preview.example','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type'}})]){
+  const response=await s.handler(req,{});
+  assert.ok([403,404].includes(response.status));
+ }
+ assert.equal(s.calls.length,0);
+});
+
 test('root serves the intro index with explicit HTML handling, without an upstream server',async()=>{
  const s=setup(),paths=[],env={ASSETS:{fetch:async req=>{const p=new URL(req.url).pathname;paths.push(p);return p==='/index.html'?new Response('intro'):new Response(null,{status:404})}}};
  const res=await s.handler(request('/'),env);assert.equal(res.status,200);assert.equal(await res.text(),'intro');assert.deepEqual(paths,['/index.html']);assert.equal(s.calls.length,0);

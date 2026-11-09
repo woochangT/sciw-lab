@@ -32,3 +32,23 @@ test('stored AI summaries are escaped and only expose an explicit generation act
  const data=M.analyze(db,'3-2','latest',{missionId:'m02'}),html=D.screen({portfolio,data,selectedClass,mission:'m02',source:'sheet',available:true,report:{analysis:{result:{headline:'<script>head</script>',teachingFocus:'<img onerror=bad>'}}}});
  assert.doesNotMatch(html,/<script>|<img onerror/);assert.match(html,/&lt;script&gt;/);assert.match(html,/data-ai-generate/);assert.match(html,/data-open-report/);
 });
+test('lesson priority counts only assessed students under the selected rubric and links candidates to originals',()=>{
+ const records=[session('one','3-2','1','m02',{finalAnswer:'합성 답안 1',finalJudgment:{C:false,W1a:false},rubricVersion:'m02-docx-1.2.0'}),session('two','3-2','2','m02',{finalAnswer:'합성 답안 2',finalJudgment:{C:false,W1a:true},rubricVersion:'m02-docx-1.2.0'}),session('old','3-2','3','m02',{finalAnswer:'이전 기준',finalJudgment:{C:false,W1a:false},rubricVersion:'m02-docx-1.1.0'}),session('none','3-2','4','m02',{finalAnswer:'미판정 답안'}),session('unclear','3-2','5','m02',{finalAnswer:'판정 불가 답안',finalJudgment:{C:false},rubricVersion:'m02-docx-1.2.0'})];
+ const source={sessions:records,attempts:[{attemptId:'u',sessionId:'unclear',stage:'compose',questId:'clarify',outcome:'clarify',input:'판정 불가 답안'}]},data=M.analyze(source,'3-2','latest',{missionId:'m02'}),p=I.overview(source),choice='m02-docx-1.2.0';
+ const priority=I.lessonPriority(data,data.reps,'m02',choice);
+ assert.deepEqual(priority.missing.map(c=>[c.key,c.revise,c.assessed]),[['C',2,2],['W1a',1,2]]);
+ assert.deepEqual(priority.candidates.map(c=>c.sessionId),['one','two']);
+ const html=D.screen({portfolio:p,data,selectedClass:p.classes[0],mission:'m02',criterion:choice,source:'demo'});
+ assert.ok(html.indexOf('가장 많이 누락된 설명 요소')<html.indexOf('id="matrixViewport"'));
+ assert.match(html,/2 \/ 2명 미인정/);assert.match(html,/반 전체 경향으로 해석하지 마세요/);assert.match(html,/data-session="one" data-element="C"/);
+ assert.doesNotMatch(html.split('class="dashboard-analysis-grid"')[0],/data-session="old" data-element="C"/);
+ assert.match(html,/id="matrixViewport"/);assert.match(html,/id="recordFilter"/);assert.match(html,/id="playMode"/);
+ assert.equal(I.lessonPriority(data,data.reps,'m02','AI 평가 · 버전 미기록').missing.length,0);
+});
+test('saved question is reused safely; empty question offers only an explicit generation button',()=>{
+ const data=M.analyze(db,'3-2','latest',{missionId:'m02'}),state={portfolio,data,selectedClass,mission:'m02',source:'sheet',available:true};
+ const saved=D.screen({...state,report:{basis:{mode:'latest'},analysis:{result:{questions:[{question:'<script>다음 수업 질문</script>'}]}}}});
+ assert.match(saved,/&lt;script&gt;다음 수업 질문&lt;\/script&gt;/);assert.doesNotMatch(saved,/<script>/);assert.match(saved,/저장된 수업 리포트 보기/);
+ const empty=D.screen(state);assert.match(empty,/저장된 수업 질문이 없습니다/);assert.match(empty,/수업 요약·질문 생성/);
+ const all=D.screen({portfolio,mission:'m02',source:'sheet'});assert.doesNotMatch(all,/class="lesson-priority"/);
+});

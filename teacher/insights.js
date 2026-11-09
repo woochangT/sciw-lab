@@ -6,11 +6,31 @@
   m02:[['C','자신의 결론'],['D-A','열린 실험 자료'],['D-B','닫힌 실험 자료'],['W1a','질량 보존 적용'],['W1b','산소로 특정한 근거'],['W2a','전체 질량 보존'],['W2b','증가분의 의미']]
  };
  const known=v=>v===true||v===false||['true','false','TRUE','FALSE'].includes(v);
+ const statusLabels={completed:'판정 완료',pending:'판정 대기',failed:'판정 실패',unavailable:'판정 불가',missing:'판정 기록 없음'};
+ function judgmentStatus(data,s){
+  const events=M.attemptsFor(data,s.sessionId);
+  const final=events.filter(a=>a.stage==='defense'&&a.questId==='FINAL'||a.stage==='compose'&&['final','clarify'].includes(a.questId)||a.eventCode==='m02.compose.final.submit').at(-1);
+  const raw=events.filter(a=>a.questId==='studentInput'&&(a.evaluationStage==='final'||a.stage==='defense'||a.questionId==='FINAL')).at(-1);
+  const current=raw&&(!final||events.indexOf(raw)>events.indexOf(final))?raw:final;
+  // A saved input only proves that the answer was retained, not that a judge accepted it.
+  const explicit=current?.evaluationStatus||(current?null:s.finalEvaluationStatus);
+  const mapped={pending:'pending',processing:'pending',failed:'failed',unavailable:'unavailable'}[explicit];
+  if(mapped)return {code:mapped,label:statusLabels[mapped],record:current||s,errorCode:mapped==='failed'?String(current?.evaluationErrorCode||s.finalEvaluationErrorCode||'').slice(0,80):''};
+  const failedSpeech=raw&&current===raw&&events.some(a=>a.questId==='professorSpeech'&&a.feedbackSource==='displayed'&&a.inReplyTo===raw.attemptId&&events.indexOf(a)>events.indexOf(raw)&&[].concat(a.feedbackText||[]).some(line=>typeof line==='string'&&(line.startsWith('지금은 답을 읽지 못했네.')||line.startsWith('아직 답을 읽을 준비가 안 됐군.'))));
+  if(failedSpeech)return {code:'failed',label:statusLabels.failed,record:raw,errorCode:''};
+  if(current?.questId==='clarify'&&current.outcome==='clarify'||current?.questId==='FINAL'&&current.diagnosis==='UNCLEAR')return {code:'unavailable',label:statusLabels.unavailable,record:current,errorCode:''};
+  if(raw&&current===raw)return {code:'missing',label:statusLabels.missing,record:raw,errorCode:''};
+  const judgment=M.obj(final?.judgment),saved=M.obj(s.finalJudgment);
+  const result=Object.keys(judgment).length?judgment:saved;
+  const has=(M.missions[s.missionId||'m01']?.elements||[]).some(k=>(k==='W3/WB'?['W3','WB']:[k]).some(id=>known(result[id])));
+  const code=has?'completed':'missing';
+  return {code,label:statusLabels[code],record:final||s,errorCode:''};
+ }
  function evaluation(data,s){
   const last=M.submissions(data,s).at(-1),candidate=M.obj(last?.judgment),saved=M.obj(s.finalJudgment);
   const judgment=Object.keys(candidate).length?candidate:saved;
   const record=Object.keys(candidate).length?{...s,...last,analysis:last.analysis||M.obj(last.extra).analysis||{}}:s;
-  const has=(M.missions[s.missionId||'m01']?.elements||[]).some(k=>(k==='W3/WB'?['W3','WB']:[k]).some(id=>known(judgment[id])));
+  const has=judgmentStatus(data,s).code==='completed'&&(M.missions[s.missionId||'m01']?.elements||[]).some(k=>(k==='W3/WB'?['W3','WB']:[k]).some(id=>known(judgment[id])));
   const rubric=typeof record.rubricVersion==='string'?record.rubricVersion.slice(0,100):'',method=M.judgmentMethod(record),version=typeof record.judgeVersion==='string'?record.judgeVersion.slice(0,100):'버전 미기록';
   const key=has?(rubric||[method,version||'버전 미기록'].join(' · ')):'';
   const label=rubric?rubric.replace('m02-docx-','AI 루브릭 '):key;
@@ -35,6 +55,15 @@
    return {key:id,label,met,revise,unknown:rows.length-met-revise,assessed:met+revise,rate:met+revise?Math.round(100*met/(met+revise)):null};
   })};
  }
+ function lessonPriority(data,rows,mission,key){
+  // An unknown version cannot establish a common assessment basis.
+  if(!key||key.includes('버전 미기록'))return {missing:[],candidates:[]};
+  const prepared=rows.map(s=>({s,e:evaluation(data,s)}));
+  const missing=aggregate(data,rows,mission,key,prepared).cells.filter(c=>c.assessed&&c.revise).sort((a,b)=>b.revise-a.revise||b.assessed-a.assessed||a.label.localeCompare(b.label,'ko')).slice(0,2);
+  const focus=missing[0];
+  const candidates=focus?prepared.filter(({e})=>e.key===key&&element(e.judgment,focus.key)==='revise'&&String(e.record.input||e.record.finalAnswer||'').trim()).map(({s,e})=>({sessionId:s.sessionId,studentNo:M.number(s),element:focus.key,reason:String(M.obj(M.obj(e.analysis.checks)[focus.key]).reason||'')})).sort((a,b)=>Number(Boolean(b.reason))-Number(Boolean(a.reason))||Number(a.studentNo)-Number(b.studentNo)).slice(0,3):[];
+  return {missing,candidates};
+ }
  function game(data,codes,mission,includeTests=false){
   const d=M.analyze(data,'','latest',{classCodes:codes,missionId:mission,includeTests}),rows=d.recent;
   const prepared=rows.map(s=>({s,e:evaluation(d,s)})),written=prepared.filter(x=>x.e.written).length,keys=criteria(d,rows,prepared);
@@ -51,5 +80,5 @@
    return [m,criteria(d,d.sessions)];
   }))};
  }
- root.TeacherInsights={definitions,evaluation,element,criteria,aggregate,game,overview};
+ root.TeacherInsights={definitions,evaluation,judgmentStatus,element,criteria,aggregate,lessonPriority,game,overview};
 })(typeof window==='undefined'?globalThis:window);
