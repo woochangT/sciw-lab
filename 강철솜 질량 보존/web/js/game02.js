@@ -38,15 +38,57 @@
     await say(stage === 'final' ? M.lines.finalWait : ['흠…']);
     const offset = stage === 'final' ? $('#answer').value.indexOf(text) : 0;
     const started = now();
+    judgeWait(true);
     try {
       const result = await API.judge({ stage, text, initialAnswer: S.firstAnswer,
         cardSpans: stage === 'final' ? RUBRIC.cardSpans(S.answerOrigins || [], offset, text.length) : [] });
       return Object.assign(result, { displayedPrompt, canonicalQuestion: STAGES[stage].question });
     } finally {
+      judgeWait(false);
       // 서버를 기다린 시간을 학생의 무입력 시간으로 세지 않는다.
       if (stage === 'final') S.composeStart += now() - started;
       S.lastInput = now();
     }
+  }
+  // 판정 대기 표시: 판정은 최대 65초까지 걸릴 수 있어서, 멈춘 게 아니라 읽는 중임을 움직이는 그림과 글로 알린다.
+  let waitTimer = null;
+  function judgeWait(on) {
+    let el = $('#judgeWait');
+    clearInterval(waitTimer);
+    document.body.classList.toggle('judging', on);
+    if (!on) { if (el) el.hidden = true; return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'judgeWait'; el.setAttribute('role', 'status');
+      el.innerHTML = '<div class="jw-art" aria-hidden="true"><i class="jw-paper"><i></i><i></i><i></i><i></i></i><i class="jw-lens"></i></div>'
+        + '<div class="jw-text"><b></b><small>쓴 답은 저장되어 있어요. 창을 닫지 말고 기다려 주세요.</small></div>';
+      document.body.appendChild(el);
+    }
+    const t0 = now();
+    const msg = () => {
+      const s = (now() - t0) / 1000;
+      const text = s < 10 ? '교수님이 답을 읽고 있어요' : s < 30 ? '꼼꼼히 읽는 중이에요' : s < 50 ? '거의 다 읽었어요. 조금만 기다려요' : '조금 오래 걸리네요. 곧 끝나요';
+      if ($('b', el).textContent !== text) $('b', el).textContent = text;
+    };
+    msg();
+    el.hidden = false;
+    placeWait(el);
+    waitTimer = setInterval(msg, 1000);
+  }
+  // 판정 대기 카드는 방금 답을 쓴 칸 바로 아래에 둔다(답은 가리지 않는다). 아래에 자리가 없으면 교수 아래 책상에 둔다.
+  function placeWait(el) {
+    const box = !$('#reply').hidden ? $('#reply') : $('#answer');
+    const zone = $('#sceneZone').getBoundingClientRect();
+    el.style.maxWidth = '420px'; el.classList.remove('narrow');
+    if (box) {
+      const r = box.getBoundingClientRect(); const y = r.bottom + 8;
+      if (r.width && y + el.offsetHeight <= zone.bottom - 4) {
+        el.style.left = Math.max(zone.left + 8, Math.min(r.left, zone.right - el.offsetWidth - 8)) + 'px';
+        el.style.top = y + 'px';
+        return;
+      }
+    }
+    putAt(el, 'belowProf');
   }
   function judgmentRecord(r) {
     return { judgedBy: 'openai', rubricVersion: r.rubricVersion, model: r.model, requestId: r.requestId,
@@ -58,6 +100,7 @@
     const lines = Array.isArray(followup) ? followup : [followup];
     return [...new Set([STAGES[stage].question, ...lines].filter(Boolean))];
   }
+  const finalDraftKey = () => `sciw_m02_final_${S.classCode}_${S.studentNo}`;
   async function evaluationFailure(error) {
     const setup = ['JUDGE_NOT_CONFIGURED', 'KEY_NOT_CONFIGURED'].includes(error.code);
     await say([setup ? '아직 답을 읽을 준비가 안 됐군. 연결 설정을 확인해 주게.' : '지금은 답을 읽지 못했네. 잠시 뒤 다시 제출해 주게.',
@@ -377,7 +420,91 @@
   }, 1000);
   ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, () => { S.lastInput = now(); }, true));
 
-  function setNote() { /* 화면 설명 글을 쓰지 않는다. 할 일은 교수 대사와 깜빡임으로만 알린다 */ }
+  // 지금 할 일 칩: 대사를 빨리 넘겨도 지금 해야 할 행동이 화면에 남아 있다. 다음 setNote까지 그대로다.
+  // tapHint는 도구나 카드를 눌러 집어 든 동안 칩 아래에 붙는 짧은 안내다.
+  // 칩은 늘 body 아래 fixed로 두고 좌표만 바꾼다(장면 배율과 상관없이 같은 글자 크기).
+  function noteBox() {
+    let el = $('#todoNote');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'todoNote'; el.setAttribute('role', 'status'); el.hidden = true;
+      el.innerHTML = '<b>지금 할 일</b><span></span><em></em>';
+      // 다 끝난 애니메이션 표시는 지운다. 남아 있으면 다시 나타날 때 엉뚱하게 다시 재생된다.
+      el.addEventListener('animationend', () => el.classList.remove('flash', 'shake-me'));
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+  // 칩은 학생이 혼자 무언가를 해야 진행되는 순간(조작하기, 답 쓰기)에만 보인다.
+  // 교수 대사를 넘기는 중, 교수 확대·축소, 가운데 큰 말풍선, 시스템 알림, 판정 대기 중에는 숨긴다.
+  // 그런 일이 다 끝나고 0.9초 동안 그대로면 그때 나타난다. 자리는 상황마다 setNote(글, 자리)로 미리 정해 둔다.
+  // 자리(장면 1280×640 좌표): x 또는 right는 칩의 왼쪽 끝 또는 오른쪽 끝, w는 쓸 수 있는 너비
+  const NOTE_SPOTS = {
+    topLeft: { x: 12, y: 12, w: 266 },          // 실험대: 작은 칠판(x 288~) 왼쪽
+    faceLeft: { right: 1030, y: 150, w: 160 },   // 현미경: 현미경 창 오른쪽, 교수 얼굴 왼편. 말풍선 아래, 콧대 게이지 위
+    aboveProf: { right: 1268, y: 14, w: 276 },   // 뒷면 쓰기: 말풍선 오른쪽, 교수 머리 위
+    belowProf: { x: 884, y: 462, w: 386 }        // 큰 칠판 화면(근거 고르기, 합치기, 완전한 설명): 교수 아래 책상
+  };
+  // 칩이나 판정 대기 카드를 정해 둔 자리에 놓는다. 좁은 자리면 '지금 할 일'을 윗줄에 두고 글을 접는다.
+  function putAt(el, name) {
+    const sp = NOTE_SPOTS[name] || NOTE_SPOTS.topLeft;
+    const st = $('#stage').getBoundingClientRect(); const k = st.width / W;
+    el.style.maxWidth = Math.max(120, sp.w * k) + 'px';
+    el.classList.toggle('narrow', sp.w * k < 230);
+    const x = sp.right !== undefined ? st.left + sp.right * k - el.offsetWidth : st.left + sp.x * k;
+    el.style.left = x + 'px'; el.style.top = (st.top + sp.y * k) + 'px';
+  }
+  function noteReady() {
+    return !!(S.note || S.tapHint) && $('#catcher').hidden && !$('#stage').classList.contains('zooming')
+      && !$('#talkVeil').classList.contains('on') && !$('#bubble').classList.contains('moving') && $('#sysPop').hidden
+      && !document.body.classList.contains('judging') && $('#reply').getAttribute('aria-busy') !== 'true';
+  }
+  let noteReadySince = 0;
+  setInterval(() => {
+    const el = $('#todoNote');
+    if (!el) return;
+    if (!noteReady()) { el.hidden = true; noteReadySince = 0; return; }
+    if (!el.hidden) return;
+    noteReadySince = noteReadySince || now();
+    if (now() - noteReadySince < 900) return;
+    el.hidden = false;
+    putAt(el, S.noteSpot);
+    if (!reduced) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+  }, 150);
+  window.addEventListener('resize', () => {
+    const el = $('#todoNote'); if (el && !el.hidden) putAt(el, S.noteSpot);
+    const w = $('#judgeWait'); if (w && !w.hidden) placeWait(w);
+  });
+  // 할 일이 없는 동안(대사, 장면 전환)에는 setNote('')로 비워 둔다
+  function setNote(text, spot) {
+    const el = noteBox();
+    const moved = spot && spot !== S.noteSpot;
+    if (spot) S.noteSpot = spot;
+    if (S.note === (text || '') && !moved) return;
+    S.note = text || '';
+    $('span', el).textContent = S.note;
+    if (el.hidden) return; // 아직 숨어 있으면 나타날 때 자리를 잡는다
+    if (!S.note && !S.tapHint) { el.hidden = true; return; }
+    putAt(el, S.noteSpot);
+    if (!reduced) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+  }
+  // 8초 동안 아무 조작이 없으면 칩을 흔들어 눈길을 끈다. 계속 가만히 있으면 8초마다 다시 흔든다.
+  // 교수 대사를 넘기는 중이거나 판정을 기다리는 중에는 흔들지 않는다(학생이 할 일이 아니다).
+  let noteShookAt = 0;
+  setInterval(() => {
+    const el = $('#todoNote');
+    if (!el || el.hidden || !S.started || !$('#catcher').hidden || S.submitting) return;
+    if ($('#reply').getAttribute('aria-busy') === 'true' || ($('#judgeWait') && !$('#judgeWait').hidden)) return;
+    if (now() - S.lastInput < 8000 || now() - noteShookAt < 8000) return;
+    noteShookAt = now();
+    el.classList.remove('flash', 'shake-me'); void el.offsetWidth; el.classList.add('shake-me');
+  }, 500);
+  function tapHint(text) {
+    const el = noteBox();
+    S.tapHint = text || '';
+    $('em', el).textContent = S.tapHint;
+    if (!el.hidden) putAt(el, S.noteSpot); // 줄이 늘고 줄면 오른쪽에 붙은 자리는 다시 맞춘다
+  }
 
   function setStage(stage) {
     S.stage = stage;
@@ -555,6 +682,7 @@
     S.sel = S.sel === id ? null : id;
     $$('.card').forEach((c) => c.classList.toggle('selected', c.dataset.card === S.sel));
     $$('[data-drop]').forEach((d) => d.classList.toggle('can-drop', !!S.sel));
+    tapHint(S.sel && $('[data-drop]') ? '놓을 곳을 누르세요' : '');
   }
   // 키보드: 카드를 Enter/Space로 고른 뒤, 놓을 곳으로 Tab 이동해 Enter/Space
   document.addEventListener('keydown', (e) => {
@@ -572,6 +700,7 @@
   });
   function onDrop(id, where, el) {
     S.sel = null;
+    tapHint('');
     $$('.card').forEach((c) => c.classList.remove('selected'));
     $$('[data-drop]').forEach((d) => d.classList.remove('can-drop'));
     if (where.startsWith('ev')) dropEvidence(id, Number(where.slice(2)));
@@ -644,12 +773,43 @@
     el.textContent = to.toFixed(1) + ' g';
   }
 
+  // 끌기가 어려운 기기(터치패드·태블릿)를 위한 "누르고 → 놓을 곳 누르기".
+  // 도구를 짧게 누르면 집어 든 상태(armed)가 되고, 다음에 누른 곳을 fn(e)에 넘긴다. 그 누름은 다른 곳에 전달하지 않는다.
+  const shake = (el) => { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); };
+  const isTap = (down, e) => down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 8 && now() - down.t < 500;
+  function swallowClick() {
+    const f = (e) => { e.stopPropagation(); e.preventDefault(); };
+    window.addEventListener('click', f, true);
+    setTimeout(() => window.removeEventListener('click', f, true), 500);
+  }
+  function nextTap(tool, fn) {
+    const h = (e) => {
+      if (tool.contains(e.target)) return; // 도구를 다시 누르면 도구 쪽에서 내려놓는다
+      window.removeEventListener('pointerdown', h, true);
+      if (e.target.closest('#catcher')) { fn(null); return; } // 대사 넘기기 누름은 그대로 둔다
+      e.preventDefault(); e.stopPropagation(); swallowClick();
+      fn(e);
+    };
+    window.addEventListener('pointerdown', h, true);
+    return () => window.removeEventListener('pointerdown', h, true);
+  }
+  // 집어 든 동안: 도구가 들썩이고, 놓을 곳이 빛나고, 할 일 칩에 안내가 붙는다
+  function armTool(el, target, on) {
+    el.classList.toggle('armed', on);
+    if (target) target.classList.toggle('tap-target', on);
+    tapHint(on ? '놓을 곳을 누르세요' : '');
+  }
+
   // 불꽃 막대 끌기: 누르고 있는 동안 따라오고, 놓으면 제자리로 돌아간다.
+  // 짧게 누르면 집어 들고, 대상(opts.hit)을 누르면 그 자리(opts.spot)에 대고 있는다. 아무 곳이나 다시 누르면 내려놓는다.
   // opts.near(clientX, clientY) → 불꽃 끝이 대상 가까이 있는가, opts.tick(dt, near) → 매 프레임, opts.release()
+  // opts.hit(clientX, clientY) → 눌러서 댈 때 대상을 누른 것으로 칠까(기본: near), opts.spot() → 댈 자리 [clientX, clientY], opts.target() → 빛낼 대상
   function flameDrag(el, opts) {
     const holder = el.parentElement;
     const home = { left: el.style.left, top: el.style.top };
     let held = false; let last = 0; let tip = null;
+    let down = null; let parked = false; let cancelTap = null;
+    const target = () => (opts.target ? opts.target() : null);
     const place = (e) => {
       const r = holder.getBoundingClientRect();
       const x = (e.clientX - r.left) / S.scale; const y = (e.clientY - r.top) / S.scale;
@@ -659,34 +819,60 @@
     };
     const frame = (t) => {
       if (!held) return;
+      // 다 끝났거나 장면이 닫히면 대고 있던 불꽃을 내려놓는다
+      if (parked && (!el.isConnected || (opts.enabled && !opts.enabled()))) { up(); return; }
       const dt = last ? Math.min(100, t - last) : 0; last = t;
       const near = tip ? opts.near(tip.x, tip.y) : false;
       el.classList.toggle('touching', near);
       opts.tick(dt, near);
       nextFrame(frame);
     };
+    const disarm = () => { if (cancelTap) cancelTap(); cancelTap = null; armTool(el, target(), false); };
+    const arm = () => {
+      armTool(el, target(), true);
+      cancelTap = nextTap(el, (e) => {
+        cancelTap = null; armTool(el, target(), false);
+        if (!e || (opts.enabled && !opts.enabled())) return;
+        if (!(opts.hit || opts.near)(e.clientX, e.clientY)) { shake(el); return; }
+        const [x, y] = opts.spot ? opts.spot() : [e.clientX, e.clientY];
+        held = true; parked = true; last = 0;
+        el.classList.add('parked');
+        place({ clientX: x, clientY: y });
+        S.lastInput = now();
+        // 대고 있는 동안 아무 곳이나 누르면 내려놓는다
+        cancelTap = nextTap(el, () => { cancelTap = null; up(); });
+        nextFrame(frame);
+      });
+    };
     el.addEventListener('pointerdown', (e) => {
-      if (opts.enabled && !opts.enabled()) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); return; }
+      if (parked) { e.preventDefault(); up(); return; }
+      if (cancelTap) { e.preventDefault(); disarm(); return; }
+      if (opts.enabled && !opts.enabled()) { shake(el); return; }
       e.preventDefault();
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* 합성 이벤트 */ }
-      held = true; last = 0;
+      held = true; last = 0; down = { x: e.clientX, y: e.clientY, t: now() };
       el.classList.add('held');
       glow(null);
       S.lastInput = now();
       place(e);
       nextFrame(frame);
     });
-    el.addEventListener('pointermove', (e) => { if (held) { place(e); S.lastInput = now(); } });
-    const up = () => {
-      if (!held) return;
-      held = false; tip = null;
-      el.classList.remove('held', 'touching');
+    el.addEventListener('pointermove', (e) => { if (held && !parked) { place(e); S.lastInput = now(); } });
+    function up(e) {
+      if (!held || (e && parked)) return;
+      const tap = e && e.type === 'pointerup' && isTap(down, e);
+      held = false; tip = null; down = null; parked = false;
+      if (cancelTap) { cancelTap(); cancelTap = null; }
+      el.classList.remove('held', 'touching', 'parked');
       el.style.left = home.left; el.style.top = home.top;
       if (opts.release) opts.release();
-    };
+      if (tap) arm();
+    }
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', up);
   }
+  function rectPoint(el, fx, fy) { const r = el.getBoundingClientRect(); return [r.left + r.width * fx, r.top + r.height * fy]; }
+  function inRect(el, x, y) { const r = el.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; }
   function nearRect(el, cx, cy, fx, fy, pad) {
     const r = el.getBoundingClientRect();
     const x = r.left + r.width * fx; const y = r.top + r.height * fy;
@@ -702,6 +888,9 @@
     flameDrag(el, {
       enabled: () => S.stage === 'explore' && !S.done.burnA,
       near: (x, y) => nearRect(art(), x, y, 0.5, 0.55, 60),
+      hit: (x, y) => inRect($('#devA'), x, y),
+      spot: () => rectPoint(art(), 0.5, 0.55),
+      target: () => $('#devA'),
       tick: (dt, near) => {
         art().classList.toggle('burning', near);
         if (!near || S.done.burnA) return;
@@ -720,7 +909,7 @@
     $('#numA').textContent = M.devices.A.after.toFixed(1) + ' g';
     $('#tagA').textContent = '2.0 → 2.5 g';
     logAttempt({ stage: 'explore', questId: 'burnA' });
-    acquire(['cA'], async () => { await say(M.lines.afterA, { center: true }); glow($('#clipB'), 'deviceB'); setNote('플라스크도 태우기'); }, $('#devA'));
+    acquire(['cA'], async () => { await say(M.lines.afterA, { center: true }); glow($('#clipB'), 'deviceB'); setNote('집게를 빨간 단자에 물리기'); }, $('#devA'));
   }
 
   // 집게: 끌어서 전원 장치 빨간 단자 가까이 놓으면 물리고(전류가 흐름), 다시 끌면 떨어진다.
@@ -735,11 +924,25 @@
     };
     const at = (p) => { o.el.style.left = (p[0] - 22) + 'px'; o.el.style.top = (p[1] - 13) + 'px'; draw(p); };
     const set = (on) => { connected = on; o.el.classList.toggle('connected', on); o.power.classList.toggle('on', on); o.onChange(on); };
+    // 눌러서 물리기: 집게를 짧게 누르면 집어 들고, 전원 장치(빨간 단자)를 누르면 물린다
+    let down = null; let wasOn = false; let cancelTap = null;
+    const disarm = () => { if (cancelTap) cancelTap(); cancelTap = null; armTool(o.el, o.power, false); };
+    const arm = () => {
+      armTool(o.el, o.power, true);
+      cancelTap = nextTap(o.el, (e) => {
+        cancelTap = null; armTool(o.el, o.power, false);
+        if (!e || (o.enabled && !o.enabled())) return;
+        const p = local(e); const t = o.terminal();
+        if (o.power.contains(e.target) || Math.hypot(p[0] - t[0], p[1] - t[1]) < 60) { at(t); set(true); S.lastInput = now(); } else shake(o.el);
+      });
+    };
     o.el.addEventListener('pointerdown', (e) => {
-      if (o.enabled && !o.enabled()) { o.el.classList.remove('shake'); void o.el.offsetWidth; o.el.classList.add('shake'); if (o.denied) o.denied(); return; }
+      if (cancelTap) { e.preventDefault(); disarm(); return; }
+      if (o.enabled && !o.enabled()) { shake(o.el); if (o.denied) o.denied(); return; }
       e.preventDefault();
       try { o.el.setPointerCapture(e.pointerId); } catch (err) { /* 합성 이벤트 */ }
       held = true; glow(null);
+      down = { x: e.clientX, y: e.clientY, t: now() }; wasOn = connected;
       if (connected) set(false);
       o.el.classList.add('held');
       at(local(e));
@@ -748,13 +951,15 @@
     const up = (e) => {
       if (!held) return;
       held = false; o.el.classList.remove('held');
+      // 짧게 눌렀으면: 물려 있던 집게는 떼어 제자리로, 놓여 있던 집게는 집어 든다
+      if (e.type === 'pointerup' && isTap(down, e)) { at(o.home()); if (!wasOn) arm(); return; }
       const p = local(e); const t = o.terminal();
       if (Math.hypot(p[0] - t[0], p[1] - t[1]) < 34) { at(t); set(true); } else { at(o.home()); }
     };
     o.el.addEventListener('pointerup', up);
     o.el.addEventListener('pointercancel', up);
     at(o.home());
-    return { reset() { held = false; if (connected) set(false); at(o.home()); }, get connected() { return connected; } };
+    return { reset() { held = false; disarm(); if (connected) set(false); at(o.home()); }, get connected() { return connected; } };
   }
   // 전원 장치 그림 속 단자의 위치. 빨간 단자는 그 그림의 28/110, 검은 단자는 82/110, 높이는 8/80 지점이다.
   function terminalOf(powerEl, container, fx = 0.255) {
@@ -800,7 +1005,7 @@
     $('#tagB').textContent = '150.0 → 150.0 g';
     logAttempt({ stage: 'explore', questId: 'burnB' });
     acquire(['cB'], async () => {
-      await say(M.lines.afterB, { center: true }); S.boardOpen = true; renderSmallBoard(); setNote('칠판에 내 생각 쓰기');
+      await say(M.lines.afterB, { center: true }); S.boardOpen = true; renderSmallBoard(); setNote('칠판을 눌러 내 생각 쓰기');
       glow($('#board'), 'board');
     }, $('#devB'));
   }
@@ -817,9 +1022,11 @@
     box.style.cssText = '';
     box.hidden = false;
     logAttempt({ stage: S.stage, questId: 'acquire', input: ids.join('+') });
+    setNote('획득 눌러 단서 챙기기');
     const btn = $('#acqBtn');
     btn.addEventListener('click', () => {
       glow(null);
+      setNote(''); // 다음 할 일은 획득 뒤의 대사가 끝나고 정한다
       S.acquiring = false;
       const els = $$('[data-card]', box);
       ids.forEach((id, i) => addCard(id, els[i]));
@@ -866,7 +1073,7 @@
     setStage('claim');
     $('#board').onclick = null;
     glow(null);
-    setNote('내 생각 말하기');
+    setNote('왜 무거워졌는지 내 생각 쓰기', 'topLeft');
     await say([RUBRIC.STAGES.first.question, ...M.lines.firstAsk.slice(1)], { center: true });
     openReply({
       text: true, rows: 3, send: '교수님께 말하기', underBoard: true,
@@ -910,7 +1117,7 @@
     $('#claimSubmit').addEventListener('click', submitClaim);
     S.evidence = [null, null];
     renderEvidence();
-    setNote('까닭 고르고 근거 올리기');
+    setNote('까닭 고르고 근거 카드 두 장 올리기', 'belowProf');
   }
   function dropEvidence(id, idx) {
     if (S.stage !== 'claim') return;
@@ -936,6 +1143,7 @@
     const ok = S.claimPick && S.evidence.every(Boolean);
     if (ok) $('#tray').classList.remove('call');
     btn.disabled = !ok;
+    if (S.stage === 'claim') setNote(ok ? '교수님께 제출 누르기' : '까닭 고르고 근거 카드 두 장 올리기');
     if (ok) glow(btn, null);
   }
   async function submitClaim() {
@@ -961,6 +1169,7 @@
   /* ───────── 3. 드러내기 ───────── */
   async function startRebuttal() {
     setStage('rebuttal');
+    setNote(''); // 콧대가 솟고 꼬투리가 적히는 동안에는 학생이 할 일이 없다
     renderSmallBoard();
     renderTray();
     $('#stage').classList.add('spot');
@@ -1244,12 +1453,12 @@
   function setupFlameS() {
     const el = $('#flameS');
     let acc = 0; let beat = 0;
+    const toAtoms = (x, y) => { const svg = $('#atoms'); const pt = svg.createSVGPoint(); pt.x = x; pt.y = y; return pt.matrixTransform(svg.getScreenCTM().inverse()); };
     flameDrag(el, {
-      near: (x, y) => {
-        const svg = $('#atoms'); const pt = svg.createSVGPoint(); pt.x = x; pt.y = y;
-        const p = pt.matrixTransform(svg.getScreenCTM().inverse());
-        return Math.hypot(p.x - WOOL[0], p.y - WOOL[1]) < 80;
-      },
+      near: (x, y) => { const p = toAtoms(x, y); return Math.hypot(p.x - WOOL[0], p.y - WOOL[1]) < 80; },
+      // 눌러서 댈 때는 철 둘레를 넉넉히 받아 주고, 불꽃 끝은 철 바로 위에 둔다
+      hit: (x, y) => { const p = toAtoms(x, y); return Math.hypot(p.x - WOOL[0], p.y - WOOL[1]) < 160; },
+      spot: () => { const m = $('#atoms').getScreenCTM(); return [m.a * WOOL[0] + m.e, m.d * (WOOL[1] - 20) + m.f]; },
       tick: (dt, near) => {
         const sp = $('#woolSparks'); if (sp) sp.classList.toggle('on', near);
         if (!near) { acc = 0; return; }
@@ -1395,6 +1604,7 @@
   async function startLink(i) {
     S.round = i + 1;
     S.onToggle = null;
+    setNote(['집게를 빨간 단자에 물리기', '뚜껑 열고 불꽃을 철에 대기', '불꽃을 철에 대고 기체 수 보기'][i], 'faceLeft');
     await say(M.links[i].doLines, { center: true });
     if (i === 0) {
       S.canToggle = false;
@@ -1537,6 +1747,7 @@
   }
   // 다음 꼬투리로: 카드가 있으면 뒤집어 보이고, 실험실로 돌아와 현미경으로 보낸다
   async function nextGap(i) {
+    setNote(''); // 카드를 뒤집고 실험실로 돌아오는 동안에는 숨긴다
     if (S.tray.includes(M.links[i].data)) await openGap(i);
     exitArena();
     renderSmallBoard();
@@ -1544,6 +1755,7 @@
     S.scope.locked = false;
     $('#microscope').classList.add('unlocked');
     glow($('#microscope'), 'scope');
+    setNote('현미경 눌러 열기', 'topLeft');
   }
 
   // 학생이 빈칸에 쓴 말을 답 틀의 끝말과 잇는다. 끝 글자에 맞춰 "~다는 / ~라는 / ~이라는 뜻이다"가 된다.
@@ -1563,6 +1775,7 @@
     if (!S.cards[L.data].mis) await openGap(i); // 현미경에서 앞면을 얻은 카드는 이제 뒤집는다
     enterArena();
     renderGap(i, 'write');
+    setNote('카드 뒷면에 이 숫자의 뜻 쓰기', 'aboveProf');
     await say(M.lines.writeAsk);
     linkReply(i);
   }
@@ -1599,6 +1812,7 @@
 
   // 통과하면 학생의 문장이 뒷면에 남아 교수의 빨간 글씨를 지우고, 콧대가 한 칸 꺾인다. 그다음 꼬투리로 넘어간다.
   async function passLink(i) {
+    setNote(''); // 콧대가 꺾이는 장면 동안에는 숨긴다
     S.link = i < M.links.length - 1 ? i + 1 : null;
     S.lensOn = null;
     renderGap(i, 'done');
@@ -1623,11 +1837,13 @@
       + '<div class="bars-foot"><button type="button" class="dev-btn" id="barsReplay" disabled>↻ 다시 보기</button><button type="button" class="chalk-btn" id="barsNext" disabled>다음</button></div>';
     $('#barsReplay').addEventListener('click', () => { logAttempt({ stage: 'rebuttal', questId: 'combineReplay' }); playBars(); });
     $('#barsNext').addEventListener('click', () => { glow(null); startCompose(); }, { once: true });
+    setNote(''); // 장면이 도는 동안에는 볼 뿐이다
     await say(M.lines.combineLine);
     await playBars();
     logAttempt({ stage: 'rebuttal', questId: 'combine', pass: true });
     await say(M.lines.combineDone);
     glow($('#barsNext'), null);
+    setNote('다 봤으면 다음 누르기', 'belowProf');
   }
   // 장면이 도는 동안에는 다시 보기와 다음을 잠근다
   async function playBars() {
@@ -1748,6 +1964,7 @@
       $('#backPeek').hidden = true; // 쓰기 시작하면 뒷면이 덮인다
       syncCorners();
       S.lastInput = now(); $('#finalSubmit').disabled = S.submitting || ta.value.trim().length < 1;
+      try { sessionStorage.setItem(finalDraftKey(), ta.value); } catch (err) { /* 저장소를 못 쓰는 브라우저 */ }
     });
     ta.addEventListener('blur', () => { S.caret = ta.selectionStart; });
     // 혼자 힘으로 쓸 때는 붙여넣기와 끌어다 놓기를 막는다
@@ -1758,7 +1975,11 @@
     $('#ownMode').addEventListener('change', (e) => setOwnMode(e.target.checked));
     $('#hintBook').addEventListener('click', onHintBook);
     $('#finalSubmit').addEventListener('click', submitFinal);
-    setNote('처음부터 끝까지 설명하기');
+    // 판정을 기다리다 창을 새로 고쳤어도, 같은 학생이 이 화면에 다시 오면 쓰던 답이 돌아온다
+    let saved = '';
+    try { saved = sessionStorage.getItem(finalDraftKey()) || ''; } catch (err) { /* 저장소를 못 쓰는 브라우저 */ }
+    if (saved) { ta.value = saved; ta.dispatchEvent(new Event('input')); }
+    setNote('처음부터 끝까지 설명하기', 'belowProf');
     await say(M.lines.composeAsk, { center: true });
     say(M.lines.hintOpen);
     S.glowKey = 'compose';
@@ -1900,7 +2121,9 @@
     if (!S.predicted && !r.pass && r.ask !== 'unclear') {
       S.predicted = true;
       await say(M.lines.predictAsk);
+      setNote('꼬투리 잡힐 곳 고르기', 'belowProf');
       const choice = await pickGap();
+      setNote('처음부터 끝까지 설명하기');
       const match = M.predictOptions[choice].includes(r.ask);
       logAttempt({ stage: 'compose', questId: 'predict', choice, input: r.ask, pass: match });
       updateSession({ selfPredict: choice, selfPredictMatch: match });
@@ -2120,6 +2343,8 @@
         <div class="btns"><button type="button" id="submitBtn" disabled><span class="label">선생님께 제출하기</span><span class="lock"></span></button></div>
       </div>`;
     $('#submitBtn').addEventListener('click', submitToTeacher);
+    setNote('');
+    try { sessionStorage.removeItem(finalDraftKey()); } catch (err) { /* 저장소를 못 쓰는 브라우저 */ }
     const open = () => { $('#clearScreen').hidden = false; $('#clearScreen').scrollTop = 0; revealResult(pops); };
     // 완전 클리어면 마지막 콧대가 꺾이는 것을 보여 준 뒤 결과를 띄운다
     if (type === 'full') {
@@ -2166,10 +2391,10 @@
     setNose(2);
     fit();
     setStage('explore');
-    setNote('두 강철솜 태우기');
     await tareScene();
     await say(M.lines.intro, { center: true });
     glow($('#flameA'), 'deviceA');
+    setNote('불꽃 막대를 강철솜에 대기', 'topLeft'); // 시작 장면과 첫 대사가 끝나고, 학생이 조작할 차례가 되어서야 띄운다
   }
 
   // 시작 장면: 빈 접시를 올린 저울 → TARE를 눌러 0.0 g → 강철솜을 올리면 2.0 g (강철솜만 잰다는 것을 보여 준다)
@@ -2196,5 +2421,5 @@
   fit();
   window.__m02 = { S, say, fit, renderTray, setNose, finish }; // 디버그용
   // 튜토리얼(js/tutorial02.js)이 쓰는 화면 부품
-  window.SCIW_ENGINE02 = { S, M, STAGES, $, $$, esc, sleep, reduced, nextFrame, say, sayTap, drawTail, waitTap, sysPop, openReply, closeReply, glow, blinkOnce, setStage, setNose, zoomProf, zoomOut, fit, acquire, renderTray, renderSmallBoard, renderEvidence, flameDrag, enterArena, exitArena, renderGap, closeScope };
+  window.SCIW_ENGINE02 = { S, M, STAGES, $, $$, esc, sleep, reduced, nextFrame, say, sayTap, drawTail, waitTap, sysPop, openReply, closeReply, glow, blinkOnce, setStage, setNose, zoomProf, zoomOut, fit, acquire, renderTray, renderSmallBoard, renderEvidence, flameDrag, enterArena, exitArena, renderGap, closeScope, setNote };
 })();

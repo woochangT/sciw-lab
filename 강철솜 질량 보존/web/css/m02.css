@@ -791,3 +791,50 @@ body.arena #reply.framed .r-send { align-self: center; }
 .demo-cursor.press svg { transform: scale(.86); }
 .demo-cursor.press::after { content: ''; position: absolute; left: -10px; top: -13px; width: 32px; height: 32px; border-radius: 50%; border: 3px solid #ffe39a; animation: ringOut .5s ease-out forwards; }
 .card.ghost.demo { opacity: .85; }
+
+/* 지금 할 일 칩: 학생이 혼자 해야 할 일이 있을 때만 뜬다. 자리는 상황마다 game02.js의 NOTE_SPOTS에서 정해 둔다. */
+#todoNote { position: fixed; left: 0; top: 0; z-index: 60; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 10px; padding: 10px 16px 10px 10px; border-radius: 18px; background: #fff3d2; border: 2px solid var(--glow); box-shadow: 0 6px 16px #0007; color: #4a3410; font-size: 18px; font-weight: 700; line-height: 1.3; pointer-events: none; }
+#todoNote b { padding: 2px 8px; border-radius: 999px; background: var(--glow); color: #4a3410; font-size: 12px; font-weight: 700; white-space: nowrap; }
+#todoNote em { grid-column: 2; font-style: normal; font-size: 13px; font-weight: 600; color: #8a5a0b; }
+#todoNote em:empty { display: none; }
+#todoNote.narrow { grid-template-columns: 1fr; justify-items: start; font-size: 16px; padding: 8px 12px; }
+#todoNote.narrow em { grid-column: 1; }
+#todoNote.flash { animation: todoIn .7s cubic-bezier(.2, 1.4, .4, 1); }
+@keyframes todoIn { from { transform: scale(1.15); box-shadow: 0 0 0 6px #f6cf6799, 0 6px 16px #0007; } }
+#todoNote.shake-me { animation: todoShake .8s ease-in-out; }
+@keyframes todoShake {
+  0%, 100% { transform: none; }
+  10% { transform: translateX(-8px) rotate(-3deg) scale(1.06); box-shadow: 0 0 0 5px #f6cf67aa, 0 6px 16px #0007; }
+  25% { transform: translateX(8px) rotate(3deg) scale(1.06); }
+  40% { transform: translateX(-6px) rotate(-2deg) scale(1.04); }
+  55% { transform: translateX(6px) rotate(2deg) scale(1.04); }
+  70% { transform: translateX(-3px); }
+  85% { transform: translateX(3px); }
+}
+/* 눌러서 놓기: 집어 든 도구는 들썩이고, 놓을 곳은 점선으로 빛난다 */
+.flame-tool.armed, .clip-tool.armed { animation: armedBob .9s ease-in-out infinite; filter: drop-shadow(0 0 10px var(--glow)) drop-shadow(0 6px 6px #0006); }
+@keyframes armedBob { 50% { translate: 0 -8px; } }
+.tap-target { outline: 3px dashed var(--glow); outline-offset: 6px; border-radius: 10px; }
+.flame-tool.parked { z-index: 30; }
+
+/* 판정 대기: 종이 위를 돋보기가 오가며 읽는다 */
+/* 판정을 기다리는 동안에는 할 일 칩 자리를 대기 카드가 대신한다 */
+body.judging #todoNote { display: none; }
+#judgeWait { position: fixed; left: 0; top: 0; z-index: 60; pointer-events: none; display: flex; align-items: center; gap: 14px; padding: 10px 18px 10px 12px; border-radius: 14px; background: #fbf2dff2; border: 2px solid var(--memo-edge); box-shadow: 0 8px 20px #0008; color: var(--ink); }
+#judgeWait .jw-text { display: flex; flex-direction: column; gap: 2px; }
+#judgeWait b { font-size: 16px; }
+#judgeWait small { font-size: 12px; color: var(--ink-soft); }
+.jw-art { position: relative; width: 54px; height: 54px; flex: none; }
+.jw-paper { position: absolute; left: 8px; top: 4px; width: 36px; height: 46px; border-radius: 3px; background: #fff; border: 1.5px solid #c9b88f; display: flex; flex-direction: column; gap: 6px; padding: 8px 6px; }
+.jw-paper i { display: block; height: 3px; border-radius: 2px; background: #9aa39c; }
+.jw-paper i:nth-child(2) { width: 80%; } .jw-paper i:nth-child(4) { width: 60%; }
+.jw-lens { position: absolute; left: 4px; top: 6px; width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--accent); background: #def1ed99; animation: jwRead 2.4s ease-in-out infinite; }
+.jw-lens::after { content: ''; position: absolute; right: -9px; bottom: -6px; width: 10px; height: 4px; border-radius: 2px; background: var(--accent); rotate: 45deg; }
+@keyframes jwRead { 0% { transform: translate(0, 0); } 25% { transform: translate(18px, 2px) rotate(8deg); } 50% { transform: translate(2px, 14px); } 75% { transform: translate(20px, 18px) rotate(-6deg); } 100% { transform: translate(0, 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .flame-tool.armed, .clip-tool.armed, #todoNote.flash { animation: none; }
+  #todoNote.shake-me { animation: todoGlow .8s ease-in-out; } /* 움직임을 줄인 설정이면 흔드는 대신 테두리만 번쩍인다 */
+  .jw-lens { animation: jwBlink 1.4s steps(2) infinite; }
+}
+@keyframes jwBlink { 50% { opacity: .35; } }
+@keyframes todoGlow { 50% { box-shadow: 0 0 0 6px #f6cf67, 0 6px 16px #0007; } }
