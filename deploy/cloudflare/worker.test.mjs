@@ -15,13 +15,22 @@ function setup(){const calls=[];return {calls,handler:createHandler(async(url,op
 })}}
 const request=(path,body,headers={})=>new Request('https://preview.example'+path,body===undefined?{headers}:{method:'POST',headers:{Origin:'https://preview.example','Content-Type':'application/json',...headers},body:JSON.stringify(body)});
 
-test('rejudgment is not exposed through the current public worker',async()=>{
- const s=setup();
- for(const req of [request('/api/sheet/rejudge',{classKey:'g:3:r:2',missionId:'m01',sessionId:'a'}),new Request('https://preview.example/api/sheet/rejudge',{method:'OPTIONS',headers:{Origin:'https://preview.example','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type'}})]){
-  const response=await s.handler(req,{});
-  assert.ok([403,404].includes(response.status));
- }
- assert.equal(s.calls.length,0);
+test('rejudgment forwards only target and teacher credential and is gated by Apps Script',async()=>{
+ const calls=[],handler=createHandler(async(url,opts)=>{
+  assert.match(url,/script.google.com/);
+  const body=JSON.parse(opts.body);calls.push(body);
+  return Response.json(body.teacherKey==='synthetic-key'?{ok:true,rejudgment:{requestId:body.requestId}}:{ok:false,code:'TEACHER_ACCESS'});
+ });
+ const payload={classCode:'3-2',missionId:'m01',sessionId:'a',attemptId:'b',requestId:'synthetic-request',teacherKey:'synthetic-key'};
+ const path='/api/sheet/rejudge';
+ const preflight=await handler(new Request('https://preview.example'+path,{method:'OPTIONS',headers:{Origin:'https://woochangt.github.io','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type'}}),{});
+ assert.equal(preflight.status,204);
+ assert.equal((await handler(request(path,payload,{Origin:'https://other.example'}),{})).status,403);
+ assert.equal(calls.length,0);
+ assert.equal((await handler(request(path,{...payload,teacherKey:'bad'}),{})).status,403);
+ const response=await handler(request(path,{...payload,text:'must not be forwarded'}),{});
+ assert.deepEqual(await response.json(),{ok:true,rejudgment:{requestId:payload.requestId}});
+ assert.deepEqual(calls[1],{action:'rejudge',...payload});
 });
 
 test('root serves the intro index with explicit HTML handling, without an upstream server',async()=>{

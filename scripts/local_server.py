@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Local preview + read-only Google Sheets connection; no student records on disk.
+"""Local preview and Google Sheets reads without persisting student records on disk.
 
-Uses the workbook's existing link-readable access. Does not change sharing,
-Apps Script authentication, or any sheet contents. Binds to loopback only.
+Teacher rejudgment requests use the same Apps Script authorization as the hosted API.
+The server binds to loopback only.
 """
 import argparse
 import csv
@@ -170,7 +170,7 @@ class Handler(SimpleHTTPRequestHandler):
         if not self.local_request() or self.headers.get('Origin') != 'http://'+self.headers.get('Host',''):
             self.json({'ok':False,'error':'로컬 수업 화면에서 요청해 주세요.'},403)
             return
-        if self.path != '/api/sheet/analysis':
+        if self.path not in ('/api/sheet/analysis', '/api/sheet/rejudge'):
             self.json({'ok':False,'error':'지원하지 않는 요청'},404)
             return
         try:
@@ -180,6 +180,24 @@ class Handler(SimpleHTTPRequestHandler):
             body=json.loads(self.rfile.read(size))
             if not isinstance(body,dict):
                 raise ValueError('잘못된 분석 요청입니다.')
+            if self.path == '/api/sheet/rejudge':
+                fields=('classCode','missionId','sessionId','attemptId','requestId','teacherKey')
+                payload={key:body.get(key) for key in fields}
+                request=urllib.request.Request(SCRIPT_URL,data=json.dumps({'action':'rejudge',**payload}).encode(),headers={'Content-Type':'text/plain;charset=utf-8'})
+                with urllib.request.urlopen(request,timeout=145) as response:
+                    raw=response.read(60001)
+                if len(raw)>60000:
+                    raise ValueError('재판정 응답이 너무 큽니다.')
+                value=json.loads(raw)
+                if value.get('ok') and (value.get('rejudgment') or {}).get('requestId')==payload['requestId']:
+                    with self.reader.lock:
+                        self.reader.cached=None
+                    self.json({'ok':True,'rejudgment':value['rejudgment']})
+                else:
+                    code=value.get('code','')
+                    code=code if isinstance(code,str) and re.fullmatch(r'[A-Z_]{2,40}',code) else 'REJUDGE_UNAVAILABLE'
+                    self.json({'ok':False,'code':code},403 if code=='TEACHER_ACCESS' else 409 if code in ('STALE_SUBMISSION','REJUDGE_BUSY') else 400)
+                return
             name=body.get('classCode','')
             class_key=body.get('classKey','')
             mission=body.get('missionId','m02')
@@ -206,7 +224,7 @@ class Handler(SimpleHTTPRequestHandler):
         except (ValueError,KeyError,TypeError) as exc:
             self.json({'ok':False,'error':str(exc)},400)
         except (OSError,subprocess.SubprocessError):
-            self.json({'ok':False,'error':'OpenAI 분석 서버에 연결하지 못했습니다. 잠시 후 다시 요청해 주세요.'},502)
+            self.json({'ok':False,'error':'Apps Script에 연결하지 못했습니다. 잠시 후 다시 요청해 주세요.'},502)
     def do_GET(self):
         if not self.local_request():
             self.json({'ok':False,'error':'로컬 미리보기에서만 사용할 수 있습니다.'},403)

@@ -16,7 +16,7 @@
    const check=M.obj(checks[id]),quote=text(check.quote),reason=text(check.reason),exact=quote&&input.includes(quote);
    return `<div class="criterion-reason"><h4>${esc(id)}</h4>${reason?`<p><b>판정 이유</b> ${esc(reason)}</p>`:'<p>이전 기록에는 항목별 판정 이유가 저장되지 않았어요.</p>'}${exact?`<blockquote><b>판정 근거로 인용된 부분</b><p>${esc(quote)}</p></blockquote>`:quote?'<p>저장된 인용문이 답안과 일치하지 않아 근거로 강조하지 않았어요.</p>':'<p>직접 인용된 답안 구절은 저장되지 않았어요.</p>'}`;
   }).join('</div>')+'</div>';
-  return `${status(data,s)}<section class="criterion-evidence" aria-labelledby="criterionTitle"><span class="paper-tag">선택한 루브릭 항목 · ${esc(key)}</span><h3 id="criterionTitle">${esc(label)} · ${{met:'인정',revise:'보완',unknown:'판정 없음'}[state]}</h3><p>${esc(evaluation.label||'판정 기준 미기록')} · 게임이 저장한 참고 판정입니다.</p>${quoteBlocks}<details open><summary>판정에 사용된 학생 답안 전체</summary><p class="answer">${esc(input||'답안 원문이 저장되지 않았어요.')}</p></details></section>`;
+  return `${status(data,s)}<section class="criterion-evidence" aria-labelledby="criterionTitle"><span class="paper-tag">선택한 루브릭 항목 · ${esc(key)}</span><h3 id="criterionTitle">${esc(label)} · ${{met:'인정',revise:'보완',unknown:'판정 없음'}[state]}</h3><p>${esc(evaluation.label||'판정 기준 미기록')} · ${evaluation.rejudgment?'교사 요청으로 다시 판정한 참고 결과입니다.':'게임이 저장한 참고 판정입니다.'}</p>${quoteBlocks}<details open><summary>판정에 사용된 학생 답안 전체</summary><p class="answer">${esc(input||'답안 원문이 저장되지 않았어요.')}</p></details></section>`;
  }
  function timeline(data,s){
   const events=M.attemptsFor(data,s.sessionId),groups=new Map();

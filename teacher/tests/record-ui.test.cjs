@@ -5,7 +5,7 @@ const s={sessionId:'s',missionId:'m02',classCode:'3-2',studentNo:'2',finalAnswer
 const a={attemptId:'a',sessionId:'s',stage:'compose',questId:'final',input:'밖의 <산소>가 철에 붙었다.',judgment:{W1b:true},rubricVersion:'m02-docx-1.2.0',analysis:{checks:{W1b:{status:'met',quote:'<산소>가 철에 붙었다.',reason:'학생이 산소의 결합을 설명함'}}}};
 test('clicked criterion shows the same final attempt judgment, exact quote, reason and assessed answer safely',()=>{
  const data={attempts:[a]},html=U.criterion(data,s,'W1b');
- assert.equal(I.evaluation(data,s).judgment.W1b,true);assert.match(html,/산소로 특정한 근거 · 인정/);assert.match(html,/학생이 산소의 결합을 설명함/);assert.match(html,/&lt;산소&gt;가 철에 붙었다/);assert.doesNotMatch(html,/<산소>/);assert.doesNotMatch(html,/이전 판정/);
+ assert.equal(I.evaluation(data,s).judgment.W1b,true);assert.match(html,/산소 특정 이유 · 인정/);assert.match(html,/학생이 산소의 결합을 설명함/);assert.match(html,/&lt;산소&gt;가 철에 붙었다/);assert.doesNotMatch(html,/<산소>/);assert.doesNotMatch(html,/이전 판정/);
 });
 test('missing historical reasons stay missing; fabricated or nonmatching quotes are not highlighted',()=>{
  assert.match(U.criterion({attempts:[]},{...s,analysis:{}},'W1b'),/항목별 판정 이유가 저장되지/);

@@ -19,9 +19,9 @@ test('class game views reuse the same matrix layout and preserve original scoped
 });
 test('ambiguous criterion headers have accurate help while obvious headers and stored fields stay intact',()=>{
  const data=M.analyze(db,'3-2','latest',{missionId:'m02'}),html=D.screen({portfolio,data,selectedClass,mission:'m02',source:'demo'});
- assert.match(html,/<th scope="col" title="열린 실험 자료 \(D-A\)">열린 A<button[^>]*data-info-text="[^"]*최종 답안에서 식별/);
+ assert.match(html,/<th scope="col" title="열린 실험 자료 \(D-A\)">A 질량 증가<button[^>]*data-info-text="[^"]*최종 답안에서 식별/);
  assert.match(html,/실험을 관찰했는지의 기록은 아닙니다/);
- assert.match(html,/<th scope="col" title="닫힌 실험 자료 \(D-B\)">닫힌 B<button/);
+ assert.match(html,/<th scope="col" title="닫힌 실험 자료 \(D-B\)">B 전체 질량<button/);
  assert.match(html,/<th scope="col">AI 판정<button/);
  assert.match(html,/<th scope="col">출석번호<\/th>/);
  assert.doesNotMatch(html,/<th scope="col">출석번호<button/);

@@ -34,15 +34,25 @@
 
   async function evaluateText(stage, text) {
     const displayedPrompt = $('#bubble .body').innerText;
-    S.lastAnswerAttempt = API.recordInput(S.sessionId, {stage:S.stage,input:text,displayedPrompt,evaluationStage:stage});
-    await say(stage === 'final' ? M.lines.finalWait : ['흠…']);
     const offset = stage === 'final' ? $('#answer').value.indexOf(text) : 0;
+    const cardSpans = stage === 'final' ? RUBRIC.cardSpans(S.answerOrigins || [], offset, text.length) : [];
+    const evaluationInput = { initialAnswer: S.firstAnswer, cardSpans };
+    const attemptId = API.recordInput(S.sessionId, {stage:S.stage,input:text,displayedPrompt,evaluationStage:stage,
+      ...(stage === 'final' ? { evaluationInput, evaluationStatus:'pending' } : {})});
+    S.lastAnswerAttempt = attemptId;
+    await say(stage === 'final' ? M.lines.finalWait : ['흠…']);
     const started = now();
     judgeWait(true);
     try {
-      const result = await API.judge({ stage, text, initialAnswer: S.firstAnswer,
-        cardSpans: stage === 'final' ? RUBRIC.cardSpans(S.answerOrigins || [], offset, text.length) : [] });
-      return Object.assign(result, { displayedPrompt, canonicalQuestion: STAGES[stage].question });
+      const result = await API.judge({ stage, text, ...evaluationInput });
+      return Object.assign(result, { displayedPrompt, canonicalQuestion: STAGES[stage].question, inReplyTo:attemptId });
+    } catch (error) {
+      if (stage === 'final') {
+        logAttempt({stage:'compose',questId:'finalEvaluation',inReplyTo:attemptId,
+          evaluationStatus:'failed',evaluationErrorCode:error.code || 'EVALUATION_ERROR'});
+        API.flush();
+      }
+      throw error;
     } finally {
       judgeWait(false);
       // 서버를 기다린 시간을 학생의 무입력 시간으로 세지 않는다.
@@ -92,7 +102,7 @@
   }
   function judgmentRecord(r) {
     return { judgedBy: 'openai', rubricVersion: r.rubricVersion, model: r.model, requestId: r.requestId,
-      outcome: r.outcome, displayedPrompt: r.displayedPrompt, canonicalQuestion: r.canonicalQuestion,
+      outcome: r.outcome, inReplyTo: r.inReplyTo, displayedPrompt: r.displayedPrompt, canonicalQuestion: r.canonicalQuestion,
       feedbackQuestion: r.nextQuestion, analysis: r.analysis, highlights: r.highlights };
   }
   function feedbackLines(stage, followup) {
@@ -529,6 +539,7 @@
     if (elements !== undefined) a.judgment = elements;
     if(a.input)S.lastAnswerAttempt=a.attemptId;
     API.logAttempt(a);
+    return a.attemptId;
   }
 
   /* ───────── 카드 ───────── */
@@ -2114,8 +2125,12 @@
     const r = await evaluateText('final', text);
     if (r.outcome === 'clarify') {
       logAttempt(Object.assign({ stage: 'compose', questId: 'clarify', input: text, diag: r.diag, pass: false }, judgmentRecord(r)));
+      API.flush();
       await say(feedbackLines('final', r.nextQuestion)); return;
     }
+    const remain = remainingCardSentences(text);
+    const finalAttemptId = logAttempt(Object.assign({ stage: 'compose', questId: 'final', input: text, diag: r.diag, pass: r.pass, elements: r.elements, hint: S.hint, own: S.ownMode, cardSentences: remain.length }, judgmentRecord(r)));
+    API.flush();
     // 보완안 5: 첫 제출이 부족하면 교수가 "부족하다"고 먼저 말하고, 학생이 꼬투리 잡힐 곳을 고른다
     let lead = [];
     if (!S.predicted && !r.pass && r.ask !== 'unclear') {
@@ -2131,10 +2146,9 @@
       if (match) { await say(M.lines.predictMatch.concat(M.lines.noteNext, [RUBRIC.STAGES.final.question])); ta.focus(); return; }
       lead = M.lines.predictMiss.concat(M.lines.noteNext);
     }
+    if (finalAttemptId) S.lastAnswerAttempt = finalAttemptId;
     S.submits++;
-    const remain = remainingCardSentences(text);
     if (S.submits === 1 || !S.firstSubmitText) { S.firstSubmitText = text; updateSession({ firstSubmitBeforeHint: S.hint === 0 ? text : '', firstSubmitDiag: r.diag }); }
-    logAttempt(Object.assign({ stage: 'compose', questId: 'final', input: text, diag: r.diag, pass: r.pass, elements: r.elements, hint: S.hint, own: S.ownMode, cardSentences: remain.length }, judgmentRecord(r)));
     if (r.pass) { finish('full', text, r); return; }
     if (S.submits >= 3) { finish('partial', text, r); return; }
     const line = feedbackLines('final', r.nextQuestion);

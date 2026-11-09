@@ -1550,7 +1550,8 @@
 
   async function submitDefense() {
     const text = S.defenseText.trim();
-    S.lastAnswerAttempt = API.recordInput(S.session.sessionId, {stage:'defense',input:text,questionId:'FINAL',displayedPrompt:S.defenseQuestion || ''});
+    const finalInputId = API.recordInput(S.session.sessionId, {stage:'defense',input:text,questionId:'FINAL',displayedPrompt:S.defenseQuestion || ''});
+    S.lastAnswerAttempt = finalInputId;
     closeSheet();
     S.busy = true; updateDo();
     showBubble(M.thinkingLine);
@@ -1576,7 +1577,7 @@
     const errorType = unclear ? '' : (r.errors[0] || '');
     if (!unclear) S.defenseTries += 1;
     logAttempt({
-      stage: 'defense', questId: 'FINAL', element: 'ALL', input: text,
+      stage: 'defense', questId: 'FINAL', element: 'ALL', input: text, inReplyTo: finalInputId,
       judgment: Object.assign({}, el, { errors: r.errors, viaWB: r.viaWB, mode: r.mode, usedCards: r.usedCards, own }),
       diagnosis: unclear ? 'UNCLEAR' : full ? 'PASS' : 'MISSING', errorType, judgedBy: r.judgedBy
     });

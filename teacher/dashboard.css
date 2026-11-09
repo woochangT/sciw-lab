@@ -62,3 +62,7 @@ body.dashboard-app{background:#f3f5f2;font:15px/1.5 Pretendard,system-ui,sans-se
 .dashboard-screen.with-comparison .dashboard-ai-error{max-height:none;overflow:visible}
 .dashboard-screen.with-comparison .dashboard-insights .class-progress-list,.dashboard-screen.with-comparison .dashboard-insights .element-bars{overflow:visible}
 @media(max-width:1000px){.dashboard-app #content:has(.dashboard-screen.with-comparison){overflow:visible}.dashboard-screen.with-comparison .dashboard-analysis-grid{grid-template-rows:auto auto}}
+.rejudge-control form{display:flex;align-items:end;flex-wrap:wrap;gap:10px;margin-top:12px}
+.rejudge-control label{display:grid;gap:5px;flex:1 1 190px}
+.rejudge-control #rejudgeStatus:empty{display:none}
+.dashboard-matrix .rubric-code{display:block;font-size:.76em;font-weight:500;color:#526952}

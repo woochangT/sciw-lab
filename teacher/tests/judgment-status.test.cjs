@@ -43,7 +43,7 @@ test('the class row and answer detail show the same status independently of answ
  for(const label of ['판정 완료','판정 대기','판정 실패','판정 불가','판정 기록 없음'])assert.match(html,new RegExp(label));
  assert.match(html,/<th scope="col">AI 판정/);
  const pendingRow=html.match(/<tr><th scope="row"><b>2번<\/b>[\s\S]*?<\/tr>/)?.[0];
- assert.match(pendingRow,/submission-status ">작성 전/);assert.match(pendingRow,/status-pending">판정 대기/);
+ assert.match(pendingRow,/submission-status written">작성/);assert.match(pendingRow,/status-pending">판정 대기/);
  assert.match(U.criterion(data,sessions[2],''),/판정 실패/);
  assert.match(U.criterion(data,sessions[2],''),/&lt;FAIL&gt;/);
  assert.doesNotMatch(U.criterion(data,sessions[2],''),/<FAIL>/);

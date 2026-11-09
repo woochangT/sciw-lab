@@ -10,7 +10,7 @@ const HEADERS=['recordType','recordId','sessionId','classCode','studentNo','miss
 const HISTORY_HEADERS=['history1','history2','history3','history4','history5','history6','history7','history8','처음 생각','최종 답안','단계별 대화'];
 const JSON_FIELDS=['stageTimes','clueCards','modelCards','questPassed','finalJudgment','errorCounts','hintMax','judgment','extra'];
 const PAGES_ORIGIN='https://woochangt.github.io';
-const API_PATHS=new Map([['/api/sheet/classes','GET'],['/api/sheet/class','GET'],['/api/sheet/analysis','POST']]);
+const API_PATHS=new Map([['/api/sheet/classes','GET'],['/api/sheet/class','GET'],['/api/sheet/analysis','POST'],['/api/sheet/rejudge','POST']]);
 const allowedOrigin=(origin,url)=>origin===url.origin||origin===PAGES_ORIGIN;
 const sheetUrl=m=>`https://docs.google.com/spreadsheets/d/${SHEET}/edit#gid=${MISSIONS[m].gid}`;
 class HttpError extends Error{constructor(status,message){super(message);this.status=status}}
@@ -96,12 +96,23 @@ function coreHandler(fetcher){return async(request,env)=>{
       const scope=validScope({classKey:url.searchParams.get('classKey')||'',classCode:url.searchParams.get('classCode')||'',missionId:url.searchParams.get('missionId')||'m02',includeTests:url.searchParams.get('includeTests')==='1'});
       return json({ok:true,...scoped(await readSheet(fetcher),scope)});
     }
-    if(url.pathname!=='/api/sheet/analysis')throw new HttpError(404,'지원하지 않는 조회');
+    if(!['/api/sheet/analysis','/api/sheet/rejudge'].includes(url.pathname))throw new HttpError(404,'지원하지 않는 조회');
     if(request.method!=='POST')throw new HttpError(405,'지원하지 않는 요청');
     if(!allowedOrigin(origin,url))throw new HttpError(403,'같은 수업 화면에서 요청해 주세요.');
     if(request.headers.get('Content-Type')?.split(';')[0]!=='application/json')throw new HttpError(400,'잘못된 분석 요청입니다.');
     let body;try{body=JSON.parse(await boundedText(request,1024))}catch(error){if(error instanceof HttpError)throw error;throw new HttpError(400,'잘못된 분석 요청입니다.')}
     if(!body||Array.isArray(body)||typeof body!=='object')throw new HttpError(400,'잘못된 분석 요청입니다.');
+    if(url.pathname==='/api/sheet/rejudge'){
+      const {classCode,missionId,sessionId,attemptId,requestId,teacherKey}=body;
+      const upstream=await fetcher(SCRIPT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({action:'rejudge',classCode,missionId,sessionId,attemptId,requestId,teacherKey}),
+        redirect:'follow',signal:AbortSignal.timeout(145000)});
+      if(!upstream.ok)throw new HttpError(502,'재판정 서버에 연결하지 못했습니다.');
+      const result=JSON.parse(await boundedText(upstream,60000));
+      if(result.ok&&result.rejudgment?.requestId===requestId)return json({ok:true,rejudgment:result.rejudgment});
+      const code=typeof result.code==='string'&&/^[A-Z_]{2,40}$/.test(result.code)?result.code:'REJUDGE_UNAVAILABLE';
+      return json({ok:false,code},code==='TEACHER_ACCESS'?403:code==='STALE_SUBMISSION'||code==='REJUDGE_BUSY'?409:400);
+    }
     const scope=validScope(body),data=scoped(await readSheet(fetcher),scope);
     const evidence=E.build(data,scope.classCode,scope.mode,{missionId:scope.missionId,includeTests:scope.includeTests,classCodes:data.classCodes});
     if(!evidence.participants)throw new HttpError(400,'분석할 참여 기록이 없습니다.');
