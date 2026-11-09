@@ -28,50 +28,143 @@
   // 게임의 meaningSentence와 같은 규칙으로 뒷면 문장을 만든다
   const meaning = (t) => (/(이|아니)다$/.test(t) ? t.replace(/다$/, '라는 뜻이다.') : t + '는 뜻이다.');
 
-  // 판정 결과. text는 게임이 판정 서버로 보내는 전체 문장(시작어 + 학생 문장 + 끝말)과 같아야 쓰인다.
-  // source: 'draft'는 손으로 만든 임시 결과, 'captured'는 실제 판정 서버가 이 문장에 낸 결과다.
-  const met = (quote, reason) => ({ status: 'met', quote, reason });
+  // 판정 결과. 2026-11-09 실제 판정 서버(평가 Apps Script)에 아래 text를 그대로 보내 받은 응답이다(source: 'captured').
+  // 원래 걸린 시간은 serverMs(최종 답은 약 18초)이고, 시연에서는 delay만큼만 기다린다.
+  // text는 게임이 판정 서버로 보내는 전체 문장(시작어 + 학생 문장 + 끝말)과 같아야 쓰인다. 문장을 바꾸면 이 결과도 다시 받아야 한다.
   const FIXTURES = {
-    Q1: {
-      source: 'draft', delay: 1600,
-      text: E.STAGES.Q1.starter + meaning(TEXT.Q1),
-      analysis: {
-        inputStatus: 'meaningful', diagnosis: 'NONE',
-        checks: { wholeMass: met('플라스크 안에서 산소가 철에 옮겨 붙었을 뿐, 안팎으로 드나든 물질은 없다', '플라스크 안에서 산소가 철과 결합한 일과, 플라스크 밖으로 드나든 물질이 없다는 경계를 함께 밝혔다.') },
-        errors: [], explanationAttempt: true, explanationQuality: 4, nextQuestion: '', highlights: []
-      }
-    },
-    Q3: {
-      source: 'draft', delay: 1600,
-      text: E.STAGES.Q3.starter + meaning(TEXT.Q3),
-      analysis: {
-        inputStatus: 'meaningful', diagnosis: 'NONE',
-        checks: { oxygenMass: met('줄어든 산소가 철에 붙었고, 늘어난 0.5 g은 그 산소의 질량', '줄어든 산소가 철에 붙었다는 것과 늘어난 0.5 g이 그 산소의 질량이라는 것을 함께 밝혔다.') },
-        errors: [], explanationAttempt: true, explanationQuality: 4, nextQuestion: '', highlights: []
-      }
-    },
-    final: {
-      source: 'draft', delay: 2600,
-      text: TEXT.final,
-      analysis: {
-        inputStatus: 'meaningful', diagnosis: 'NONE',
-        checks: {
-          C: met('강철솜이 공기 중의 산소와 결합했기 때문이다', '실험 A의 강철솜이 무거워진 까닭을 공기 중 산소와의 결합으로 밝혔다.'),
-          'D-A': met('실험 A에서 강철솜은 2.0 g에서 2.5 g으로 0.5 g 늘었고', '실험 A의 측정값과 증가분을 적었다.'),
-          'D-B': met('마개를 막은 실험 B에서는 플라스크 전체가 150.0 g 그대로였다', '실험 B의 플라스크 전체 질량이 그대로임을 적었다.'),
-          W1a: { status: 'missing', quote: '', reason: '질량이 저절로 생기지 않는다는 원리를 A에 적용한 문장은 없다.' },
-          W1b: met('철이 타는 동안 공기 중에서 줄어드는 기체는 산소뿐이므로 철에 붙는 것은 산소이다', '공기 중에서 산소만 줄어드는 관찰로 더해진 물질을 산소로 특정했다.'),
-          W2a: met('플라스크 안의 산소가 철에 옮겨 붙었을 뿐 밖으로 드나든 물질이 없어서 전체 질량이 변하지 않았다', '닫힌 플라스크 안에서 산소가 옮겨 갔을 뿐 출입이 없어 전체 질량이 일정함을 설명했다.'),
-          W2b: met('A에서 늘어난 0.5 g은 접시 밖 공기에서 들어와 철과 결합한 산소의 질량이다', '증가분을 바깥에서 들어와 결합한 산소의 질량으로 해석했다.')
+    "Q1": {
+      "source": "captured",
+      "capturedAt": "2026-11-09",
+      "model": "gpt-5.4-mini-2026-03-17",
+      "requestId": "7028db4f-dd50-4810-80c1-d3a751f138f7",
+      "serverMs": 6035,
+      "delay": 1600,
+      "text": "마개를 막은 플라스크 전체가 150.0 g 그대로였다는 것은 플라스크 안에서 산소가 철에 옮겨 붙었을 뿐, 안팎으로 드나든 물질은 없다는 뜻이다.",
+      "analysis": {
+        "inputStatus": "meaningful",
+        "diagnosis": "NONE",
+        "checks": {
+          "wholeMass": {
+            "status": "met",
+            "quote": "플라스크 안에서 산소가 철에 옮겨 붙었을 뿐, 안팎으로 드나든 물질은 없다는 뜻이다.",
+            "reason": "플라스크 안에서 산소가 철에 옮겨 붙었다는 내부 변화를 말했고, 안팎으로 드나든 물질이 없다고 해서 경계 밖에서 물질이 드나들지 않았다는 뜻도 함께 드러냈어요."
+          }
         },
-        errors: [], explanationAttempt: true, explanationQuality: 4, nextQuestion: '',
-        highlights: [
-          { quote: '플라스크 안의 산소가 철에 옮겨 붙었을 뿐 밖으로 드나든 물질이 없어서 전체 질량이 변하지 않았다', occurrence: 0, roles: ['W2a'],
-            explanation: '150.0 g이 그대로인 까닭을 플라스크 안에서 산소가 옮겨 붙었을 뿐 드나든 물질이 없다는 뜻으로 풀어냈어요.', isNew: true, newReason: '처음 생각에는 실험 B의 결과를 해석한 내용이 없었어요.' },
-          { quote: '철이 타는 동안 공기 중에서 줄어드는 기체는 산소뿐이므로 철에 붙는 것은 산소이다', occurrence: 0, roles: ['W1b'],
-            explanation: '공기 중에서 산소만 줄어든다는 관찰로, 더해진 물질이 왜 하필 산소인지 밝혔어요.', isNew: true, newReason: '처음에는 산소라고만 했고 왜 산소인지는 밝히지 않았어요.' },
-          { quote: 'A에서 늘어난 0.5 g은 접시 밖 공기에서 들어와 철과 결합한 산소의 질량이다', occurrence: 0, roles: ['W2b'],
-            explanation: '늘어난 0.5 g을 바깥 공기에서 들어와 철과 결합한 산소의 질량으로 번역했어요.', isNew: true, newReason: '처음 생각에는 증가분이 무엇의 질량인지 없었어요.' }
+        "errors": [],
+        "explanationAttempt": true,
+        "explanationQuality": 4,
+        "nextQuestion": "",
+        "highlights": []
+      }
+    },
+    "Q3": {
+      "source": "captured",
+      "capturedAt": "2026-11-09",
+      "model": "gpt-5.4-mini-2026-03-17",
+      "requestId": "b603bb58-137b-49f9-b852-0d1f33e1c601",
+      "serverMs": 4367,
+      "delay": 1600,
+      "text": "공기 중에서 산소만 줄었다는 것은 줄어든 산소가 철에 붙었고, 늘어난 0.5 g은 그 산소의 질량이라는 뜻이다.",
+      "analysis": {
+        "inputStatus": "meaningful",
+        "diagnosis": "NONE",
+        "checks": {
+          "oxygenMass": {
+            "status": "met",
+            "quote": "줄어든 산소가 철에 붙었고, 늘어난 0.5 g은 그 산소의 질량이라는 뜻이다",
+            "reason": "줄어든 산소가 철에 붙었다는 뜻과, 늘어난 0.5 g이 그 산소의 질량이라는 뜻을 함께 분명하게 연결했어요."
+          }
+        },
+        "errors": [],
+        "explanationAttempt": true,
+        "explanationQuality": 4,
+        "nextQuestion": "",
+        "highlights": []
+      }
+    },
+    "final": {
+      "source": "captured",
+      "capturedAt": "2026-11-09",
+      "model": "gpt-5.4-mini-2026-03-17",
+      "requestId": "e18b9d51-fe3f-42a6-afba-48431998ab25",
+      "serverMs": 17657,
+      "delay": 2600,
+      "text": "강철솜이 공기 중의 산소와 결합했기 때문이다. 실험 A에서 강철솜은 2.0 g에서 2.5 g으로 0.5 g 늘었고, 마개를 막은 실험 B에서는 플라스크 전체가 150.0 g 그대로였다. B에서는 플라스크 안의 산소가 철에 옮겨 붙었을 뿐 밖으로 드나든 물질이 없어서 전체 질량이 변하지 않았다. 철이 타는 동안 공기 중에서 줄어드는 기체는 산소뿐이므로 철에 붙는 것은 산소이다. 따라서 A에서 늘어난 0.5 g은 접시 밖 공기에서 들어와 철과 결합한 산소의 질량이다.",
+      "analysis": {
+        "inputStatus": "meaningful",
+        "diagnosis": "N5",
+        "checks": {
+          "C": {
+            "status": "met",
+            "quote": "강철솜이 공기 중의 산소와 결합했기 때문이다.",
+            "reason": "무거워진 까닭을 외부의 산소와 철의 결합으로 직접 설명했어요."
+          },
+          "D-A": {
+            "status": "met",
+            "quote": "실험 A에서 강철솜은 2.0 g에서 2.5 g으로 0.5 g 늘었고",
+            "reason": "실험 A의 증가량 0.5 g과 2.0 g→2.5 g 변화를 정확히 짚었어요."
+          },
+          "D-B": {
+            "status": "met",
+            "quote": "실험 B에서는 플라스크 전체가 150.0 g 그대로였다.",
+            "reason": "실험 B의 전체 질량이 변하지 않았다는 관찰을 분명히 드러냈어요."
+          },
+          "W1a": {
+            "status": "partial",
+            "quote": "A에서 늘어난 0.5 g은 접시 밖 공기에서 들어와 철과 결합한 산소의 질량이다.",
+            "reason": "바깥에서 들어온 산소가 질량 증가의 원인이라고는 했지만, 질량이 저절로 생기지 않는다는 원리를 A에 적용한 설명은 따로 드러나지 않았어요."
+          },
+          "W1b": {
+            "status": "met",
+            "quote": "철이 타는 동안 공기 중에서 줄어드는 기체는 산소뿐이므로 철에 붙는 것은 산소이다.",
+            "reason": "공기 중 기체 가운데 산소만 줄어든다는 관찰로 더해진 물질을 산소로 특정했어요."
+          },
+          "W2a": {
+            "status": "met",
+            "quote": "B에서는 플라스크 안의 산소가 철에 옮겨 붙었을 뿐 밖으로 드나든 물질이 없어서 전체 질량이 변하지 않았다.",
+            "reason": "닫힌 플라스크 안에 물질이 남아 있어 전체 질량이 그대로라는 점을 설명했어요."
+          },
+          "W2b": {
+            "status": "met",
+            "quote": "A에서 늘어난 0.5 g은 접시 밖 공기에서 들어와 철과 결합한 산소의 질량이다.",
+            "reason": "늘어난 0.5 g을 바깥에서 들어온 산소의 질량으로 잘 해석했어요."
+          }
+        },
+        "errors": [],
+        "explanationAttempt": true,
+        "explanationQuality": 3,
+        "nextQuestion": "",
+        "highlights": [
+          {
+            "quote": "철이 타는 동안 공기 중에서 줄어드는 기체는 산소뿐이므로 철에 붙는 것은 산소이다.",
+            "occurrence": 0,
+            "roles": [
+              "W1b"
+            ],
+            "explanation": "공기 중에서 산소만 줄어든다는 관찰로 철에 붙는 물질을 산소로 잘 특정했어요.",
+            "isNew": true,
+            "newReason": "처음에는 단순히 산소라고만 했지만, 여기서는 왜 산소인지 관찰로 연결해서 설명했어요."
+          },
+          {
+            "quote": "B에서는 플라스크 안의 산소가 철에 옮겨 붙었을 뿐 밖으로 드나든 물질이 없어서 전체 질량이 변하지 않았다.",
+            "occurrence": 0,
+            "roles": [
+              "W2a"
+            ],
+            "explanation": "닫힌 플라스크 안에서 물질이 드나들지 않아서 전체 질량이 그대로라는 점을 잘 설명했어요.",
+            "isNew": true,
+            "newReason": "처음에는 원인만 짧게 적었지만, 여기서는 B의 일정한 질량을 닫힌 계의 상황과 연결했어요."
+          },
+          {
+            "quote": "A에서 늘어난 0.5 g은 접시 밖 공기에서 들어와 철과 결합한 산소의 질량이다.",
+            "occurrence": 0,
+            "roles": [
+              "W2b"
+            ],
+            "explanation": "늘어난 0.5 g을 바깥에서 들어온 산소의 질량으로 잘 해석했어요.",
+            "isNew": true,
+            "newReason": "처음에는 산소라고만 했지만, 여기서는 증가분이 바로 산소의 질량이라고 분명히 연결했어요."
+          }
         ]
       }
     }
