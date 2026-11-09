@@ -7,6 +7,13 @@ function make(){
  vm.createContext(c);vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8'),c);
  return {sheets,sheet,cleanup(){return c.deleteInvalidClassRecords()},previewCleanup(){return c.previewInvalidClassRecords()},reconcile(){return c.reconcileLegacy()},setAccess(v){access=JSON.stringify(v)},post(body){return JSON.parse(c.doPost({postData:{contents:JSON.stringify(body)}}))},get(q){return JSON.parse(c.doGet({parameter:q}))}};
 }
+test('current record API rejects a rejudgment action and preserves the original record',()=>{
+ const m=make(),start={action:'startSession',session:{sessionId:'original',missionId:'m02',classCode:'3-2',studentNo:'1',finalAnswer:'합성 원문',finalJudgment:{C:true}}};
+ assert.equal(m.post(start).ok,true);
+ const before=JSON.stringify(m.sheets['강철솜'].rows);
+ assert.equal(m.post({action:'rejudge',sessionId:'original',missionId:'m02',studentNo:'1'}).ok,false);
+ assert.equal(JSON.stringify(m.sheets['강철솜'].rows),before);
+});
 test('two missions save to separate tabs, retry safely, and teacher access is scoped',()=>{
  const m=make(), key='synthetic-test-key-1234567890';
  const ops=id=>[{action:'startSession',session:{sessionId:id,missionId:id==='s1'?'m01':'m02',classCode:'1-2',studentNo:'1',firstAnswer:'가상 답'}},{action:'logAttempt',attempt:{attemptId:'a'+id,sessionId:id,input:'가상 시도'}},{action:'updateSession',sessionId:id,fields:{finalAnswer:'가상 최종 답'}}];
