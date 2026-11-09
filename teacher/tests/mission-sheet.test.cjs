@@ -1,12 +1,39 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const vm=require('node:vm');const fs=require('node:fs');const crypto=require('node:crypto');
-function make(){
+const {evaluatorSources}=require('../../tools/export-record-apps-script.cjs');
+function make({fetchResult}={}){
  const head=['recordType','recordId','sessionId','classCode','studentNo','missionId','createdAt','updatedAt','payload'];
  function sheet(rows){return {rows,deleteRows(start,count){this.rows.splice(start-1,count)},getLastRow(){return this.rows.length},getLastColumn(){return Math.max(0,...this.rows.map(r=>r.length))},getRange(row,col,n,m){const self=this;return {getValues(){return Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>self.rows[row-1+i]?.[col-1+j]??''))},getDisplayValues(){return this.getValues().map(r=>r.map(String))},setNumberFormat(){return this},setFontWeight(){return this},setValues(values){values.forEach((r,i)=>{self.rows[row-1+i]??=[];r.forEach((v,j)=>self.rows[row-1+i][col-1+j]=v)});return this},createTextFinder(value){return {matchEntireCell(){return this},findNext(){const i=self.rows.findIndex((r,i)=>i>=row-1&&i<row-1+n&&String(r[col-1])===value);return i<0?null:{getRow:()=>i+1}}}}}},setFrozenRows(){}}}
  const sheets={'감자':sheet([head]),'강철솜':sheet([head])};let access='';
- const c={console:{log(){}},SpreadsheetApp:{openById(){return {getSheetByName:n=>sheets[n],insertSheet:n=>(sheets[n]=sheet([]))}}},ContentService:{MimeType:{JSON:'json'},createTextOutput:s=>({setMimeType(){return s}})},PropertiesService:{getScriptProperties:()=>({getProperty:()=>access})},Utilities:{DigestAlgorithm:{SHA_256:'sha256'},computeDigest:(algo,val)=>Array.from(crypto.createHash(algo).update(val).digest()).map(x=>x>127?x-256:x)},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})}};
- vm.createContext(c);vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8'),c);
+ const c={console:{log(){}},SpreadsheetApp:{flush(){},openById(){return {getSheetByName:n=>sheets[n],insertSheet:n=>(sheets[n]=sheet([]))}}},ContentService:{MimeType:{JSON:'json'},createTextOutput:s=>({setMimeType(){return s}})},PropertiesService:{getScriptProperties:()=>({getProperty:()=>access})},Utilities:{DigestAlgorithm:{SHA_256:'sha256'},computeDigest:(algo,val)=>Array.from(crypto.createHash(algo).update(val).digest()).map(x=>x>127?x-256:x)},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})}};
+ let locked=false;
+ c.LockService={getScriptLock:()=>({waitLock(){assert.equal(locked,false);locked=true},releaseLock(){locked=false}})};
+ c.UrlFetchApp={fetch(url,options){
+  assert.equal(locked,false,'the evaluator must run outside the sheet lock');
+  const value=fetchResult(url,JSON.parse(options.payload));
+  return {getResponseCode:()=>200,getContentText:()=>JSON.stringify(value)};
+ }};
+ vm.createContext(c);
+ for(const file of ['Code.gs','Rejudge.gs'])vm.runInContext(fs.readFileSync('apps-script/'+file,'utf8'),c);
+ vm.runInContext(evaluatorSources(),c);
  return {sheets,sheet,cleanup(){return c.deleteInvalidClassRecords()},previewCleanup(){return c.previewInvalidClassRecords()},reconcile(){return c.reconcileLegacy()},setAccess(v){access=JSON.stringify(v)},post(body){return JSON.parse(c.doPost({postData:{contents:JSON.stringify(body)}}))},get(q){return JSON.parse(c.doGet({parameter:q}))}};
 }
+test('rejudgment rejects completed, pending, unavailable and unsubmitted answers without touching the sheet',()=>{
+ const m=make(), classCode='3-2', missionId='m02';
+ const cases=[
+  {finalAnswer:'합성 원문',finalJudgment:{C:false}},
+  {finalAnswer:'합성 원문',finalEvaluationStatus:'pending'},
+  {finalAnswer:'합성 원문',finalEvaluationStatus:'unavailable'},
+  {draftAnswer:'아직 제출되지 않은 답안'},
+ ];
+ for(const [i,fields] of cases.entries()){
+  const sessionId='ineligible-'+i;
+  assert.equal(m.post({action:'startSession',session:{sessionId,missionId,classCode,studentNo:'1',...fields}}).ok,true);
+  const before=JSON.stringify(m.sheets['강철솜'].rows);
+  const request={action:'rejudge',sessionId,missionId,classCode,attemptId:'',requestId:'synthetic-invalid-'+i};
+  assert.equal(m.post(request).code,i===3?'STALE_SUBMISSION':'REJUDGE_NOT_NEEDED');
+  assert.equal(JSON.stringify(m.sheets['강철솜'].rows),before);
+ }
+});
 test('two missions save to separate tabs, retry safely, and teacher access is scoped',()=>{
  const m=make(), key='synthetic-test-key-1234567890';
  const ops=id=>[{action:'startSession',session:{sessionId:id,missionId:id==='s1'?'m01':'m02',classCode:'1-2',studentNo:'1',firstAnswer:'가상 답'}},{action:'logAttempt',attempt:{attemptId:'a'+id,sessionId:id,input:'가상 시도'}},{action:'updateSession',sessionId:id,fields:{finalAnswer:'가상 최종 답'}}];
@@ -110,4 +137,103 @@ test('cleanup uses the same class bounds, deletes invalid session logs in descen
  const before=m.sheets['강철솜'].rows.length;assert.equal(m.previewCleanup().removedRows['강철솜'],2);assert.equal(m.sheets['강철솜'].rows.length,before);
  const result=m.cleanup();assert.equal(result.invalidSessions,1);assert.equal(result.removedRows.Attempts,2);assert.equal(m.sheets['강철솜'].rows.length,2);assert.equal(m.sheets['강철솜'].rows[1][2],'keep');assert.equal(m.sheets.Attempts.rows[1][0],'a-keep');assert.equal(m.sheets.Sessions.rows.length,2);
  assert.equal(m.cleanup().removedRows['강철솜'],0);assert.equal(m.post({action:'updateSession',sessionId:'remove',fields:{firstAnswer:'부활 시도'}}).ok,false);
+});
+
+test('both missions rejudge the saved answer in the same row and use it in the dashboard after readback',async()=>{
+ const {createHandler}=await import('../../deploy/cloudflare/worker.mjs');
+ const I=globalThis.TeacherInsights;
+ const m02Text='강철솜의 질량은 밖의 산소가 결합해 0.5 g만큼 늘었다.';
+ const m02Keys=['C','D-A','D-B','W1a','W1b','W2a','W2b'];
+ const m02Result={stage:'final',rubricVersion:'m02-docx-1.2.1',outcome:'revise',
+  elements:Object.fromEntries(m02Keys.map(k=>[k,k==='C'])),
+  analysis:{checks:{C:{reason:'합성 판정 근거',quote:'밖의 산소가 결합'}}}};
+ let calls=0, mode='success', raceSession, raceRequest;
+ const m=make({fetchResult(_url,body){
+  calls++;
+  assert.deepEqual(body,{action:'judgeM02',stage:'final',text:m02Text,initialAnswer:'저장된 첫 답안',cardSpans:[{start:0,end:4}]});
+  if(mode==='error')return {ok:false,code:'RATE_LIMIT'};
+  if(mode==='race'){
+   assert.equal(m.post({...raceRequest,requestId:'duplicate-request'}).code,'REJUDGE_BUSY');
+   const newer={...raceSession,attemptId:'newer',stage:'compose',questId:'studentInput',evaluationStage:'final',input:'더 최근 답안'};
+   assert.equal(m.post({action:'logAttempt',attempt:newer}).ok,true);
+  }
+  return {ok:true,result:m02Result};
+ }});
+ const csv=rows=>rows.map(row=>row.map(value=>'"'+String(value??'').replaceAll('"','""')+'"').join(',')).join('\n');
+ const handler=createHandler(async(url,options)=>{
+  const gid=new URL(url).searchParams.get('gid');
+  if(gid)return new Response(csv(m.sheets[gid==='807310001'?'감자':'강철솜'].rows),{headers:{'Content-Type':'text/csv'}});
+  return Response.json(m.post(JSON.parse(options.body)));
+ });
+ const post=async body=>handler(new Request('https://test.example/api/sheet/rejudge',{method:'POST',
+  headers:{Origin:'https://test.example','Content-Type':'application/json'},body:JSON.stringify(body)}),{});
+ for(const missionId of ['m01','m02']){
+  const sessionId='play-'+missionId, classCode='3-2', studentNo='1', attemptId='original-'+missionId;
+  const input=missionId==='m01'?'감자 세포 안 농도는 5%에서 10% 사이다.':m02Text;
+  const session={sessionId,classCode,studentNo,missionId,finalAnswer:input};
+  const attempt={sessionId,attemptId,missionId,classCode,stage:missionId==='m01'?'defense':'compose',
+   questId:missionId==='m01'?'FINAL':'studentInput',input,feedbackText:'보존할 교수 피드백',
+   ...(missionId==='m02'?{evaluationStage:'final',evaluationStatus:'pending'}:{}),
+   evaluationInput:{initialAnswer:'저장된 첫 답안',cardSpans:[{start:0,end:4}]}};
+  assert.equal(m.post({action:'startSession',session}).ok,true);
+  assert.equal(m.post({action:'logAttempt',attempt}).ok,true);
+  if(missionId==='m02'){
+   const pending={classCode,missionId,sessionId,attemptId,requestId:'while-pending-000'};
+   assert.equal((await (await post(pending)).json()).code,'REJUDGE_NOT_NEEDED');
+   assert.equal(m.post({action:'logAttempt',attempt:{sessionId,attemptId:'failure',questId:'finalEvaluation',
+    inReplyTo:attemptId,evaluationStatus:'failed'}}).ok,true);
+  }
+  assert.equal(m.post({action:'updateSession',sessionId,fields:{teacherRejudgment:{judgment:{C:true}}}}).ok,false);
+  const rows=m.sheets[missionId==='m01'?'감자':'강철솜'].rows;
+  const before=rows[1].slice(9);
+  const request={classCode,missionId,sessionId,attemptId,requestId:'rejudge-request-'+missionId};
+  if(missionId==='m02'){
+   mode='error';
+   assert.equal((await (await post({...request,requestId:'rejudge-rate-limit'})).json()).code,'RATE_LIMIT');
+   assert.deepEqual(rows[1].slice(9),before);
+   mode='success';
+  }
+  const response=await post({...request,text:'client-supplied text must be ignored'});
+  assert.equal(response.status,200);
+  const {rejudgment}=await response.json();
+  assert.equal(rejudgment.judgment.C,true);
+  assert.equal(rows.length,2);
+  assert.deepEqual(rows[1].slice(9),before);
+  assert.equal(JSON.parse(rows[1][8]).finalJudgment,undefined);
+  assert.equal(JSON.parse(rows[1][8]).finalAnswer,input);
+  const retry=await post(request);
+  assert.deepEqual((await retry.json()).rejudgment,rejudgment);
+  assert.equal((await (await post({...request,requestId:'already-completed'})).json()).code,'REJUDGE_NOT_NEEDED');
+  const restored=await handler(new Request('https://test.example/api/sheet/class?classKey=g:3:r:2&missionId='+missionId),{});
+  const db=await restored.json();
+  const effective=I.evaluation(db,db.sessions[0]);
+  assert.equal(effective.judgment.C,true);
+  assert.equal(effective.record.input,input);
+  assert.equal(I.judgmentStatus(db,db.sessions[0]).label,'재판정 완료');
+  assert.equal(I.game(db,[classCode],missionId).evaluations[0].cells[0].met,1);
+  if(missionId==='m02'){
+   assert.equal(calls,2);
+   assert.match(effective.analysis.checks.C.reason,/합성 판정 근거/);
+   mode='race';raceSession=session;
+   const later={...attempt,attemptId:'later-attempt',evaluationStatus:'failed'};
+   assert.equal(m.post({action:'logAttempt',attempt:later}).ok,true);
+   const race={...request,attemptId:later.attemptId,requestId:'rejudge-race-001'};
+   raceRequest={...race,action:'rejudge'};
+   assert.equal((await (await post(race)).json()).code,'STALE_SUBMISSION');
+   assert.deepEqual(JSON.parse(rows[1][8]).teacherRejudgment,rejudgment);
+   assert.equal(rows.length,2);
+   const after=await (await handler(new Request('https://test.example/api/sheet/class?classKey=g:3:r:2&missionId=m02'),{})).json();
+   assert.equal(I.evaluation(after,after.sessions[0]).rejudgment,null);
+  }
+ }
+});
+
+test('an explicit failure event belongs to its own submitted input',async()=>{
+ await import('../../deploy/cloudflare/worker.mjs');
+ const I=globalThis.TeacherInsights;
+ const s={sessionId:'sample',missionId:'m02'};
+ const raw={sessionId:s.sessionId,attemptId:'raw',questId:'studentInput',stage:'compose',evaluationStage:'final',evaluationStatus:'pending',eventOrder:1,input:'합성 답안'};
+ const failed={sessionId:s.sessionId,attemptId:'failed',questId:'finalEvaluation',stage:'compose',evaluationStatus:'failed',evaluationErrorCode:'TIMEOUT',inReplyTo:'raw',eventOrder:2};
+ assert.equal(I.judgmentStatus({attempts:[raw,failed]},s).errorCode,'TIMEOUT');
+ assert.equal(I.judgmentStatus({attempts:[raw,failed,{...raw,attemptId:'newer',eventOrder:3}]},s).code,'pending');
 });

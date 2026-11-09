@@ -69,7 +69,7 @@
       };
       flameDrag(el, {
         enabled: () => !finished,
-        near: opts.near,
+        near: opts.near, hit: opts.hit, spot: opts.spot,
         tick: (dt, near) => {
           if (finished) return;
           if (!near) { if (held > 0) letGo(); return; }
@@ -118,6 +118,9 @@
         const r = $('#tString').getBoundingClientRect();
         return x > r.left + 30 && x < r.right - 30 && Math.abs(y - r.top) < 40 * S.scale;
       },
+      // 눌러서 댈 때는 실 전화기 어디를 눌러도 실 가운데에 댄다
+      hit: (x, y) => { const r = $('#tPhone').getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; },
+      spot: () => { const r = $('#tString').getBoundingClientRect(); return [r.left + r.width / 2, r.top]; },
       contact: (on) => { m.target = on ? T.sound.held : T.sound.open; box.classList.toggle('quiet', on); }
     });
     await until(() => m.level === T.sound.open);
