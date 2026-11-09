@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-require('../model.js');require('../scope.js');require('../insights.js');require('../overview-ui.js');require('../dashboard-ui.js');
-const M=globalThis.TeacherModel,I=globalThis.TeacherInsights,D=globalThis.TeacherDashboardUI;
+require('../model.js');require('../scope.js');require('../insights.js');require('../overview-ui.js');require('../record-ui.js');require('../dashboard-ui.js');
+const M=globalThis.TeacherModel,I=globalThis.TeacherInsights,D=globalThis.TeacherDashboardUI,R=globalThis.TeacherRecordUI;
 const session=(id,code,no,missionId='m02',extra={})=>({sessionId:id,classCode:code,studentNo:no,missionId,startedAt:'2026-11-03T00:00:00Z',...extra});
 const db={sessions:[session('a','3-2','1','m02',{finalAnswer:'답안',finalJudgment:{C:true,W1a:false},rubricVersion:'m02-docx-1.2.0'}),session('b','3-2','2'),session('c','3-10','1','m02',{finalAnswer:'다른 반',finalJudgment:{C:false},rubricVersion:'m02-docx-1.2.0'}),session('p','3-2','1','m01',{finalAnswer:'감자 답',finalJudgment:{C:true}})],attempts:[]};
 const portfolio=I.overview(db),selectedClass=portfolio.classes.find(c=>c.classKey==='g:3:r:2');
@@ -51,4 +51,41 @@ test('saved question is reused safely; empty question offers only an explicit ge
  assert.match(saved,/&lt;script&gt;다음 수업 질문&lt;\/script&gt;/);assert.doesNotMatch(saved,/<script>/);assert.match(saved,/저장된 수업 리포트 보기/);
  const empty=D.screen(state);assert.match(empty,/저장된 수업 질문이 없습니다/);assert.match(empty,/수업 요약·질문 생성/);
  const all=D.screen({portfolio,mission:'m02',source:'sheet'});assert.doesNotMatch(all,/class="lesson-priority"/);
+});
+test('answer candidates favor matching saved quotes and reasons, deduplicate students, and stop at three',()=>{
+ const judged=(id,no,extra={})=>session(id,'3-2',no,'m02',{finalAnswer:'합성 답안 산소',finalJudgment:{C:false},rubricVersion:'m02-docx-1.2.0',...extra});
+ const source={sessions:[
+  judged('plain','1'),judged('reason','2',{analysis:{checks:{C:{reason:'저장된 판정 이유'}}}}),
+  judged('quote','3',{analysis:{checks:{C:{quote:'산소'}}}}),
+  judged('both','4',{analysis:{checks:{C:{quote:'산소',reason:'저장된 판정 이유'}}}}),
+  judged('bad-quote','5',{analysis:{checks:{C:{quote:'원문에 없는 구절',reason:'저장된 판정 이유'}}}}),
+  judged('both-two','6',{analysis:{checks:{C:{quote:'산소',reason:'저장된 판정 이유'}}}}),
+  judged('old-play','6',{startedAt:'2026-11-01T00:00:00Z'}),
+  judged('no-original','7',{finalAnswer:''}),
+  session('other-class','3-3','8','m02',{finalAnswer:'합성 답안',finalJudgment:{C:false},rubricVersion:'m02-docx-1.2.0'}),
+  session('other-game','3-2','9','m01',{finalAnswer:'합성 답안',finalJudgment:{C:false},rubricVersion:'m02-docx-1.2.0'}),
+  judged('other-rubric','10',{rubricVersion:'m02-docx-1.1.0'}),
+  judged('unavailable','11')
+ ],attempts:[{attemptId:'u',sessionId:'unavailable',stage:'compose',questId:'clarify',outcome:'clarify',input:'합성 답안'}]};
+ const data=M.analyze(source,'3-2','latest',{missionId:'m02'}),key='m02-docx-1.2.0',first=I.lessonPriority(data,data.reps,'m02',key),again=I.lessonPriority(data,[...data.reps].reverse(),'m02',key);
+ assert.deepEqual(first.candidates.map(c=>c.sessionId),['both','both-two','quote']);
+ assert.deepEqual(again.candidates.map(c=>c.sessionId),first.candidates.map(c=>c.sessionId));
+ assert.equal(first.candidates.length,3);assert.equal(new Set(first.candidates.map(c=>c.studentNo)).size,3);
+ assert.equal(first.candidates[0].quote,true);assert.equal(first.candidates[0].reason,true);
+ assert.equal(R.criterion(data,data.reps.find(s=>s.sessionId==='both'),'C').includes('합성 답안 산소'),true);
+ assert.equal(R.criterion(data,data.reps.find(s=>s.sessionId==='both'),'C').includes('저장된 판정 이유'),true);
+});
+test('selected missing element drives candidates and a missing original shows an empty state',()=>{
+ const source={sessions:[
+  session('c','3-2','1','m02',{finalAnswer:'합성 결론',finalJudgment:{C:false,W1a:true},rubricVersion:'m02-docx-1.2.0'}),
+  session('w','3-2','2','m02',{finalAnswer:'합성 근거',finalJudgment:{C:true,W1a:false},rubricVersion:'m02-docx-1.2.0'}),
+  session('empty','3-2','3','m02',{finalAnswer:'',finalJudgment:{C:false,W1a:false},rubricVersion:'m02-docx-1.2.0'})
+ ],attempts:[]};
+ const data=M.analyze(source,'3-2','latest',{missionId:'m02'}),p=I.overview(source),key='m02-docx-1.2.0';
+ assert.deepEqual(I.lessonPriority(data,data.reps,'m02',key,'W1a').candidates.map(c=>c.sessionId),['w']);
+ const html=D.screen({portfolio:p,data,selectedClass:p.classes[0],mission:'m02',criterion:key,focusElement:'W1a',source:'demo'}),top=html.split('class="dashboard-analysis-grid"')[0];
+ assert.match(top,/data-focus-element="W1a" aria-pressed="true"/);assert.match(top,/data-session="w" data-element="W1a"/);
+ assert.doesNotMatch(top,/data-session="c" data-element="W1a"/);assert.doesNotMatch(top,/합성 근거/);
+ const onlyEmpty={sessions:[source.sessions[2]],attempts:[]},emptyData=M.analyze(onlyEmpty,'3-2','latest',{missionId:'m02'}),empty=D.screen({portfolio:I.overview(onlyEmpty),data:emptyData,selectedClass:I.overview(onlyEmpty).classes[0],mission:'m02',criterion:key,source:'demo'});
+ assert.match(empty,/후보가 없습니다/);assert.doesNotMatch(empty.split('class="dashboard-analysis-grid"')[0],/data-session=/);
 });

@@ -55,14 +55,58 @@
    return {key:id,label,met,revise,unknown:rows.length-met-revise,assessed:met+revise,rate:met+revise?Math.round(100*met/(met+revise)):null};
   })};
  }
- function lessonPriority(data,rows,mission,key){
+ function recommendCandidates(prepared,key,focus){
+  if(!focus)return [];
+  const found=prepared.filter(({e})=>e.key===key&&element(e.judgment,focus.key)==='revise').map(({s,e})=>{
+   const input=String(e.record.input||e.record.finalAnswer||'').trim();
+   if(!input)return null;
+   const checks=M.obj(e.analysis.checks),ids=focus.key==='W3/WB'?['W3','WB']:[focus.key];
+   const evidence=ids.map(id=>M.obj(checks[id])),reason=evidence.some(c=>typeof c.reason==='string'&&c.reason.trim()),quote=evidence.some(c=>typeof c.quote==='string'&&c.quote.trim()&&input.includes(c.quote));
+   return {sessionId:s.sessionId,studentNo:M.number(s),element:focus.key,reason,quote};
+  }).filter(Boolean);
+  // Prefer verifiable saved evidence, then a stable student number and session ID.
+  // Each normalized student appears once even if the caller supplies multiple plays.
+  found.sort((a,b)=>Number(b.quote)-Number(a.quote)||Number(b.reason)-Number(a.reason)||Number(a.studentNo)-Number(b.studentNo)||String(a.studentNo).localeCompare(String(b.studentNo),'ko',{numeric:true})||String(a.sessionId).localeCompare(String(b.sessionId)));
+  const seen=new Set();return found.filter(c=>{if(seen.has(c.studentNo))return false;seen.add(c.studentNo);return true}).slice(0,3);
+ }
+ function lessonPriority(data,rows,mission,key,focusElement=''){
   // An unknown version cannot establish a common assessment basis.
-  if(!key||key.includes('버전 미기록'))return {missing:[],candidates:[]};
+  if(!key||key.includes('버전 미기록'))return {missing:[],focus:null,candidates:[]};
   const prepared=rows.map(s=>({s,e:evaluation(data,s)}));
   const missing=aggregate(data,rows,mission,key,prepared).cells.filter(c=>c.assessed&&c.revise).sort((a,b)=>b.revise-a.revise||b.assessed-a.assessed||a.label.localeCompare(b.label,'ko')).slice(0,2);
-  const focus=missing[0];
-  const candidates=focus?prepared.filter(({e})=>e.key===key&&element(e.judgment,focus.key)==='revise'&&String(e.record.input||e.record.finalAnswer||'').trim()).map(({s,e})=>({sessionId:s.sessionId,studentNo:M.number(s),element:focus.key,reason:String(M.obj(M.obj(e.analysis.checks)[focus.key]).reason||'')})).sort((a,b)=>Number(Boolean(b.reason))-Number(Boolean(a.reason))||Number(a.studentNo)-Number(b.studentNo)).slice(0,3):[];
-  return {missing,candidates};
+  const focus=missing.find(c=>c.key===focusElement)||missing[0]||null;
+  return {missing,focus,candidates:recommendCandidates(prepared,key,focus)};
+ }
+ function comparePlays(data,mission,key,classKey,isTest=false){
+  const groups=new Map();
+  for(const s of data.sessions||[]){
+   if((s.missionId||'m01')!==mission||M.test(s)!==isTest||!M.number(s))continue;
+   const identity=S.identity(String(s.classCode||'')).classKey;
+   if(identity!==classKey)continue;
+   const id=identity+'|'+M.number(s);
+   if(!groups.has(id))groups.set(id,[]);
+   groups.get(id).push(s);
+  }
+  const pairs=[...groups.values()].map(sessions=>{
+   const ordered=M.ordered(sessions),first=ordered[0],latest=ordered.at(-1);
+   return {single:ordered.length===1,first:first&&evaluation(data,first),latest:latest&&evaluation(data,latest)};
+  });
+  const cells=definitions[mission].map(([id,label])=>{
+   const excluded={singlePlay:0,missingJudgment:0,unknownVersion:0,differentVersion:0};
+   let firstMet=0,latestMet=0,comparable=0;
+   for(const pair of pairs){
+    if(pair.single){excluded.singlePlay++;continue}
+    const a=pair.first,b=pair.latest,firstState=a.has?element(a.judgment,id):'unknown',latestState=b.has?element(b.judgment,id):'unknown';
+    if(firstState==='unknown'||latestState==='unknown'){excluded.missingJudgment++;continue}
+    const versions=[a.record,b.record];
+    const methods=versions.map(M.judgmentMethod);
+    if(versions.some(r=>!r.missionVersion||!r.eventSchemaVersion||!r.judgeVersion)||methods.includes('미기록')||!a.key||!b.key||a.key.includes('버전 미기록')||b.key.includes('버전 미기록')){excluded.unknownVersion++;continue}
+    if(!key||a.key!==key||b.key!==key||methods[0]!==methods[1]||!M.comparable(a.record,b.record)){excluded.differentVersion++;continue}
+    comparable++;if(firstState==='met')firstMet++;if(latestState==='met')latestMet++;
+   }
+   return {key:id,label,firstMet,latestMet,delta:comparable?latestMet-firstMet:null,comparable,excluded};
+  });
+  return {students:pairs.length,cells};
  }
  function game(data,codes,mission,includeTests=false){
   const d=M.analyze(data,'','latest',{classCodes:codes,missionId:mission,includeTests}),rows=d.recent;
@@ -80,5 +124,5 @@
    return [m,criteria(d,d.sessions)];
   }))};
  }
- root.TeacherInsights={definitions,evaluation,judgmentStatus,element,criteria,aggregate,lessonPriority,game,overview};
+ root.TeacherInsights={definitions,evaluation,judgmentStatus,element,criteria,aggregate,recommendCandidates,lessonPriority,comparePlays,game,overview};
 })(typeof window==='undefined'?globalThis:window);
