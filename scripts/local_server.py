@@ -181,7 +181,7 @@ class Handler(SimpleHTTPRequestHandler):
             if not isinstance(body,dict):
                 raise ValueError('잘못된 분석 요청입니다.')
             if self.path == '/api/sheet/rejudge':
-                fields=('classCode','missionId','sessionId','attemptId','requestId','teacherKey')
+                fields=('classCode','missionId','sessionId','attemptId','requestId')
                 payload={key:body.get(key) for key in fields}
                 request=urllib.request.Request(SCRIPT_URL,data=json.dumps({'action':'rejudge',**payload}).encode(),headers={'Content-Type':'text/plain;charset=utf-8'})
                 with urllib.request.urlopen(request,timeout=145) as response:
@@ -196,7 +196,7 @@ class Handler(SimpleHTTPRequestHandler):
                 else:
                     code=value.get('code','')
                     code=code if isinstance(code,str) and re.fullmatch(r'[A-Z_]{2,40}',code) else 'REJUDGE_UNAVAILABLE'
-                    self.json({'ok':False,'code':code},403 if code=='TEACHER_ACCESS' else 409 if code in ('STALE_SUBMISSION','REJUDGE_BUSY') else 400)
+                    self.json({'ok':False,'code':code},409 if code in ('STALE_SUBMISSION','REJUDGE_BUSY','REJUDGE_NOT_NEEDED') else 400)
                 return
             name=body.get('classCode','')
             class_key=body.get('classKey','')

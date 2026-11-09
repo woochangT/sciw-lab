@@ -103,15 +103,15 @@ function coreHandler(fetcher){return async(request,env)=>{
     let body;try{body=JSON.parse(await boundedText(request,1024))}catch(error){if(error instanceof HttpError)throw error;throw new HttpError(400,'잘못된 분석 요청입니다.')}
     if(!body||Array.isArray(body)||typeof body!=='object')throw new HttpError(400,'잘못된 분석 요청입니다.');
     if(url.pathname==='/api/sheet/rejudge'){
-      const {classCode,missionId,sessionId,attemptId,requestId,teacherKey}=body;
+      const {classCode,missionId,sessionId,attemptId,requestId}=body;
       const upstream=await fetcher(SCRIPT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body:JSON.stringify({action:'rejudge',classCode,missionId,sessionId,attemptId,requestId,teacherKey}),
+        body:JSON.stringify({action:'rejudge',classCode,missionId,sessionId,attemptId,requestId}),
         redirect:'follow',signal:AbortSignal.timeout(145000)});
       if(!upstream.ok)throw new HttpError(502,'재판정 서버에 연결하지 못했습니다.');
       const result=JSON.parse(await boundedText(upstream,60000));
       if(result.ok&&result.rejudgment?.requestId===requestId)return json({ok:true,rejudgment:result.rejudgment});
       const code=typeof result.code==='string'&&/^[A-Z_]{2,40}$/.test(result.code)?result.code:'REJUDGE_UNAVAILABLE';
-      return json({ok:false,code},code==='TEACHER_ACCESS'?403:code==='STALE_SUBMISSION'||code==='REJUDGE_BUSY'?409:400);
+      return json({ok:false,code},['STALE_SUBMISSION','REJUDGE_BUSY','REJUDGE_NOT_NEEDED'].includes(code)?409:400);
     }
     const scope=validScope(body),data=scoped(await readSheet(fetcher),scope);
     const evidence=E.build(data,scope.classCode,scope.mode,{missionId:scope.missionId,includeTests:scope.includeTests,classCodes:data.classCodes});

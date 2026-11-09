@@ -15,20 +15,20 @@ function setup(){const calls=[];return {calls,handler:createHandler(async(url,op
 })}}
 const request=(path,body,headers={})=>new Request('https://preview.example'+path,body===undefined?{headers}:{method:'POST',headers:{Origin:'https://preview.example','Content-Type':'application/json',...headers},body:JSON.stringify(body)});
 
-test('rejudgment forwards only target and teacher credential and is gated by Apps Script',async()=>{
+test('rejudgment forwards only target details and respects Apps Script eligibility',async()=>{
  const calls=[],handler=createHandler(async(url,opts)=>{
   assert.match(url,/script.google.com/);
   const body=JSON.parse(opts.body);calls.push(body);
-  return Response.json(body.teacherKey==='synthetic-key'?{ok:true,rejudgment:{requestId:body.requestId}}:{ok:false,code:'TEACHER_ACCESS'});
+  return Response.json(body.attemptId==='b'?{ok:true,rejudgment:{requestId:body.requestId}}:{ok:false,code:'REJUDGE_NOT_NEEDED'});
  });
- const payload={classCode:'3-2',missionId:'m01',sessionId:'a',attemptId:'b',requestId:'synthetic-request',teacherKey:'synthetic-key'};
+ const payload={classCode:'3-2',missionId:'m01',sessionId:'a',attemptId:'b',requestId:'synthetic-request'};
  const path='/api/sheet/rejudge';
  const preflight=await handler(new Request('https://preview.example'+path,{method:'OPTIONS',headers:{Origin:'https://woochangt.github.io','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type'}}),{});
  assert.equal(preflight.status,204);
  assert.equal((await handler(request(path,payload,{Origin:'https://other.example'}),{})).status,403);
  assert.equal(calls.length,0);
- assert.equal((await handler(request(path,{...payload,teacherKey:'bad'}),{})).status,403);
- const response=await handler(request(path,{...payload,text:'must not be forwarded'}),{});
+ assert.equal((await handler(request(path,{...payload,attemptId:'completed'}),{})).status,409);
+ const response=await handler(request(path,{...payload,text:'must not be forwarded',teacherKey:'must not be forwarded'}),{});
  assert.deepEqual(await response.json(),{ok:true,rejudgment:{requestId:payload.requestId}});
  assert.deepEqual(calls[1],{action:'rejudge',...payload});
 });

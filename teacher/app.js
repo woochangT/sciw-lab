@@ -33,7 +33,7 @@ function filterButtons(){return `<div class="filter-buttons">${[['all','전체 �
 function closeDetail(){if($('#studentDialog').open)$('#studentDialog').close();selected=null;previousFocus?.focus()}
 function openDetail(no,sid,element=''){const plays=data.groups.get(String(no));if(!plays)return;selected=String(no);previousFocus=document.activeElement;const chosen=plays.find(s=>s.sessionId===sid)||plays.at(-1);$('#detail').innerHTML=`<header class="drawer-header"><div><span>학생의 실험 노트</span><h2 id="studentTitle">${no}번의 답안</h2><p>${esc(classLabel())} · ${esc(missionName())}${isTest?' · 테스트 기록':''}</p></div><button id="closeDetail" class="close-button" aria-label="학생 답안 닫기">×</button></header><div class="drawer-body"><label class="play-select">어느 판을 읽을까요?<select id="detailPlay">${plays.map((s,i)=>`<option value="${esc(s.sessionId)}" ${s===chosen?'selected':''}>${i+1}번째 판 · ${date(s.startedAt)}</option>`).join('')}</select></label><div id="playContent"></div></div>`;$('#closeDetail').onclick=closeDetail;$('#detailPlay').onchange=()=>renderPlay(data.groups.get(String(no)).find(s=>s.sessionId===$('#detailPlay').value),element);renderPlay(chosen,element);if(!$('#studentDialog').open)$('#studentDialog').showModal()}
 const rejudgeMessages={
- TEACHER_ACCESS:'이 반·게임의 교사 재판정 키를 확인해 주세요.',
+ REJUDGE_NOT_NEEDED:'현재 답안은 재판정 대상이 아닙니다. 기록을 새로고침해 주세요.',
  STALE_SUBMISSION:'학생의 최종 제출이 바뀌었습니다. 시트 기록을 갱신한 뒤 다시 확인해 주세요.',
  REJUDGE_BUSY:'이 판의 재판정이 진행 중입니다. 잠시 뒤 다시 확인해 주세요.',
  UNAVAILABLE:'평가기에서 답안을 판정 불가로 반환했습니다.',
@@ -44,19 +44,12 @@ const rejudgeMessages={
  REJUDGE_UNAVAILABLE:'현재 연결된 Apps Script에서 재판정을 사용할 수 없습니다.'
 };
 const rejudgeMessage=code=>rejudgeMessages[code]||'평가를 완료하지 못했습니다. 잠시 뒤 다시 시도해 주세요.';
-function rejudgeControl(s,target){
- if(source()!=='sheet'||!target)return '';
- const result=I.activeRejudgment(s,target),job=s.teacherRejudgeRequest;
- const studentStatus=I.judgmentStatus(data,s);
- const waiting=studentStatus.code==='pending'&&Date.now()-M.time(studentStatus.record.createdAt||studentStatus.record.updatedAt)<180000;
+function rejudgeControl(s,target,message){
+ if(source()!=='sheet')return '';
+ const job=s.teacherRejudgeRequest;
  const busy=rejudgeJobs.has(s.sessionId)||job?.status==='running'&&Date.now()-M.time(job.at)<180000;
- const failure=job?.attemptId===target.id&&job.status==='failed';
- return `<details class="detail-fold rejudge-control"><summary>최종 답안 재판정${result?' · '+date(result.at)+' 저장':''}</summary>
- ${result?`<p>현재 화면에 재판정 결과를 적용했습니다. ${esc(result.rubricVersion||result.judgeVersion)}${result.contextLimited?' · 이전 제출의 카드 입력 기록 없음':''}</p>`:''}
- <p>위 학생이 마지막으로 제출한 원문을 다시 평가합니다. 최초 판정과 학생 답안은 보관됩니다.</p>
- ${busy||waiting?'<p role="status">현재 판정 중입니다. 잠시 뒤 다시 확인해 주세요.</p>':
- '<form id="rejudgeForm"><label>이 반·게임의 교사 재판정 키<input name="teacherKey" type="password" autocomplete="off" minlength="24" maxlength="256" required></label><button class="button secondary" type="submit">이 답안 재판정</button></form>'}
- <p id="rejudgeStatus" role="status">${failure?esc(rejudgeMessage(job.code))+' 기존 결과는 보존되어 있습니다.':''}</p></details>`;
+ const failure=target&&job?.attemptId===target.id&&job.status==='failed'&&['failed','missing'].includes(I.judgmentStatus(data,s).code);
+ return window.TeacherRecordUI.rejudgeControl(data,s,target,busy,message||(failure?rejudgeMessage(job.code):''));
 }
 function reflectRejudgments(records){
  return {...records,sessions:records.sessions.map(s=>{
@@ -70,14 +63,13 @@ function reflectRejudgments(records){
    teacherRejudgeRequest:{requestId:saved.result.requestId,attemptId:saved.attemptId,status:'completed',at:saved.at}}:s;
  })};
 }
-async function rejudgePlay(form,s,target,element){
+async function rejudgePlay(button,s,target,element){
  if(rejudgeJobs.has(s.sessionId))return;
- const feedback=$('#rejudgeStatus'),button=form.querySelector('button'),field=form.elements.teacherKey;
+ const feedback=$('#rejudgeStatus');
  const scopeKey=cacheKey(),submissionId=s.sessionId,requestId=crypto.randomUUID();
- rejudgeJobs.add(submissionId);button.disabled=true;field.disabled=true;feedback.textContent='저장된 답안을 재판정하고 있어요…';
+ rejudgeJobs.add(submissionId);button.disabled=true;button.textContent='재판정 중…';feedback.textContent='';
  try{
-  const payload={classCode:s.classCode,missionId:s.missionId,sessionId:submissionId,attemptId:target.id,requestId,teacherKey:field.value};
-  field.value='';
+  const payload={classCode:s.classCode,missionId:s.missionId,sessionId:submissionId,attemptId:target.id,requestId};
   const response=await fetch(apiBase+'/rejudge',{method:'POST',headers:{'Content-Type':'application/json'},
    body:JSON.stringify(payload),signal:AbortSignal.timeout(155000)});
   const value=await response.json(),result=value.rejudgment;
@@ -94,18 +86,15 @@ async function rejudgePlay(form,s,target,element){
    c.classKey===chosenClass.classKey&&c.isTest===isTest?{...c,games:{...c.games,[missionId()]:I.game(db,c.classCodes,missionId(),isTest)}}:c)};
   rejudgeJobs.delete(submissionId);analyze();
   if($('#studentDialog').open&&$('#detailPlay')?.value===submissionId){
-   renderPlay(saved,element);
-   const panel=$('.rejudge-control');
-   if(panel){
-    $('#rejudgeStatus').textContent=effective.rejudgment?.requestId===requestId?'새 판정을 저장했습니다. 히트맵과 학급 결과에 반영했어요.':'이 제출의 재판정이 저장됐습니다. 현재는 이후 제출을 표시합니다.';
-    panel.open=true;panel.querySelector('summary').focus();
-   }
+   renderPlay(saved,element,'새 판정을 저장했습니다.');
+   $('#rejudgeStatus')?.focus();
+
   }
  }catch(error){
   feedback.textContent=error.name==='TimeoutError'?'응답이 늦어지고 있습니다. 시트 기록을 새로고침해 저장 여부를 확인해 주세요.':error.message;
- }finally{rejudgeJobs.delete(submissionId);button.disabled=false;field.disabled=false}
+ }finally{rejudgeJobs.delete(submissionId);button.disabled=false;button.textContent='재판정'}
 }
-function renderPlay(s,element=''){const events=M.attemptsFor(data,s.sessionId),submits=M.submissions(data,s),target=I.finalSubmission(data,s,events).target,evaluation=I.evaluation(data,s);$('#playContent').innerHTML=`${window.TeacherRecordUI.criterion(data,s,element)}<section class="answer-compare"><article><span>처음에는 이렇게 생각했어요</span><p>${esc(s.firstAnswer||'처음 생각이 아직 저장되지 않았어요.')}</p></article><article class="last-answer"><span>마지막에는 이렇게 설명했어요</span><p>${esc(target?.input||s.finalAnswer||submits.at(-1)?.input||'최종 답안을 아직 제출하지 않았어요.')}</p></article></section>${rejudgeControl(s,target)}${window.TeacherRecordUI.timeline(data,s)}<div class="reading-note"><b>선생님이 살펴볼 점</b><p>처음 생각과 비교해, 실험에서 본 사실과 그 이유를 연결해서 설명했는지 읽어보세요.</p></div><details class="detail-fold"><summary>쓴 답안을 순서대로 보기 <small>${submits.length?submits.length+'회 제출':'개별 제출 기록 확인'}</small></summary>${submits.map((e,i)=>`<article class="submission"><h3>${i+1}번째 제출 <small>${date(e.createdAt)}</small></h3><p class="answer">${esc(e.input||'본문 없음')}</p></article>`).join('')||'<p>이전 저장 방식에는 제출별 원문이 없어요. 위의 마지막 답안만 확인할 수 있습니다.</p>'}</details><details class="detail-fold"><summary>어떤 활동을 했는지 보기 <small>${events.length}개 기록</small></summary><ol class="timeline">${events.map(e=>`<li><b>${eventLabel(e)}</b><time>${date(e.clientOccurredAt||e.createdAt)}</time>${e.input?`<p>${esc(e.input)}</p>`:''}${e.choice?`<small>선택: ${esc(e.choice)}</small>`:''}</li>`).join('')||'<li>활동별 기록은 아직 없어요.</li>'}</ol></details><details class="detail-fold"><summary>게임의 자동 판정 보기 <small>교사의 평가가 아니에요</small></summary><p>${M.judgmentMethod(evaluation.record)==='AI 평가'?'AI가 기록한 참고 결과예요.':M.judgmentMethod(evaluation.record)==='단어 규칙'?'단어 규칙으로 기록한 참고 결과예요.':'게임에서 기록한 참고 결과예요. 판정 방식은 저장되지 않았어요.'} 원문과 함께 확인해 주세요.</p><ul class="judgment-list">${Object.entries(elements()).map(([k,name])=>{const j=evaluation.judgment,has=Object.hasOwn(j,k);return `<li><span>${name} <small>${k}</small></span><b class="${!has?'unseen':M.yes(j[k])?'yes':'no'}">${!has?'판정 없음':M.yes(j[k])?'게임에서 인정':'게임에서 미인정'}</b></li>`}).join('')}</ul></details><div class="hint-note"><b>${esc(U.noteText(data,s))}</b>${M.noteUsage(data,s).kind==='legacy'&&s.missionId==='m02'?'<p>이전 방식의 힌트 값은 새 교수 노트의 쪽수와 직접 비교하지 않아요.</p>':''}</div><section class="teacher-note-section"><h3>이 학생에게 어떤 질문을 할까요?</h3><p>질문과 다음 활동을 기록해 두세요. 학생 답안은 바뀌지 않습니다.</p>${planForm(M.number(s),s.finalAnswer||s.firstAnswer||'원문 미기록',s.sessionId)}</section>`;bindPlanForm($('#detail #planForm'));const form=$('#rejudgeForm');if(form)form.onsubmit=event=>{event.preventDefault();rejudgePlay(form,s,target,element)}}
+function renderPlay(s,element='',retryMessage=''){const events=M.attemptsFor(data,s.sessionId),submits=M.submissions(data,s),target=I.finalSubmission(data,s,events).target,evaluation=I.evaluation(data,s);$('#playContent').innerHTML=`${window.TeacherRecordUI.criterion(data,s,element)}<section class="answer-compare"><article><span>처음에는 이렇게 생각했어요</span><p>${esc(s.firstAnswer||'처음 생각이 아직 저장되지 않았어요.')}</p></article><article class="last-answer"><span>마지막에는 이렇게 설명했어요</span><p>${esc(target?.input||s.finalAnswer||submits.at(-1)?.input||'최종 답안을 아직 제출하지 않았어요.')}</p></article></section>${rejudgeControl(s,target,retryMessage)}${window.TeacherRecordUI.timeline(data,s)}<div class="reading-note"><b>선생님이 살펴볼 점</b><p>처음 생각과 비교해, 실험에서 본 사실과 그 이유를 연결해서 설명했는지 읽어보세요.</p></div><details class="detail-fold"><summary>쓴 답안을 순서대로 보기 <small>${submits.length?submits.length+'회 제출':'개별 제출 기록 확인'}</small></summary>${submits.map((e,i)=>`<article class="submission"><h3>${i+1}번째 제출 <small>${date(e.createdAt)}</small></h3><p class="answer">${esc(e.input||'본문 없음')}</p></article>`).join('')||'<p>이전 저장 방식에는 제출별 원문이 없어요. 위의 마지막 답안만 확인할 수 있습니다.</p>'}</details><details class="detail-fold"><summary>어떤 활동을 했는지 보기 <small>${events.length}개 기록</small></summary><ol class="timeline">${events.map(e=>`<li><b>${eventLabel(e)}</b><time>${date(e.clientOccurredAt||e.createdAt)}</time>${e.input?`<p>${esc(e.input)}</p>`:''}${e.choice?`<small>선택: ${esc(e.choice)}</small>`:''}</li>`).join('')||'<li>활동별 기록은 아직 없어요.</li>'}</ol></details><details class="detail-fold"><summary>게임의 자동 판정 보기 <small>교사의 평가가 아니에요</small></summary><p>${M.judgmentMethod(evaluation.record)==='AI 평가'?'AI가 기록한 참고 결과예요.':M.judgmentMethod(evaluation.record)==='단어 규칙'?'단어 규칙으로 기록한 참고 결과예요.':'게임에서 기록한 참고 결과예요. 판정 방식은 저장되지 않았어요.'} 원문과 함께 확인해 주세요.</p><ul class="judgment-list">${Object.entries(elements()).map(([k,name])=>{const j=evaluation.judgment,has=Object.hasOwn(j,k);return `<li><span>${name} <small>${k}</small></span><b class="${!has?'unseen':M.yes(j[k])?'yes':'no'}">${!has?'판정 없음':M.yes(j[k])?'게임에서 인정':'게임에서 미인정'}</b></li>`}).join('')}</ul></details><div class="hint-note"><b>${esc(U.noteText(data,s))}</b>${M.noteUsage(data,s).kind==='legacy'&&s.missionId==='m02'?'<p>이전 방식의 힌트 값은 새 교수 노트의 쪽수와 직접 비교하지 않아요.</p>':''}</div><section class="teacher-note-section"><h3>이 학생에게 어떤 질문을 할까요?</h3><p>질문과 다음 활동을 기록해 두세요. 학생 답안은 바뀌지 않습니다.</p>${planForm(M.number(s),s.finalAnswer||s.firstAnswer||'원문 미기록',s.sessionId)}</section>`;bindPlanForm($('#detail #planForm'));const button=$('#rejudgeButton');if(button)button.onclick=()=>rejudgePlay(button,s,target,element)}
 function eventLabel(e){return esc(({burnA:'열린 실험의 강철솜 태우기',clipB:'닫힌 실험의 집게 연결',burnB:'닫힌 실험의 강철솜 태우기',acquire:'실험 단서 모으기',first:'처음 생각 쓰기',claim:'주장과 근거 고르기',Q1:'질문 1에 답하기',Q2:'질문 2에 답하기',Q3:'질문 3에 답하기',predict:'자신의 답안 예상하기',final:'최종 답안 제출',hintView:'힌트 열어보기',hintUnlock:'힌트 열림',stopper:'플라스크 마개 조작'}[e.questId]||(e.stage==='sort'?'카드 분류하기':e.stage==='rebuttal'?'교수와 토론하기':stageLabels[e.stage]||'실험 활동')))}
 const plansKey=()=>missionId()==='m02'?`sciw_m02_reviews_v1:${source()==='sheet'?'sheet':source()}:${classCode()}`:`sciw_m01_reviews_v1:${source()}:${classCode()}`;
 function readPlans(){try{return JSON.parse(localStorage.getItem(plansKey())||'[]')}catch(_){return []}}

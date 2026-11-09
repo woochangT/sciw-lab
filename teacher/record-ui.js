@@ -8,6 +8,11 @@
   const value=I.judgmentStatus(data,s);
   return `<section class="judgment-status-detail" aria-label="자동 판정 상태"><b>${esc(value.label)}</b>${value.errorCode?`<small>오류 코드: ${esc(value.errorCode)}</small>`:''}<p>${value.code==='missing'?'상태를 확인할 판정 기록이 없습니다. 저장된 답안만으로 실패나 대기를 추정하지 않습니다.':value.code==='pending'?'저장된 판정 대기 기록을 확인했습니다.':value.code==='failed'?'저장된 판정 실패 기록을 확인했습니다. 기존 답안과 판정 기록은 그대로 볼 수 있습니다.':value.code==='unavailable'?'평가기가 이 답안을 판정 불가로 기록했습니다.':'판정 요소가 저장되어 있습니다. 자동 판정은 수업 참고 자료입니다.'}</p></section>`;
  }
+ function rejudgeControl(data,s,target,busy=false,message=''){
+  const eligible=target&&['failed','missing'].includes(I.judgmentStatus(data,s).code);
+  if(!eligible&&!message)return '';
+  return `<div class="rejudge-control">${eligible?`<button type="button" id="rejudgeButton" ${busy?'disabled':''}>${busy?'재판정 중…':'재판정'}</button>`:''}<span id="rejudgeStatus" role="status" tabindex="-1">${esc(message)}</span></div>`;
+ }
  function criterion(data,s,key){
   if(!key)return status(data,s);
   const evaluation=I.evaluation(data,s),record=evaluation.record,label=I.definitions[s.missionId||'m01'].find(([id])=>id===key)?.[1]||key;
@@ -24,5 +29,5 @@
   const draft=s.draftAnswer&&!s.endedAt?`<section class="answer-compare"><article><span>작성 중인 답안 · ${esc(stageName[s.stage]||s.stage||'진행 중')}</span>${s.draftQuestion?`<p><b>교수의 질문</b> ${esc(s.draftQuestion)}</p>`:''}<p>${esc(s.draftAnswer)}</p><small>아직 평가되지 않은 입력 · ${esc(s.draftSavedAt||'')}</small></article></section>`:'';
   return draft+`<section class="stage-conversations"><h3>단계별 학생 답변과 교수 피드백</h3><p>저장된 순서대로 보여줍니다. 이전 기록에 없는 피드백은 새로 만들지 않아요.</p>${[...groups].map(([stage,items])=>`<details class="detail-fold" open><summary>${esc(stageName[stage]||stage)} <small>${items.length}개 대화 기록</small></summary>${items.map(e=>`<article class="conversation-turn">${e.displayedPrompt?`<div class="professor-turn"><b>교수의 질문</b><p>${esc(text(e.displayedPrompt))}</p></div>`:''}${e.input?`<div class="student-turn"><b>${e.questId==='studentInput'?'제출 원문 · 평가 전 저장':'학생 답변'}</b><p>${esc(e.input)}</p></div>`:''}${e.feedbackText||e.feedbackQuestion?`<div class="professor-turn"><b>${e.feedbackSource==='displayed'?'화면에 표시된 교수 대사':'저장된 교수 피드백'}</b><p>${esc(text(e.feedbackText||e.feedbackQuestion))}</p></div>`:e.input&&e.questId!=='studentInput'&&!events.some(a=>a.inReplyTo===e.attemptId&&a.feedbackText)?'<p class="missing-feedback">이 답변의 교수 피드백은 이 기록에 저장되지 않았어요.</p>':''}<small>${esc(e.questId||'')} · ${esc(e.createdAt||e.clientOccurredAt||'시각 미기록')}</small></article>`).join('')}</details>`).join('')||'<p>아직 단계별 대화가 저장되지 않았어요.</p>'}</section>`;
  }
- root.TeacherRecordUI={criterion,timeline,status};
+ root.TeacherRecordUI={criterion,timeline,status,rejudgeControl};
 })(typeof window==='undefined'?globalThis:window);

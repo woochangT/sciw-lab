@@ -1,4 +1,4 @@
-/** Teacher-authorized final-answer evaluation. The original journal remains intact. */
+/** Retry failed or missing final-answer evaluation using the saved submission. */
 const REJUDGE_KEYS = {
   m01: ['C','D','W1','W2a','W2b','W3','WB'],
   m02: ['C','D-A','D-B','W1a','W1b','W2a','W2b']
@@ -44,7 +44,29 @@ function readRejudgeSession_(body) {
   if (session.classCode!==body.classCode || !validClassCode_(session.classCode)) return null;
   const older = missionRows_(existing.mission).rows.filter(row => row[0]==='attempt' && row[2]===body.sessionId).map(readPayload_);
   const attempts = older.concat(session.attempts || []);
-  return { existing:existing, session:session, target:finalRejudgeTarget_(session, attempts) };
+  return { existing:existing, session:session, target:finalRejudgeTarget_(session, attempts), attempts:attempts };
+}
+
+function canRejudgeFinal_(data) {
+  const {session, target, attempts} = data;
+  if (session.teacherRejudgment?.attemptId===target.id) return false;
+  const record = target.record;
+  const raw = record.questId==='studentInput';
+  const status = record===session ? session.finalEvaluationStatus : record.evaluationStatus;
+  const failed = raw && attempts.some(a => a.questId==='finalEvaluation' &&
+    a.inReplyTo===record.attemptId && a.evaluationStatus==='failed');
+  if (failed || status==='failed') return true;
+  if (['pending','processing','unavailable'].includes(status) ||
+      record.questId==='clarify' && record.outcome==='clarify' ||
+      record.questId==='FINAL' && record.diagnosis==='UNCLEAR') return false;
+  if (raw) return true;
+  let judgment = record.judgment;
+  if (typeof judgment==='string') {
+    try { judgment=JSON.parse(judgment); } catch (_) { judgment=null; }
+  }
+  const saved = judgment && Object.keys(judgment).length ? judgment : session.finalJudgment;
+  return !REJUDGE_KEYS[session.missionId].some(key =>
+    [true,false,'true','false','TRUE','FALSE'].includes(saved?.[key]));
 }
 
 function saveRejudgeSession_(data, fields) {
@@ -86,9 +108,9 @@ function evaluateSavedFinal_(session, target) {
 }
 
 function rejudgeFinal_(body) {
-  try { authorizeTeacher_(body); } catch (_) { return {ok:false,code:'TEACHER_ACCESS'}; }
-  const {sessionId, attemptId, requestId} = body;
-  if (typeof sessionId!=='string' || !sessionId || sessionId.length>128 ||
+  const {classCode, missionId, sessionId, attemptId, requestId} = body;
+  if (!validClassCode_(classCode) || typeof missionId!=='string' || !Object.hasOwn(REJUDGE_KEYS,missionId) ||
+      typeof sessionId!=='string' || !sessionId || sessionId.length>128 ||
       typeof attemptId!=='string' || attemptId.length>128 ||
       typeof requestId!=='string' || !/^[a-zA-Z0-9_-]{12,100}$/.test(requestId)) {
     return {ok:false,code:'INVALID_REQUEST'};
@@ -102,6 +124,7 @@ function rejudgeFinal_(body) {
     if (previous && previous.requestId===requestId && previous.attemptId===attemptId) {
       return {ok:true,rejudgment:previous};
     }
+    if (!canRejudgeFinal_(data)) return {ok:false,code:'REJUDGE_NOT_NEEDED'};
     if (job && job.status==='running' && Date.now()-Date.parse(job.at)<REJUDGE_LEASE_MS) {
       return {ok:false,code:'REJUDGE_BUSY'};
     }
@@ -131,6 +154,7 @@ function rejudgeFinal_(body) {
     if (!job || job.requestId!==requestId || job.at!==start.startedAt || job.status!=='running') return {ok:false,code:'STALE_SUBMISSION'};
     if (!data.target || data.target.id!==attemptId || data.target.text!==start.target.text ||
         JSON.stringify(data.target.input?.evaluationInput)!==JSON.stringify(start.target.input?.evaluationInput)) code = 'STALE_SUBMISSION';
+    else if (!canRejudgeFinal_(data)) code = 'REJUDGE_NOT_NEEDED';
     const at = new Date().toISOString();
     if (code) {
       saveRejudgeSession_(data,{teacherRejudgeRequest:{requestId,attemptId,status:'failed',at,code}});

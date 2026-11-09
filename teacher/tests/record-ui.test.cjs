@@ -25,3 +25,16 @@ test('unfinished inputs are visible without being mistaken for a final answer or
  assert.match(html,/작성 중인 답안 · 최종 서술/);assert.match(html,/아직 평가되지 않은 입력/);assert.match(html,/작성 중인 &lt;원문&gt;/);assert.doesNotMatch(html,/<원문>/);
  assert.doesNotMatch(U.timeline({attempts:[]},{...s,endedAt:'2026-11-04',draftAnswer:'이전 초안'}),/작성 중인 답안/);
 });
+test('compact retry appears only for failed or missing submitted answers and needs no key',()=>{
+ const target=I.finalSubmission({attempts:[]},s).target;
+ const retry=(fields,submission=target)=>U.rejudgeControl({attempts:[]},{...s,finalJudgment:undefined,...fields},submission);
+ for(const status of ['failed',undefined]){
+  const html=retry({finalEvaluationStatus:status});
+  assert.match(html,/<button[^>]*>재판정<\/button>/);
+  assert.doesNotMatch(html,/<input|<form|<details|교사 재판정 키/);
+ }
+ for(const fields of [{finalJudgment:{C:false}},{finalEvaluationStatus:'pending'},{finalEvaluationStatus:'unavailable'},{teacherRejudgment:{attemptId:target.id}}]){
+  assert.equal(retry(fields),'');
+ }
+ assert.equal(retry({},null),'');
+});
