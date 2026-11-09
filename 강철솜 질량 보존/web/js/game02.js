@@ -1569,7 +1569,7 @@
   function linkReply(i, value) {
     const L = M.links[i]; const qid = L.quest; const stageDef = STAGES[qid];
     openReply({
-      text: true, rows: 2, enterSends: true, frame: { pre: stageDef.starter.trim(), post: stageDef.ending }, value: value || '', send: '말하기',
+      text: true, rows: 2, enterSends: true, frame: { pre: stageDef.starter.trim(), post: stageDef.ending }, value: value || (window.SCIW_DEMO ? window.SCIW_DEMO.prefill(qid) : ''), send: '말하기',
       onSubmit: async ({ text: typed }) => {
         const sentence = meaningSentence(typed);
         const text = stageDef.starter + sentence;
@@ -1943,7 +1943,7 @@
     return { finalHTML, praise, pops };
   }
   // 결과 화면은 처음 → 지금(글) → 형광펜 항목별 → 피드백 모음 순으로 천천히 드러낸다. 화면을 누르면 다음으로 넘어간다.
-  const SUBMIT_LOCK_S = 60;
+  const SUBMIT_LOCK_S = (window.SCIW_CONFIG || {}).DEMO ? 3 : 60; // 발표 시연 모드(js/demo02.js)에서는 기다림을 줄인다
   function revealWait(ms) {
     return new Promise((resolve) => {
       const scr = $('#clearScreen');
@@ -2191,10 +2191,11 @@
     await sleep(reduced ? 100 : 400);
   }
 
-  if ($('#startForm')) setupStart(); // 튜토리얼 페이지에는 시작 화면이 없다
+  if ($('#startForm') && !(window.SCIW_CONFIG || {}).DEMO) setupStart(); // 튜토리얼 페이지와 발표 시연 모드에는 시작 화면이 없다
   setupTrayScroll();
   fit();
   window.__m02 = { S, say, fit, renderTray, setNose, finish }; // 디버그용
   // 튜토리얼(js/tutorial02.js)이 쓰는 화면 부품
-  window.SCIW_ENGINE02 = { S, M, STAGES, $, $$, esc, sleep, reduced, nextFrame, say, sayTap, drawTail, waitTap, sysPop, openReply, closeReply, glow, blinkOnce, setStage, setNose, zoomProf, zoomOut, fit, acquire, renderTray, renderSmallBoard, renderEvidence, flameDrag, enterArena, exitArena, renderGap, closeScope };
+  // 발표 시연 모드(js/demo02.js)가 장면을 미리 채울 때 쓰는 부품: buildBench, openGap, askLink, nextGap, startCompose
+  window.SCIW_ENGINE02 = { S, M, STAGES, buildBench, openGap, askLink, nextGap, startCompose, $, $$, esc, sleep, reduced, nextFrame, say, sayTap, drawTail, waitTap, sysPop, openReply, closeReply, glow, blinkOnce, setStage, setNose, zoomProf, zoomOut, fit, acquire, renderTray, renderSmallBoard, renderEvidence, flameDrag, enterArena, exitArena, renderGap, closeScope };
 })();

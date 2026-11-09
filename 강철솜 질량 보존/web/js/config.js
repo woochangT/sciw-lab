@@ -13,3 +13,12 @@ window.SCIW_CONFIG = {
   JUDGE_API_URL: 'https://script.google.com/macros/s/AKfycbxhtRFI4cX2Kq_DiImTX_oEbuSGOOvr7F9Wa_JqJjdVOVYsLSchmHEEI70xKsQYjtr1kA/exec',
   LLM_TIMEOUT_MS: 65000
 };
+
+// 발표 시연 모드(?demo=1|2|3, js/demo02.js): 팀 시트에 기록하지 않고 이 브라우저에만 남긴다.
+(function () {
+  const m = /[?&]demo=([^&#]*)/.exec(typeof location !== 'undefined' ? location.search : '');
+  const scene = m && decodeURIComponent(m[1]);
+  if (!scene) return;
+  window.SCIW_CONFIG.DEMO = scene;
+  window.SCIW_CONFIG.API_URL = '';
+})();

@@ -97,5 +97,7 @@ async function load(force=false){const ticket=++request;controller?.abort();cont
 $('#backToClass').onclick=returnToPortfolio;$('#changeScope').onclick=returnToPortfolio;$('#refresh').onclick=()=>{closeDetail();load(true)};$('#source').onchange=()=>{recordCache.clear();resetScope();load()};
 $('#classNav').addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;if('allClasses'in button.dataset){returnToPortfolio();return}const d=button.dataset;if(d.classKey){const next=classes.find(c=>c.classKey===d.classKey&&c.isTest===(d.classTest==='true'));if(next)enterClassDashboard(next)}});
 
+// 발표 시연: teacher.html?source=demo로 열면 예시 수업(합성 자료)으로 바로 시작한다
+if(new URLSearchParams(location.search).get('source')==='demo')$('#source').value='demo';
 loading=true;render();load();setInterval(()=>{if(!loading&&!document.hidden&&!$('#studentDialog').open&&view!=='report'&&document.activeElement?.tagName!=='SELECT')load()},cfg.REFRESH_MS||20000);
 })();

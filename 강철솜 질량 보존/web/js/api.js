@@ -15,8 +15,15 @@
     // AI 장애를 오답/null로 바꾸지 않는다. 기록 주소에는 판정 요청을 보내지 않는다.
     async judge(payload, timeoutMs = cfg.LLM_TIMEOUT_MS || 65000) {
       const fail = (code) => Object.assign(new Error(code), { code });
-      if (!JUDGE_URL) throw fail('JUDGE_NOT_CONFIGURED');
       const input = window.SCIW_RUBRIC02.prepare(payload);
+      // 발표 시연 모드: 시연 문장을 그대로 냈으면 저장해 둔 판정 결과를 쓴다(js/demo02.js). 고쳐 썼으면 실제 판정을 요청한다.
+      const demo = cfg.DEMO && window.SCIW_DEMO && window.SCIW_DEMO.fixtures[input.stage];
+      if (demo && demo.text === input.text) {
+        await new Promise((r) => setTimeout(r, demo.delay || 1500));
+        const result = window.SCIW_RUBRIC02.validate(input, demo.analysis);
+        return Object.assign(result, { model: demo.model || '', requestId: demo.requestId || 'demo-' + demo.source });
+      }
+      if (!JUDGE_URL) throw fail('JUDGE_NOT_CONFIGURED');
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), timeoutMs);
       try {
