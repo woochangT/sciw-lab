@@ -41,7 +41,7 @@ test('the class row and answer detail show the same status independently of answ
  const db={sessions,attempts},data=M.analyze(db,'3-2','latest',{missionId:'m02'}),portfolio=I.overview(db),selectedClass=portfolio.classes[0];
  const html=D.screen({portfolio,data,selectedClass,mission:'m02',source:'demo'});
  for(const label of ['판정 완료','판정 대기','판정 실패','판정 불가','판정 기록 없음'])assert.match(html,new RegExp(label));
- assert.match(html,/<th scope="col">판정 상태<\/th>/);
+ assert.match(html,/<th scope="col">AI 판정/);
  const pendingRow=html.match(/<tr><th scope="row"><b>2번<\/b>[\s\S]*?<\/tr>/)?.[0];
  assert.match(pendingRow,/submission-status ">작성 전/);assert.match(pendingRow,/status-pending">판정 대기/);
  assert.match(U.criterion(data,sessions[2],''),/판정 실패/);

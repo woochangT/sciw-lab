@@ -48,3 +48,17 @@ body.dashboard-app{background:#f3f5f2;font:15px/1.5 Pretendard,system-ui,sans-se
 .comparison-scroll{overflow-x:auto;scrollbar-width:thin}.play-comparison table{width:100%;min-width:760px;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}.play-comparison th,.play-comparison td{padding:6px 8px;border-bottom:1px solid #e9eee7;text-align:center;white-space:nowrap}.play-comparison thead th{background:#f6f8f2;color:#586d58;font-weight:650}.play-comparison tbody th{text-align:left;color:var(--deep);font-weight:650}.play-comparison tbody tr:last-child>*{border-bottom:0}.play-comparison .comparison-delta{font-weight:700;color:#386d4a}.play-comparison .comparison-excluded{text-align:left;color:#6b7869;font-size:12px;white-space:normal;min-width:230px}.comparison-note{margin-top:9px!important}
 @media(max-width:1000px){.dashboard-screen.with-comparison{height:auto;overflow:visible;grid-template-rows:68px 84px auto auto auto}.play-comparison header{display:block}.play-comparison header p{margin-top:5px}}
 @media(max-width:600px){.dashboard-screen.with-comparison{grid-template-rows:68px 140px auto auto auto}.play-comparison{padding:12px}.play-comparison h2{font-size:15px}}
+
+.term-info{display:inline-grid;place-items:center;width:18px;height:18px;margin-left:3px;padding:0;border:0;border-radius:50%;background:transparent;color:#657f65;font-size:13px;font-weight:500;line-height:1;vertical-align:middle;white-space:nowrap}.term-info:hover,.term-info[aria-expanded='true']{background:#e7eee5;color:#28543a}.term-popover{position:fixed;z-index:1000;box-sizing:border-box;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;padding:12px 14px;border:1px solid #cbd8c7;border-radius:7px;background:#fff;color:#294235;box-shadow:0 8px 24px #15291d40;font-size:13px;font-weight:400;line-height:1.55;white-space:normal;text-align:left;overflow-wrap:anywhere}.term-popover[hidden]{display:none}
+
+/* Class comparison uses the main content scroll; its cards grow with their contents. */
+.dashboard-app #content:has(.dashboard-screen.with-comparison){overflow-x:hidden;overflow-y:auto;scrollbar-width:thin}
+.dashboard-screen.with-comparison{height:auto;min-height:100%;grid-template-rows:auto auto auto auto auto;overflow:visible}
+.dashboard-screen.with-comparison .dashboard-analysis-grid{min-height:auto;align-items:start;padding-bottom:16px}
+.dashboard-screen.with-comparison .matrix-panel{grid-template-rows:auto auto auto auto auto;min-height:auto;overflow:visible}
+.dashboard-screen.with-comparison .matrix-viewport{min-height:auto;overflow-x:auto;overflow-y:hidden}
+.dashboard-screen.with-comparison .dashboard-insights{min-height:auto;overflow:visible}
+.dashboard-screen.with-comparison .dashboard-teaching h3,.dashboard-screen.with-comparison .dashboard-teaching .teaching-focus{display:block;-webkit-line-clamp:unset;overflow:visible}
+.dashboard-screen.with-comparison .dashboard-ai-error{max-height:none;overflow:visible}
+.dashboard-screen.with-comparison .dashboard-insights .class-progress-list,.dashboard-screen.with-comparison .dashboard-insights .element-bars{overflow:visible}
+@media(max-width:1000px){.dashboard-app #content:has(.dashboard-screen.with-comparison){overflow:visible}.dashboard-screen.with-comparison .dashboard-analysis-grid{grid-template-rows:auto auto}}
