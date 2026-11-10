@@ -59,13 +59,14 @@
     <div class="class-picker-list">${v.all.map(({c,g})=>`<button type="button" data-class-key="${esc(c.classKey)}" data-class-test="${c.isTest}">
       <strong>${esc(c.label)}</strong><span>${g.participants?'<b>'+g.written+' / '+g.participants+'명</b> 최종 답안 / 참여':'이 게임의 기록 없음'}</span>
       <progress value="${g.written}" max="${g.participants||1}" aria-label="${esc(c.label)} 최종 답안 작성 인원"></progress><i aria-hidden="true">→</i>
-    </button>`).join('')||`<p class="focus-empty">${state.loading?'학급 기록을 불러오는 중입니다.':state.error?'시트 연결을 확인해 주세요.':'아직 기록된 학급이 없습니다.'}</p>`}</div></section>`;
+    </button>`).join('')||`<p class="focus-empty">${state.loading?'학급 기록을 불러오는 중입니다.':state.error?'시트 연결을 확인해 주세요.':'아직 기록된 학급이 없습니다.'} ${!state.loading&&state.source==='sheet'?'<button class="dashboard-link" data-demo>예시 수업 열기</button>':''}</p>`}</div></section>`;
  }
  function lessonHome(v,state,priority){
   const {focus,missing}=priority,report=state.report?.analysis?.result,mission=state.mission;
   const title=focus?'다음 수업에서 함께 물어볼 질문':state.loading?'학급 기록을 불러오는 중입니다.':v.written?'저장된 학생 답안부터 살펴보세요.':'아직 제출된 답안이 없어요.';
   const criterion=v.keys.find(item=>item.key===v.current)?.label;
-  const question=Array.isArray(report?.questions)?report.questions.find(item=>typeof item?.question==='string'&&item.question.trim())?.question:'';
+  const displayedQuestions=new Set(missing.map(item=>I.teachingQuestions[mission][item.key]));
+  const question=Array.isArray(report?.questions)?report.questions.find(item=>typeof item?.question==='string'&&item.question.trim()&&!displayedQuestions.has(item.question.trim()))?.question:'';
   return `<section class="lesson-home" aria-labelledby="lessonHomeTitle">
    <div class="lesson-home-copy"><p class="focus-kicker">학급 수업 초점</p>
    <h2 id="lessonHomeTitle">${esc(title)}</h2>
@@ -77,11 +78,12 @@
      <ul class="weakness-students" aria-label="이 설명을 보완할 학생">${group.students.map(({studentNo})=>`<li><a href="#student-answer-${studentNo}" data-analysis-student="${studentNo}" aria-label="${studentNo}번 학생 답안 분석">${studentNo}번</a></li>`).join('')}</ul>
      <button type="button" class="dashboard-link" data-compare-element="${esc(group.key)}" aria-label="${esc(I.teachingQuestions[mission][group.key])} 답안 비교" aria-pressed="${focus?.key===group.key}">답안 비교 ↓</button>
     </article>`).join('')}</div>`:`<p class="focus-detail">${v.written?'같은 기준으로 판정한 글에서 공통 보완점을 찾으면 여기에 표시해요.':'아래에서 학생별 진행과 저장된 답안을 확인할 수 있어요.'}</p>`}
-   ${report?.teachingFocus?`<p class="lesson-question"><b>저장된 학급 분석</b> ${esc(report.teachingFocus)}</p>`:''}
+   ${report?.teachingFocus?`<p class="lesson-question"><b>${state.report.analysis.model==='stored-records'?(state.report.analysis.synthetic?'합성 예시 분석':'저장 기록 기반 분석'):'저장된 학급 분석'}</b> ${esc(report.teachingFocus)}</p>`:''}
    ${question?`<p class="lesson-question"><b>추가로 물어볼 질문</b> ${esc(question)}</p>`:''}
    ${state.reportStale?'<p class="focus-freshness">요약을 만든 뒤 새 기록이 들어왔어요.</p>':''}
    ${state.aiError?`<p class="dashboard-ai-error" role="alert">${esc(state.aiError)}</p>`:''}
    <div class="focus-actions"><button class="dashboard-generate" data-ai-generate ${!state.available||state.busy?'disabled':''}><span class="analysis-refresh-icon" aria-hidden="true">↻</span> ${state.busy?'학급 재분석 중…':'학급 재분석'}</button>
+   ${state.source==='sheet'&&!state.loading&&!state.error&&!report&&!v.written?'<button class="button secondary" data-demo>예시 수업 열기</button>':''}
    ${report?'<button class="button secondary" data-open-report>상세 리포트와 수업 자료</button>':''}</div></div>
    <div class="lesson-participation"><img src="${games[state.mission].asset}" alt=""><div><strong>${v.written}<small> / ${v.total}명</small></strong><span>최종 답안 / 참여</span><progress value="${v.written}" max="${v.total||1}" aria-label="학급 최종 답안 작성 인원"></progress></div></div>
   </section>`;
