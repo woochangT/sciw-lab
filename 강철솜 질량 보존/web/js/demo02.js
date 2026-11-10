@@ -1,0 +1,305 @@
+/*
+ * 발표 시연 모드 — 미션 02 「늘어난 강철솜」
+ * 주소 끝에 ?demo=1|2|3을 붙이면 시작 화면 없이 그 장면부터 실제 게임이 돈다.
+ *   1  꼬투리 ①: 교수가 실험 B 카드를 제멋대로 읽고, 학생이 뒷면을 고쳐 쓴다 (종속 변인 번역)
+ *   2  꼬투리 ③: "왜 하필 산소인가?" → 마법 현미경에서 공기 중의 기체를 지켜본다 (모형화) → 뒷면 고쳐 쓰기
+ *   3  완전한 설명: 최종 답안 제출 → 처음/지금 비교·형광펜 결과 → 선생님께 제출
+ * 각 장면은 보여 줄 기능이 끝나면(END) 거기서 멈추고 발표 화면에 'sciw-demo-done'을 보낸다.
+ * 시연 모드에서는 팀 시트에 기록하지 않는다(js/config.js가 기록 주소를 비운다).
+ * 입력칸은 비어 있고, 발표자가 '예시 답안' 버튼을 누르면 시연 문장이 써진다. 그 문장을 그대로 내면 아래 FIXTURES의 판정 결과를 쓰고(js/api.js),
+ * 발표자가 문장을 고쳐 쓰면 실제 AI 판정을 요청한다.
+ * 게임 흐름과 판정 규칙은 바꾸지 않는다. 장면에 필요한 상태(모은 카드, 지나온 꼬투리, 콧대 높이)만 미리 채운다.
+ */
+(function () {
+  const cfg = window.SCIW_CONFIG || {};
+  const scene = cfg.DEMO;
+  if (!scene) return;
+  const E = window.SCIW_ENGINE02;
+  const { S, M, $ } = E;
+  const API = window.SCIW_API;
+
+  // 시연에서 학생이 쓰는 문장. 답 틀(시작어 … 라는 뜻이다) 사이에 들어가는 부분만 적는다.
+  const TEXT = {
+    Q1: '플라스크 안에서 산소가 철에 옮겨 붙었을 뿐, 안팎으로 드나든 물질은 없다',
+    Q2: '공기 중의 산소가 철에 붙어 더해졌다',
+    Q3: '줄어든 산소가 철에 붙었고, 늘어난 0.5 g은 그 산소의 질량이다',
+    first: '산소 때문',
+    final: '강철솜이 공기 중의 산소와 결합했기 때문이다. 실험 A에서 강철솜은 2.0 g에서 2.5 g으로 0.5 g 늘었고, 마개를 막은 실험 B에서는 플라스크 전체가 150.0 g 그대로였다. B에서는 플라스크 안의 산소가 철에 옮겨 붙었을 뿐 밖으로 드나든 물질이 없어서 전체 질량이 변하지 않았다. 철이 타는 동안 공기 중에서 줄어드는 기체는 산소뿐이므로 철에 붙는 것은 산소이다. 따라서 A에서 늘어난 0.5 g은 접시 밖 공기에서 들어와 철과 결합한 산소의 질량이다.'
+  };
+  // 게임의 meaningSentence와 같은 규칙으로 뒷면 문장을 만든다
+  const meaning = (t) => (/(이|아니)다$/.test(t) ? t.replace(/다$/, '라는 뜻이다.') : t + '는 뜻이다.');
+
+  // 판정 결과. 2026-11-09 실제 판정 서버(평가 Apps Script)에 아래 text를 그대로 보내 받은 응답이다(source: 'captured').
+  // 원래 걸린 시간은 serverMs(최종 답은 약 18초)이고, 시연에서는 delay만큼만 기다린다.
+  // text는 게임이 판정 서버로 보내는 전체 문장(시작어 + 학생 문장 + 끝말)과 같아야 쓰인다. 문장을 바꾸면 이 결과도 다시 받아야 한다.
+  const FIXTURES = {
+    "Q1": {
+      "source": "captured",
+      "capturedAt": "2026-11-09",
+      "model": "gpt-5.4-mini-2026-03-17",
+      "requestId": "7028db4f-dd50-4810-80c1-d3a751f138f7",
+      "serverMs": 6035,
+      "delay": 1600,
+      "text": "마개를 막은 플라스크 전체가 150.0 g 그대로였다는 것은 플라스크 안에서 산소가 철에 옮겨 붙었을 뿐, 안팎으로 드나든 물질은 없다는 뜻이다.",
+      "analysis": {
+        "inputStatus": "meaningful",
+        "diagnosis": "NONE",
+        "checks": {
+          "wholeMass": {
+            "status": "met",
+            "quote": "플라스크 안에서 산소가 철에 옮겨 붙었을 뿐, 안팎으로 드나든 물질은 없다는 뜻이다.",
+            "reason": "플라스크 안에서 산소가 철에 옮겨 붙었다는 내부 변화를 말했고, 안팎으로 드나든 물질이 없다고 해서 경계 밖에서 물질이 드나들지 않았다는 뜻도 함께 드러냈어요."
+          }
+        },
+        "errors": [],
+        "explanationAttempt": true,
+        "explanationQuality": 4,
+        "nextQuestion": "",
+        "highlights": []
+      }
+    },
+    "Q3": {
+      "source": "captured",
+      "capturedAt": "2026-11-09",
+      "model": "gpt-5.4-mini-2026-03-17",
+      "requestId": "b603bb58-137b-49f9-b852-0d1f33e1c601",
+      "serverMs": 4367,
+      "delay": 1600,
+      "text": "공기 중에서 산소만 줄었다는 것은 줄어든 산소가 철에 붙었고, 늘어난 0.5 g은 그 산소의 질량이라는 뜻이다.",
+      "analysis": {
+        "inputStatus": "meaningful",
+        "diagnosis": "NONE",
+        "checks": {
+          "oxygenMass": {
+            "status": "met",
+            "quote": "줄어든 산소가 철에 붙었고, 늘어난 0.5 g은 그 산소의 질량이라는 뜻이다",
+            "reason": "줄어든 산소가 철에 붙었다는 뜻과, 늘어난 0.5 g이 그 산소의 질량이라는 뜻을 함께 분명하게 연결했어요."
+          }
+        },
+        "errors": [],
+        "explanationAttempt": true,
+        "explanationQuality": 4,
+        "nextQuestion": "",
+        "highlights": []
+      }
+    },
+    "final": {
+      "source": "captured",
+      "capturedAt": "2026-11-09",
+      "model": "gpt-5.4-mini-2026-03-17",
+      "requestId": "e18b9d51-fe3f-42a6-afba-48431998ab25",
+      "serverMs": 17657,
+      "delay": 2600,
+      "text": "강철솜이 공기 중의 산소와 결합했기 때문이다. 실험 A에서 강철솜은 2.0 g에서 2.5 g으로 0.5 g 늘었고, 마개를 막은 실험 B에서는 플라스크 전체가 150.0 g 그대로였다. B에서는 플라스크 안의 산소가 철에 옮겨 붙었을 뿐 밖으로 드나든 물질이 없어서 전체 질량이 변하지 않았다. 철이 타는 동안 공기 중에서 줄어드는 기체는 산소뿐이므로 철에 붙는 것은 산소이다. 따라서 A에서 늘어난 0.5 g은 접시 밖 공기에서 들어와 철과 결합한 산소의 질량이다.",
+      "analysis": {
+        "inputStatus": "meaningful",
+        "diagnosis": "N5",
+        "checks": {
+          "C": {
+            "status": "met",
+            "quote": "강철솜이 공기 중의 산소와 결합했기 때문이다.",
+            "reason": "무거워진 까닭을 외부의 산소와 철의 결합으로 직접 설명했어요."
+          },
+          "D-A": {
+            "status": "met",
+            "quote": "실험 A에서 강철솜은 2.0 g에서 2.5 g으로 0.5 g 늘었고",
+            "reason": "실험 A의 증가량 0.5 g과 2.0 g→2.5 g 변화를 정확히 짚었어요."
+          },
+          "D-B": {
+            "status": "met",
+            "quote": "실험 B에서는 플라스크 전체가 150.0 g 그대로였다.",
+            "reason": "실험 B의 전체 질량이 변하지 않았다는 관찰을 분명히 드러냈어요."
+          },
+          "W1a": {
+            "status": "partial",
+            "quote": "A에서 늘어난 0.5 g은 접시 밖 공기에서 들어와 철과 결합한 산소의 질량이다.",
+            "reason": "바깥에서 들어온 산소가 질량 증가의 원인이라고는 했지만, 질량이 저절로 생기지 않는다는 원리를 A에 적용한 설명은 따로 드러나지 않았어요."
+          },
+          "W1b": {
+            "status": "met",
+            "quote": "철이 타는 동안 공기 중에서 줄어드는 기체는 산소뿐이므로 철에 붙는 것은 산소이다.",
+            "reason": "공기 중 기체 가운데 산소만 줄어든다는 관찰로 더해진 물질을 산소로 특정했어요."
+          },
+          "W2a": {
+            "status": "met",
+            "quote": "B에서는 플라스크 안의 산소가 철에 옮겨 붙었을 뿐 밖으로 드나든 물질이 없어서 전체 질량이 변하지 않았다.",
+            "reason": "닫힌 플라스크 안에 물질이 남아 있어 전체 질량이 그대로라는 점을 설명했어요."
+          },
+          "W2b": {
+            "status": "met",
+            "quote": "A에서 늘어난 0.5 g은 접시 밖 공기에서 들어와 철과 결합한 산소의 질량이다.",
+            "reason": "늘어난 0.5 g을 바깥에서 들어온 산소의 질량으로 잘 해석했어요."
+          }
+        },
+        "errors": [],
+        "explanationAttempt": true,
+        "explanationQuality": 3,
+        "nextQuestion": "",
+        "highlights": [
+          {
+            "quote": "철이 타는 동안 공기 중에서 줄어드는 기체는 산소뿐이므로 철에 붙는 것은 산소이다.",
+            "occurrence": 0,
+            "roles": [
+              "W1b"
+            ],
+            "explanation": "공기 중에서 산소만 줄어든다는 관찰로 철에 붙는 물질을 산소로 잘 특정했어요.",
+            "isNew": true,
+            "newReason": "처음에는 단순히 산소라고만 했지만, 여기서는 왜 산소인지 관찰로 연결해서 설명했어요."
+          },
+          {
+            "quote": "B에서는 플라스크 안의 산소가 철에 옮겨 붙었을 뿐 밖으로 드나든 물질이 없어서 전체 질량이 변하지 않았다.",
+            "occurrence": 0,
+            "roles": [
+              "W2a"
+            ],
+            "explanation": "닫힌 플라스크 안에서 물질이 드나들지 않아서 전체 질량이 그대로라는 점을 잘 설명했어요.",
+            "isNew": true,
+            "newReason": "처음에는 원인만 짧게 적었지만, 여기서는 B의 일정한 질량을 닫힌 계의 상황과 연결했어요."
+          },
+          {
+            "quote": "A에서 늘어난 0.5 g은 접시 밖 공기에서 들어와 철과 결합한 산소의 질량이다.",
+            "occurrence": 0,
+            "roles": [
+              "W2b"
+            ],
+            "explanation": "늘어난 0.5 g을 바깥에서 들어온 산소의 질량으로 잘 해석했어요.",
+            "isNew": true,
+            "newReason": "처음에는 산소라고만 했지만, 여기서는 증가분이 바로 산소의 질량이라고 분명히 연결했어요."
+          }
+        ]
+      }
+    }
+  };
+  // 장면마다 보여 줄 기능이 끝나는 지점. 게임은 여기서 멈추고, 발표 화면(presentation/)에 끝났다고 알린다.
+  const END = { 1: 'link0', 2: 'link2', 3: 'submitted' };
+  function reached(point) {
+    if (END[scene] !== point) return false;
+    document.body.classList.add('demo-done');
+    try { window.parent.postMessage({ type: 'sciw-demo-done', scene }, location.origin); } catch (e) { /* 단독으로 열었을 때 */ }
+    return true;
+  }
+  window.SCIW_DEMO = { scene, text: TEXT, fixtures: FIXTURES, reached };
+
+  // 예시 답안은 미리 넣지 않는다. 발표자가 설명을 마치고 '예시 답안' 버튼을 누르면 그때 한 글자씩 써진다.
+  function exampleButton(host, ta, text, label) {
+    if (!host || !ta || host.querySelector('.demo-fill') || ta.dataset.demoFilled) return;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'demo-fill'; btn.textContent = label;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; ta.dataset.demoFilled = '1'; btn.remove();
+      ta.focus(); ta.value = '';
+      const step = Math.max(8, Math.min(28, 2600 / text.length)); // 긴 답도 3초 안팎에 다 써진다
+      for (const ch of text) {
+        ta.value += ch;
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        await E.sleep(step);
+      }
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    });
+    host.appendChild(btn);
+  }
+  // 교수에게 답하는 칸(꼬투리 뒷면)이 비어서 열리면 그 문항의 예시 답안 버튼을 붙인다
+  function watchReply() {
+    const box = $('#reply');
+    if (!box) return;
+    const check = () => {
+      const ta = $('#replyText');
+      if (box.hidden || !ta || ta.value.trim()) return;
+      const frame = (box.querySelector('.r-frame') || {}).textContent || '';
+      const q = ['Q1', 'Q2', 'Q3'].find((k) => frame.trim() && E.STAGES[k].starter.trim() === frame.trim());
+      if (q && TEXT[q]) exampleButton(box, ta, TEXT[q], '✎ 예시 답안');
+    };
+    new MutationObserver(check).observe(box, { attributes: true, childList: true, subtree: true });
+  }
+
+  const claimCard = () => {
+    S.claim = M.claimOptions.find((o) => o.correct);
+    S.cards.claim = { kind: 'claim', title: '내 주장', text: '강철솜이 공기 중의 산소와 결합했다.', sentence: S.claim.text };
+  };
+  // 꼬투리 i를 통과한 상태: 교수의 빨간 글씨가 학생의 문장으로 지워져 있다
+  const linkDone = (i, typed) => {
+    const c = S.cards[M.links[i].data];
+    c.mis = M.links[i].mis;
+    c.back = meaning(typed);
+  };
+
+  // 탐색과 주장까지 마친 실험실: 두 강철솜은 다 탔고, 처음 생각과 주장이 칠판에 있다
+  function seedLab() {
+    document.body.classList.add('demo-mode');
+    // 시연 중에는 '이 브라우저에 저장됨' 같은 기록 상태 표시를 감춘다
+    const style = document.createElement('style');
+    style.textContent = '.demo-mode #sciw-save-status{display:none!important}.demo-done #clearScreen .btns.two{display:none!important}'
+      + '.demo-fill{position:absolute;right:0;top:calc(100% + 12px);z-index:5;padding:7px 14px;border-radius:999px;border:2px dashed #b88a2e;background:#fff8e1;color:#5a4214;font:600 15px Pretendard,system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25)}'
+      + '.demo-fill:hover{background:#ffefc2}.demo-fill:focus-visible{outline:3px solid #f5c400;outline-offset:2px}'
+      + '.answer-wrap{position:relative}.answer-wrap .demo-fill{top:auto;bottom:12px;right:12px}';
+    document.head.appendChild(style);
+    S.classCode = '3-1'; S.studentNo = '7';
+    S.sessionId = API.uid('demo');
+    API.startSession({ sessionId: S.sessionId, missionId: M.id, classCode: S.classCode, studentNo: S.studentNo, startedAt: new Date().toISOString(), stage: 'rebuttal', isTest: true, demo: scene });
+    $('#who').textContent = '시연 · 3학년 1반 7번';
+    $('#startScreen').hidden = true;
+    S.started = true;
+    E.buildBench();
+    S.done.burnA = S.done.burnB = true;
+    S.boardOpen = true;
+    $('#numA').textContent = M.devices.A.after.toFixed(1) + ' g';
+    $('#tagA').textContent = '2.0 → 2.5 g';
+    $('#tagB').textContent = '150.0 → 150.0 g';
+    ['#devA', '#devB'].forEach((sel) => { const w = $(sel + ' .wool-dark'); if (w) w.style.opacity = '1'; });
+    S.firstAnswer = TEXT.first;
+    claimCard();
+    S.tray = ['cA', 'cB'];
+  }
+  // 드러내기 칠판: 꼬투리 셋이 적혀 있고, 콧대 게이지가 보인다
+  function seedRebuttal(link, nose) {
+    S.linkBoard = true;
+    S.link = link;
+    E.setStage('rebuttal');
+    $('#stage').classList.add('spot');
+    $('#noseMeter').hidden = false;
+    E.setNose(nose);
+    E.renderSmallBoard();
+    E.renderTray();
+    E.fit();
+  }
+
+  async function scene1() {
+    seedLab();
+    watchReply();
+    S.tray.push('e1'); // 실제 흐름에서는 뒷면을 쓰기 전에 현미경(밀폐 용기)을 보고 온다. 그 돋보기를 쥐여 둔다.
+    seedRebuttal(0, 4);
+    await E.sleep(600);
+    await E.openGap(0); // 교수가 실험 B 카드를 뒤집어 '아무 일도 안 일어났다는 뜻이군!'이라고 적는다
+    await E.askLink(0); // 뒷면 쓰기: 답 칸에 시연 문장이 들어가 있다
+  }
+  async function scene2() {
+    seedLab();
+    watchReply();
+    linkDone(0, TEXT.Q1);
+    linkDone(1, TEXT.Q2);
+    S.tray.push('e1', 'e2');
+    seedRebuttal(2, 2);
+    await E.sleep(600);
+    await E.nextGap(2); // "공기 중엔 질소가 훨씬 많은데, 왜 하필 산소라고 하나?" → 현미경이 빛난다
+  }
+  async function scene3() {
+    seedLab();
+    linkDone(0, TEXT.Q1);
+    linkDone(1, TEXT.Q2);
+    linkDone(2, TEXT.Q3);
+    S.tray.push('e1', 'e2', 'e3', 'l3');
+    seedRebuttal(null, 1);
+    S.linkBoard = false;
+    $('#stage').classList.remove('spot');
+    E.startCompose();
+    // 혼자 힘으로 쓴 답: 카드 문장을 붙이지 않았으므로 결과 화면에서 강철솜 키링을 받는다
+    const own = $('#ownMode');
+    own.checked = true;
+    own.dispatchEvent(new Event('change'));
+    // 최종 답안도 비워 두고, 버튼을 누르면 써진다
+    exampleButton($('#answer').parentElement, $('#answer'), TEXT.final, '✎ 예시 답안 쓰기');
+  }
+
+  const run = { 1: scene1, 2: scene2, 3: scene3 }[scene];
+  if (run) run().catch((e) => console.error('[demo]', e));
+})();

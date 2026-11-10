@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>서술 실험실 발표</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+/* 발표 화면 — 시안 A '실험 노트와 형광펜'
+   무대는 1920×1080으로 그리고 창 크기에 맞춰 줄인다. 시연 장면은 무대 밖에서 창 전체를 덮는 실제 게임이다. */
+:root{
+  --paper:#f4f6f1; --grid:#dbe4e0; --margin:#e2a3a3;
+  --ink:#1d2b33; --ink-soft:#4d6470; --ink-faint:#93a3a9;
+  --pen:#2f4b8f; --red:#c0392b;
+  --hl:#f5dc55; --ev:rgba(126,214,160,.78); --cl:rgba(245,170,190,.85);
+  --board:#1e4239; --sheet:#fffdf7; --rule:#c9d3cf;
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --hand:"Nanum Pen Script","IBM Plex Sans KR",cursive;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#d9ddd6;color:var(--ink);font-family:var(--sans)}
+#viewport{position:fixed;inset:0;display:grid;place-items:center}
+#deck{position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform-origin:0 0}
+.slide{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .35s ease,visibility 0s linear .35s;overflow:hidden;
+  background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:48px 48px;background-position:-1px -1px}
+.slide::before{content:"";position:absolute;top:0;bottom:0;left:172px;width:3px;background:var(--margin)}
+.slide.on{opacity:1;visibility:visible;transition:opacity .35s ease}
+.slide .body{position:absolute;left:224px;right:150px;top:96px;bottom:90px}
+.meta{font-family:var(--mono);font-size:22px;letter-spacing:.14em;color:var(--ink-soft);text-transform:uppercase}
+h2{margin:0;font-size:62px;font-weight:700;line-height:1.25;letter-spacing:-.01em;text-wrap:balance}
+h2 small{display:block;margin-top:14px;font-size:28px;font-weight:400;color:var(--ink-soft);letter-spacing:0}
+.src{position:absolute;left:224px;right:150px;bottom:44px;font-family:var(--mono);font-size:17px;color:#6c7f87;letter-spacing:.02em}
+.hl{background:linear-gradient(transparent 52%,var(--hl) 52%,var(--hl) 92%,transparent 92%);padding:0 .25em;margin:0 -.25em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.hand{font-family:var(--hand)}
+.note{position:absolute;font-family:var(--hand);color:var(--red);line-height:1.05;text-align:center}
+.pagenum{position:absolute;right:56px;bottom:40px;font-family:var(--mono);font-size:18px;color:var(--ink-faint)}
+
+/* 한 단계씩 드러내기: .step은 차례가 오면 .shown이 붙는다 */
+.step{opacity:0;transform:translateY(10px);transition:opacity .45s ease,transform .45s ease}
+.step.shown{opacity:1;transform:none}
+.mark-ev,.mark-cl{transition:background-size .7s ease;background-repeat:no-repeat;background-size:0% 100%}
+.mark-ev{background-image:linear-gradient(transparent 55%,var(--ev) 55%,var(--ev) 90%,transparent 90%)}
+.mark-cl{background-image:linear-gradient(transparent 55%,var(--cl) 55%,var(--cl) 90%,transparent 90%)}
+.mark-ev.shown,.mark-cl.shown{background-size:100% 100%}
+.mark-ev,.mark-cl{opacity:1;transform:none}
+
+/* 표지 */
+.cover .title{position:absolute;left:224px;top:250px;margin:0;font-size:176px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.cover .sub{position:absolute;left:228px;top:470px;margin:0;font-size:46px;font-weight:600;line-height:1.45}
+.cover .meta{position:absolute;left:228px;top:120px}
+.team{position:absolute;left:228px;bottom:96px;display:grid;grid-template-columns:auto auto;gap:10px 40px;font-size:24px;color:#33454e}
+.team .name{font-weight:700;color:var(--ink)}
+.team .lead{grid-column:1/-1;font-size:34px;font-weight:700;color:var(--ink);margin-bottom:6px}
+.team .lead span{font-family:var(--mono);font-size:20px;font-weight:500;color:var(--ink-soft);margin-left:18px;letter-spacing:.06em}
+.polaroid{position:absolute;right:170px;top:150px;width:470px;background:#fff;padding:22px 22px 78px;box-shadow:0 12px 34px rgba(29,43,51,.2);transform:rotate(3deg)}
+.polaroid img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover;object-position:50% 8%;background:#ece6d8}
+.polaroid span{position:absolute;left:0;right:0;bottom:18px;text-align:center;font-family:var(--hand);font-size:46px;color:var(--pen)}
+.tape{position:absolute;left:50%;top:-28px;width:190px;height:56px;transform:translateX(-50%) rotate(-4deg);background:rgba(214,226,190,.85)}
+
+/* 코난 */
+.quote{font-size:96px;font-weight:700;letter-spacing:-.02em;line-height:1.2;word-break:keep-all}
+.quote.back{color:var(--ink-soft);font-weight:600;font-size:80px}
+.chain{display:flex;align-items:center;gap:28px;font-size:44px;font-weight:700}
+.chain .box{border:4px solid var(--ink);padding:18px 40px;background:var(--sheet)}
+.chain .link{flex:0 0 380px;position:relative;height:60px}
+.chain .link::before{content:"";position:absolute;left:0;right:0;top:50%;border-top:5px dashed var(--red)}
+.chain .link span{position:absolute;left:50%;top:-52px;transform:translateX(-50%);font-family:var(--hand);font-size:54px;font-weight:400;color:var(--red);white-space:nowrap}
+.conan{position:absolute;right:200px;bottom:110px;height:700px;width:auto}
+.conan-credit{position:absolute;right:200px;bottom:80px;font-size:14px;color:var(--ink-soft)}
+
+/* 답안지 */
+.sheet{background:var(--sheet);border:2px solid var(--rule);padding:44px 56px;font-family:var(--hand);font-size:66px;line-height:1.55;color:#22303a;box-shadow:0 2px 0 rgba(0,0,0,.04)}
+/* 비어 있는 연결 고리: 증거(초록)에서 주장(분홍)으로 가는 곡선 점선 화살표. 위치는 글자 자리를 재서 그린다. */
+.sheet{position:relative}
+.link-arrow{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.link-arrow path{fill:none;stroke:var(--red);stroke-width:6;stroke-linecap:round}
+.link-arrow .shaft{stroke-dasharray:4 16}
+.gap-note{position:absolute;left:224px;right:150px;top:600px;font-family:var(--hand);font-size:62px;line-height:1.2;color:var(--red);text-align:right}
+.legend{display:flex;gap:44px;font-size:24px;color:#3a4c55}
+.legend i{display:inline-block;width:52px;height:22px;margin-right:12px;vertical-align:-3px}
+
+/* 연구 카드 */
+.reqs{display:grid;gap:14px;font-size:34px;color:var(--ink-faint)}
+.reqs li{list-style:none;position:relative;padding-left:44px}
+.reqs li::before{content:"";position:absolute;left:0;top:14px;width:22px;height:22px;border:3px solid currentColor}
+.reqs li.key{color:var(--ink);font-weight:700}
+.reqs li.key::before{border-color:var(--red)}
+.reqs li.key::after{content:"";position:absolute;left:-8px;top:-20px;width:58px;height:58px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 42 42'%3E%3Cpath d='M5 22 L16 34 L38 4' fill='none' stroke='%23c0392b' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center/contain}
+.card{background:var(--sheet);border:2px solid var(--rule);padding:32px 38px}
+.card .k{font-family:var(--mono);font-size:19px;letter-spacing:.08em;color:var(--ink-soft)}
+.card .big{font-size:70px;font-weight:700;letter-spacing:-.02em;line-height:1.1;margin:14px 0 10px;font-variant-numeric:tabular-nums}
+.card .big em{font-style:normal;background:linear-gradient(transparent 58%,var(--hl) 58%,var(--hl) 92%,transparent 92%)}
+.card .big small{font-size:30px;font-weight:500;color:var(--ink-soft)}
+.card p{margin:0;font-size:27px;line-height:1.5;color:#33454e}
+.card cite{display:block;margin-top:18px;font-style:normal;font-family:var(--mono);font-size:16px;color:#6c7f87;line-height:1.5}
+.scores{display:flex;gap:34px;align-items:flex-end;margin:16px 0 12px}
+.scores div{display:grid;justify-items:center;gap:8px;font-size:24px;color:var(--ink-soft)}
+.scores b{display:block;width:96px;background:#b9c9c3;font-size:0}
+.scores .r b{background:var(--red)}
+.scores strong{font-size:40px;color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* 교육과정 오려 붙이기 */
+.clip{background:#fff;border:2px solid var(--rule);padding:34px 40px;box-shadow:0 10px 26px -18px rgba(0,0,0,.4)}
+.clip .k{font-family:var(--mono);font-size:19px;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:18px}
+.clip ul{margin:0;padding:0;list-style:none;display:grid;gap:14px;font-size:31px;line-height:1.45;color:var(--ink-faint)}
+.clip li::before{content:"· "}
+.clip li.on{color:var(--ink);font-weight:600}
+.clip li.model{color:#33454e}
+.clip li.model span{border-bottom:3px solid var(--pen)}
+
+/* 해결 */
+.rows{display:grid;gap:100px}
+.row{display:grid;grid-template-columns:1fr 80px 1fr;align-items:center;gap:24px}
+.row .why{font-size:44px;font-weight:500;line-height:1.45;word-break:keep-all}
+.row .why b{font-family:var(--mono);font-size:28px;color:var(--pen);display:block;margin-bottom:14px;font-weight:700;letter-spacing:.06em}
+.row .arrow{font-size:72px;color:var(--red);text-align:center;font-family:var(--hand)}
+.row .fix{background:var(--sheet);border:2px solid var(--rule);padding:30px 32px;font-size:44px;font-weight:700;line-height:1.35;word-break:keep-all}
+.row .fix small{display:block;font-size:30px;font-weight:400;color:var(--ink-soft);margin-top:12px;line-height:1.45}
+
+/* 세부 문제정의 */
+.chips{display:flex;flex-wrap:wrap;gap:14px 16px}
+.chips span{font-size:26px;padding:8px 20px;border:2px solid #b8c4bf;color:var(--ink-faint);background:rgba(255,255,255,.5)}
+.chips span.on{border-color:var(--ink);color:var(--ink);font-weight:700;background:#fff}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:44px}
+.wcard{background:var(--sheet);border:2px solid var(--rule);padding:38px 42px;display:grid;gap:18px;align-content:start}
+.wcard h3{margin:0;font-size:52px;letter-spacing:-.01em}
+.wcard .def{font-size:31px;line-height:1.5}
+.wcard .ex{font-family:var(--hand);font-size:44px;color:var(--pen);line-height:1.25}
+.wcard .ex i{font-style:normal;color:var(--ink-soft)}
+.wcard .tag{font-family:var(--mono);font-size:19px;color:var(--ink-soft);letter-spacing:.06em}
+
+/* 사용 장면 */
+.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
+.fact{border-top:5px solid var(--ink);padding-top:18px;display:grid;gap:10px;align-content:start}
+.fact .k{font-family:var(--mono);font-size:20px;letter-spacing:.1em;color:var(--ink-soft)}
+.fact .v{font-size:36px;font-weight:700;line-height:1.3}
+.fact .d{font-size:24px;color:#3a4c55;line-height:1.5}
+.flow{display:flex;align-items:center;gap:18px;font-size:30px;font-weight:600}
+.flow span{background:#fff;border:2px solid var(--rule);padding:16px 26px}
+.flow i{font-style:normal;color:var(--red);font-family:var(--hand);font-size:48px}
+.demo-context .body{display:grid;gap:44px;align-content:start;word-break:keep-all}
+.demo-context header{display:grid;gap:16px}
+.demo-context .kicker{margin:0;font-size:28px;font-weight:600;color:var(--pen)}
+.demo-context .topic{margin:0;font-size:36px;line-height:1.4;color:#33454e}
+.demo-context .prior{border-left:5px solid var(--pen);padding:14px 28px;background:var(--sheet)}
+.demo-context .prior .k{font-size:26px;color:var(--ink-soft);margin-bottom:10px}
+.demo-context .prior p{margin:0;font-size:38px;font-weight:600;line-height:1.4}
+.demo-context .facts{gap:32px}
+.demo-context .fact{gap:14px}
+.demo-context .fact .k{font-size:24px}
+.demo-context .fact .d{font-size:28px;line-height:1.45}
+.demo-context .flow{gap:14px;font-size:30px}
+.demo-context .flow span{padding:18px 20px;white-space:nowrap}
+.demo-context .flow span:last-child{border-color:var(--pen);color:var(--pen);font-weight:700}
+
+/* 마무리 */
+.closing .prof{position:absolute;right:50px;bottom:0;height:740px}
+.closing .say{position:absolute;left:224px;top:150px;right:700px;font-family:var(--hand);font-size:86px;line-height:1.25;color:var(--ink);word-break:keep-all}
+.closing .think{position:absolute;left:224px;top:470px;right:700px;background:var(--sheet);border:2px dashed var(--pen);border-radius:28px;padding:30px 40px;font-family:var(--hand);font-size:58px;line-height:1.3;color:var(--pen);word-break:keep-all}
+.closing .think b{font-weight:400;white-space:nowrap;background:linear-gradient(transparent 55%,var(--hl) 55%,var(--hl) 92%,transparent 92%)}
+.missions{position:absolute;left:224px;right:700px;bottom:90px;display:flex;align-items:flex-end;gap:30px}
+.missions figure{margin:0;display:grid;justify-items:center;gap:6px;font-size:20px;color:var(--ink-soft)}
+.missions img{height:90px;width:auto}
+.missions .end{margin-left:auto;text-align:right;font-size:28px;font-weight:700;color:var(--ink);white-space:nowrap}
+.missions .end small{display:block;font-family:var(--mono);font-size:18px;font-weight:500;color:var(--ink-soft);letter-spacing:.08em}
+
+/* 참고 자료 */
+.refs{display:grid;gap:22px;font-size:25px;line-height:1.55;max-width:1450px}
+.refs p{margin:0;padding-left:2em;text-indent:-2em}
+.refs i{font-style:italic}
+.refs .u{font-family:var(--mono);font-size:18px;color:var(--ink-soft)}
+
+/* 부록 (질의응답용) */
+.apx .body{top:64px;bottom:78px;display:grid;grid-template-rows:auto 1fr auto;gap:24px;word-break:keep-all}
+.apx h2{font-size:50px}
+.apx h2 small{font-size:21px;line-height:1.5;margin-top:12px}
+.apx h2 small a{color:inherit}
+.apx-grid{display:grid;grid-template-columns:1fr 1.1fr 1.15fr;gap:30px;align-items:stretch}
+.apx-col{background:var(--sheet);border:2px solid var(--rule);padding:26px 30px;display:grid;gap:14px;align-content:start;font-size:23px;line-height:1.5;color:#2b3b44}
+.apx-col h3{margin:0;font-family:var(--mono);font-size:18px;font-weight:500;letter-spacing:.08em;color:var(--ink-soft)}
+.apx-col p{margin:0}
+.apx-col ul{margin:0;padding-left:1.1em;display:grid;gap:8px}
+.apx-col .pg{font-family:var(--mono);font-size:15px;color:#7a8b92;white-space:nowrap}
+.apx-col blockquote{margin:0;padding:12px 16px;border-left:5px solid var(--pen);background:#f3f5fb;font-size:22px;color:#2f3f63}
+.apx-col blockquote.student{font-family:var(--hand);font-size:31px;line-height:1.3;border-left-color:var(--ev)}
+.apx table{border-collapse:collapse;width:100%;font-size:23px;font-variant-numeric:tabular-nums}
+.apx th,.apx td{padding:8px 10px;border-bottom:1px solid var(--rule);text-align:left}
+.apx th{font-weight:600;color:var(--ink-soft);font-size:19px}
+.apx td.n,.apx th.n{text-align:right}
+.apx tr.hit td{background:linear-gradient(transparent 12%,rgba(245,220,85,.75) 12%,rgba(245,220,85,.75) 88%,transparent 88%);font-weight:700}
+.apx .bars{display:grid;gap:10px}
+.apx .bar{display:grid;grid-template-columns:var(--w,250px) 1fr 76px;align-items:center;gap:12px;font-size:21px}
+.apx .bar i{display:block;height:26px;background:#e7ece9}
+.apx .bar em{display:block;height:100%;background:#a9bcb5}
+.apx .bar.r em{background:var(--red)}
+.apx .bar b{text-align:right;font-variant-numeric:tabular-nums}
+.apx .levels{display:grid;gap:6px;font-size:21px}
+.apx .levels div{display:grid;grid-template-columns:62px 1fr;gap:10px;padding:5px 0;border-bottom:1px dashed var(--rule)}
+.apx .levels b{font-family:var(--mono);font-size:17px;font-weight:500;color:var(--ink-soft);padding-top:3px}
+.apx .levels .top{color:var(--ink);font-weight:600}
+.apx-foot{display:grid;grid-template-columns:1fr 1fr;gap:30px;font-size:21px;line-height:1.45}
+.apx-foot div{padding:12px 22px 0;border-top:4px solid var(--ink)}
+.apx-foot .so{border-top-color:var(--red)}
+.apx-foot b{display:block;font-family:var(--mono);font-size:17px;font-weight:500;letter-spacing:.08em;color:var(--ink-soft);margin-bottom:4px}
+
+/* 시연: 실제 게임이 창 전체를 덮는다 */
+.demo{position:fixed;inset:0;z-index:5;background:#102e2c;display:none}
+.demo.on{display:block}
+.demo iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#102e2c}
+.demo .reload{position:absolute;right:10px;bottom:10px;z-index:2;opacity:0;font:13px var(--sans);background:#fff;border:1px solid #b6cbbd;border-radius:6px;padding:6px 10px;cursor:pointer;transition:opacity .2s}
+.demo:hover .reload,.demo .reload:focus-visible{opacity:.85}
+/* 보여 줄 기능이 끝나면 게임을 덮고 '다음' 표시를 띄운다. 아무 데나 누르거나 다음 키를 누르면 다음 장으로 간다. */
+.demo .finish{position:absolute;inset:0;z-index:1;display:none;cursor:pointer;background:transparent}
+.demo.done .finish{display:block}
+.demo .finish span{position:absolute;right:28px;bottom:28px;padding:12px 22px;background:var(--paper);color:var(--ink);border:2px solid var(--ink);font:600 20px var(--sans);box-shadow:0 8px 22px rgba(0,0,0,.35);animation:nudge 1.6s ease-in-out infinite}
+@keyframes nudge{50%{transform:translateX(6px)}}
+#hud{position:fixed;right:12px;bottom:10px;z-index:10;font:13px var(--mono);color:#6c7f87;opacity:0;transition:opacity .3s}
+body.hud #hud{opacity:1}
+@media (prefers-reduced-motion: reduce){.slide,.step,.mark-ev,.mark-cl{transition:none}}
+</style>
+</head>
+<body>
+<div id="viewport"><div id="deck">
+
+<!-- 0 표지 -->
+<section class="slide cover" data-title="표지">
+  <div class="meta">Experiment note · 2026 SNU TEIC AIED Challenge</div>
+  <h1 class="title">서술 실험실</h1>
+  <p class="sub">증거와 주장 사이의 <span class="hl">연결 고리</span>를<br>쓰게 만드는 과학 서술 게임</p>
+  <div class="team">
+    <div class="lead">스트레이트드로우 <span>발표·시연 강우창</span></div>
+    <div><span class="name">강우창</span> 조장 · 선행연구·자료조사, 앱 기획, 프론트엔드</div>
+    <div><span class="name">김래현</span> 교사용 대시보드 기획, 테스트</div>
+    <div><span class="name">유민준</span> 백엔드 개발, 테스트</div>
+    <div><span class="name">유병성</span> 게이미피케이션 기획, 프론트엔드</div>
+  </div>
+  <div class="polaroid"><div class="tape"></div><img src="img/prof-proud.webp" alt="팔짱을 낀 콧대 교수"><span>콧대 교수</span></div>
+</section>
+
+<!-- 1 코난 -->
+<section class="slide" data-title="단서와 주장">
+  <div class="body" style="display:grid;align-content:center;gap:56px;right:640px">
+    <div class="quote">“범인은 당신이야!”</div>
+    <div class="quote back step">“그 단서만 가지고 왜 저를 의심하죠?”</div>
+    <div class="chain step"><div class="box">단서</div><div class="link"><span>연결 고리</span></div><div class="box">주장</div></div>
+  </div>
+  <img class="conan" src="img/conan.webp" alt="범인을 가리키는 코난">
+  <small class="conan-credit">© 명탐정 코난</small>
+</section>
+
+<!-- 2 고등학생 답안 -->
+<section class="slide" data-title="고등학생 답안">
+  <div class="body" style="display:grid;align-content:start;gap:44px">
+    <h2>자료로 주장을 해야 하는 과학 글쓰기<small>2023 통합과학 서술형 · 고등학생 실제 답안</small></h2>
+    <div class="sheet">옥수수가 한가지 유전자형을 갖게되면서 <span class="mark-ev step" data-order="1" id="gapFrom">유전적 다양성이 줄어들게 되었다.</span><br>그래서 환경변화가 왔을때 <span class="mark-cl step" data-order="2" id="gapTo">옥수수는 적응하지 못하고 죽게되었다.</span><svg class="link-arrow step" data-order="3" aria-hidden="true"><path class="shaft" d=""/><path class="head" d=""/></svg></div>
+    <div class="legend" style="margin-top:170px"><span><i style="background:var(--ev)"></i>증거</span><span><i style="background:var(--cl)"></i>주장</span><span><svg width="58" height="26" viewBox="0 0 58 26" style="margin-right:12px;vertical-align:-6px;overflow:visible" aria-hidden="true"><path d="M3 20 Q29 -4 50 16" fill="none" stroke="var(--red)" stroke-width="4" stroke-linecap="round" stroke-dasharray="3 8"/><path d="M40 17 L51 17 L48 6" fill="none" stroke="var(--red)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>비어 있는 연결 고리</span></div>
+  </div>
+  <div class="gap-note step" data-order="4">유전적 다양성이 줄어들면 뭐가 어떻게 되길래<br>옥수수가 죽게 되는 거지?</div>
+  <div class="src">출처: 2023년 「통합과학 서술형 답안 피드백 연구」 참여 중 다룬 실제 학생 답안 · 해당 연구실 교수님 사용 허가</div>
+</section>
+
+<!-- 3 왜 연결 고리인가 -->
+<section class="slide" data-title="가장 흔한 빈칸">
+  <div class="body" style="display:grid;grid-template-columns:420px 1fr;gap:70px;align-content:start">
+    <h2 style="grid-column:1/-1"><strong>'좋은 과학적 설명'</strong>이기 위한 여러 요건 중,<br>가장 흔히 놓치는 것은 바로 <span class="hl">'연결 고리'</span></h2>
+    <ul class="reqs" style="margin:10px 0 0;padding:0">
+      <li>분명한 주장</li><li>알맞은 자료</li><li>정확한 개념과 용어</li><li>반론 고려</li><li class="key">자료와 주장의 연결</li>
+    </ul>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:34px">
+      <div class="card step">
+        <div class="k">미국 고등학교 두 학급 · 사례 연구</div>
+        <div class="scores"><div><strong>3</strong><b style="height:120px"></b>주장</div><div><strong>2</strong><b style="height:80px"></b>증거</div><div class="r"><strong>1</strong><b style="height:40px"></b>연결</div></div>
+        <p>한 학급의 평균 점수(4점 만점).<br>표본 8명 중 4명은 연결이 아예 없었다.</p>
+        <cite>Hoffenberg &amp; Saxton (2015), Electronic Journal of Science Education 19(5)</cite>
+      </div>
+      <div class="card step">
+        <div class="k">국가수준 학업성취도 평가 · 중3 7,390명</div>
+        <div class="big"><em>1.66</em> <small>/ 5수준</small></div>
+        <p>서답형 8개 핵심 개념의 평균 수준.<br>현상의 원인을 원리로 설명하는 단계까지 간 학생은 많지 않았다.</p>
+        <cite>이기영 외 (2017), 과학교육연구지 41(3), 382–404</cite>
+      </div>
+    </div>
+  </div>
+  <div class="note step" style="left:1270px;top:860px;width:560px;font-size:50px;transform:rotate(-2deg);text-align:left">저희의 학창시절에도:<br>너무 당연해서 안 썼다가 감점</div>
+</section>
+
+<!-- 4 교육과정 -->
+<section class="slide" data-title="교육과정">
+  <div class="body" style="display:grid;gap:40px;align-content:start">
+    <h2>교육과정은 중학교부터 요구합니다</h2>
+    <div style="display:grid;grid-template-columns:1fr 90px 1fr;align-items:center;gap:20px">
+      <div class="clip">
+        <div class="k">중학교 과학 · 과정·기능 (7쪽)</div>
+        <ul>
+          <li>관찰, 측정, 분류, 예상, 추리 등을 통해 자료를 수집하고 비교·분석하기</li>
+          <li class="model"><span>모형을 만들어 현상을 설명하거나 예측하기</span></li>
+          <li class="on"><span class="hl">과학적 증거에 기반하여 주장하기</span></li>
+        </ul>
+      </div>
+      <div class="note" style="position:static;font-size:80px">→</div>
+      <div class="clip step">
+        <div class="k">고등학교 통합과학 · 과정·기능 (77쪽)</div>
+        <ul>
+          <li>수학적 사고와 모형을 활용하여 통합 및 융합 과학 관련 현상 설명하기</li>
+          <li class="on"><span class="hl">증거에 기반한 과학적 사고를 통해 자료를 과학적으로 분석·평가·추론하기</span></li>
+          <li>결론을 도출하고 자연 현상 및 융복합 문제 상황에 적용·설명하기</li>
+        </ul>
+      </div>
+    </div>
+    <p class="step" style="margin:10px 0 0;font-size:40px;font-weight:700">그런데 고등학생 답안에서도 연결 고리는 비어 있었습니다.<br><span style="color:var(--ink-soft);font-weight:500">그래서 시작점을 중학교로 잡았습니다.</span></p>
+  </div>
+  <div class="src">교육부 고시 제2022-33호 [별책 9] 「과학과 교육과정」 7쪽, 77쪽</div>
+</section>
+
+<!-- 5 왜 비워 두나 -->
+<section class="slide" data-title="왜 비워 두나">
+  <div class="body" style="display:grid;gap:72px;align-content:start;right:470px">
+    <h2 style="font-size:68px">왜 연결 고리를 비워 둘까요</h2>
+    <div class="rows">
+      <div class="row"><div class="why"><b>이유 1</b>혼자 쓰는 답안지 앞에는 “그래서 그게 왜?”라고<br><strong>되묻는 상대가 없다</strong></div><div class="arrow step">→</div><div class="fix step">되묻는 상대<small>콧대 교수가 카드마다 꼬투리를 잡는다</small></div></div>
+      <div class="row"><div class="why"><b>이유 2</b>연결 고리를 드러내는<br><strong>전략을 따로 배운 적이 없다</strong></div><div class="arrow step">→</div><div class="fix step">손으로 해 보는 전략<small>게임 속 조작이 곧 그 사고 과정</small></div></div>
+    </div>
+  </div>
+  <img class="step" src="img/prof-thinking.webp" alt="턱을 괸 콧대 교수" style="position:absolute;right:45px;bottom:0;height:600px">
+</section>
+
+<!-- 6 세부 문제정의 -->
+<section class="slide" data-title="두 가지 전략">
+  <div class="body" style="display:grid;gap:36px;align-content:start">
+    <h2>연결 고리를 드러내는 여러 방법 중,<br><span class="hl">「서술 실험실」</span>은 두 가지에 집중합니다</h2>
+    <div class="chips"><span>원리 적용하기</span><span>비교 조건 읽기</span><span>다른 설명 닫기</span><span>예측과 결과 맞대기</span><span class="on">종속 변인 번역</span><span class="on">모형화</span></div>
+    <div class="two">
+      <div class="wcard step">
+        <div class="tag">전략 1</div>
+        <h3>종속 변인 번역</h3>
+        <div class="def">결과로 나온 값의 <span class="hl">숨은 의미</span>를 드러낸다</div>
+        <div class="ex">“150.0 g 그대로” <i>→</i> 안팎으로 드나든 물질이 없다</div>
+      </div>
+      <div class="wcard step">
+        <div class="tag">전략 2</div>
+        <h3>모형화</h3>
+        <div class="def">어떤 상황인지 그 <span class="hl">구조와 시스템</span>을 밝혀, 왜 그 증거로 그 주장을 할 수 있는지 드러낸다</div>
+        <div class="ex">저울이 재는 범위 · 공기 중에서 줄어드는 기체는 산소뿐</div>
+      </div>
+    </div>
+    <p class="step" style="margin:0;font-size:36px;font-weight:700">이 둘이 문장에 드러나면, '과학적 설명'에 가까워집니다</p>
+  </div>
+</section>
+
+<!-- 7 사용 장면 -->
+<section class="slide demo-context" data-title="시연에 앞서 · 수업 상황">
+  <div class="body">
+    <header>
+      <p class="kicker">시연에 앞서 · 가정한 수업 상황</p>
+      <h2>앱의 여러 미션 중, 오늘은 <span class="hl">강철솜 미션</span></h2>
+      <p class="topic">질량 보존과 철의 연소를 주제로 한 미션 게임</p>
+    </header>
+    <div class="prior">
+      <div class="k">교과서에서 이미 배운 내용</div>
+      <p>질량 보존 · 연소 과정에서 철과 산소의 결합</p>
+    </div>
+    <div class="facts">
+      <div class="fact"><div class="k">대상</div><div class="v">중학교 3학년 과학</div><div class="d">화학 반응의 규칙</div></div>
+      <div class="fact"><div class="k">시점</div><div class="v">서술형 평가 전<br>한 차시</div></div>
+      <div class="fact"><div class="k">방식</div><div class="v">크롬북 1인 1기기</div><div class="d">반 코드·출석번호로 입장<br>한 판 9~12분</div></div>
+      <div class="fact"><div class="k">교사</div><div class="v">학급별 결과 확인</div><div class="d">학생 답안과 판정이<br>교사 화면에 모임</div></div>
+    </div>
+    <div class="flow step"><span>게임 플레이</span><i>→</i><span>최종 답안 제출</span><i>→</i><span>교사 화면 히트맵</span><i>→</i><span>교사의 학급별 맞춤 지도</span></div>
+  </div>
+  <div class="src">교과서: 비상교육 『중학 과학 3』 26–27쪽 (질량 보존 법칙, 강철솜의 연소)</div>
+</section>
+
+<!-- 8~11 시연 (실제 게임) -->
+<section class="slide" data-demo="d1" data-title="시연 1 · 종속 변인 번역"></section>
+<section class="slide" data-demo="d2" data-title="시연 2 · 모형화"></section>
+<section class="slide" data-demo="d3" data-title="시연 3 · 완전한 설명"></section>
+<section class="slide" data-demo="d4" data-title="교사 화면"></section>
+
+<!-- 12 마무리 -->
+<section class="slide closing" data-title="마무리">
+  <img class="prof" src="img/prof-acknowledging.webp" alt="손을 모은 콧대 교수">
+  <div class="say">“앞으로 글 쓸 때도 내가 어깨너머로<br>보고 있다고 생각하게.”</div>
+  <div class="think step">‘아, 이것만 쓰면 연결이 안 드러나는구나.<br><b>이 결과가 무슨 뜻인지</b>, 여기서 한 줄 더 설명해야겠다.’</div>
+  <div class="missions step">
+    <figure><img src="../intro/potato-silhouette.webp" alt=""><figcaption>감자 삼투</figcaption></figure>
+    <figure><img src="../intro/steel-wool-silhouette.webp" alt=""><figcaption>강철솜</figcaption></figure>
+    <figure><img src="../intro/juice-silhouette.webp" alt=""><figcaption>코를 막은 주스</figcaption></figure>
+    <figure><img src="../intro/knee-silhouette.webp" alt=""><figcaption>먼저 올라간 다리</figcaption></figure>
+    <div class="end">서술 실험실 · 감사합니다<small>스트레이트드로우</small></div>
+  </div>
+</section>
+
+<!-- 13 참고 자료 (질의응답용) -->
+<section class="slide" data-title="참고 자료">
+  <div class="body" style="display:grid;gap:40px;align-content:start">
+    <h2>참고 자료</h2>
+    <div class="refs">
+      <p>Hoffenberg, R., &amp; Saxton, E. (2015). Scientific explanations: A comparative case study of teacher practice and student performance. <i>Electronic Journal of Science Education, 19</i>(5). <span class="u">ejse.southwestern.edu</span></p>
+      <p>이기영, 동효관, 최원호, 권경필, 이인호, 김용진 (2017). 국가수준 학업성취도 평가의 서답형 문항을 이용한 중학교 과학 8개 핵심 개념에 대한 학습발달과정 탐색. <i>과학교육연구지, 41</i>(3), 382–404. <span class="u">doi.org/10.21796/jse.2017.41.3.382</span></p>
+      <p>Berland, L. K., &amp; Reiser, B. J. (2009). Making sense of argumentation and explanation. <i>Science Education, 93</i>(1), 26–55.</p>
+      <p>교육부 (2022). 과학과 교육과정 (교육부 고시 제2022-33호 [별책 9]).</p>
+      <p>임태훈 외. 『중학 과학 3』. 비상교육. 26–27쪽.</p>
+      <p>학생 답안: 2023년 「통합과학 서술형 답안 피드백 연구」 참여 중 다룬 실제 답안 (연구실 사용 허가).</p>
+    </div>
+  </div>
+</section>
+
+<!-- 14 부록 A: 선행연구 ① 자세히 (질의응답용) -->
+<section class="slide apx" data-title="부록 A · Hoffenberg & Saxton">
+  <div class="body">
+    <h2><span class="meta" style="display:block;font-size:19px;margin-bottom:10px">부록 A · 4장 선행연구 ①</span>설명을 가르쳐도, 연결은 따로 요구해야 씁니다
+      <small>Hoffenberg, R., &amp; Saxton, E. (2015). Scientific explanations: A comparative case study of teacher practice and student performance. <i>Electronic Journal of Science Education, 19</i>(5). <a href="http://ejse.southwestern.edu">ejse.southwestern.edu</a></small></h2>
+    <div class="apx-grid">
+      <div class="apx-col">
+        <h3>무엇을 봤나</h3>
+        <ul>
+          <li>미국 오리건주 고등학교 두 학급의 탐구 단원 <span class="pg">p.6–7</span><br>· 조(가명): 10학년 화학, 반응 속도 탐구<br>· 소니아(가명): 12학년 IB 생물, 심혈관계 탐구</li>
+          <li>학급마다 탐구 보고서 8편을 무작위로 뽑아, 설명 부분을 주장·증거·추론 루브릭(각 0–4점)으로 채점 <span class="pg">p.7, 10</span></li>
+          <li>교사의 수업 포트폴리오(TIP)로 설명을 어떻게 가르쳤는지 함께 분석 <span class="pg">p.7–8</span></li>
+        </ul>
+        <p style="font-size:20px;color:var(--ink-soft)">4장의 막대(3·2·1)는 조 학급의 평균 점수입니다. 4장에서는 ‘추론’을 ‘연결’로 옮겼습니다.</p>
+      </div>
+      <div class="apx-col">
+        <h3>학급별 평균 점수 <span class="pg">Table 6 · p.11</span></h3>
+        <table>
+          <tr><th></th><th class="n">조 학급</th><th class="n">소니아 학급</th></tr>
+          <tr><td>주장</td><td class="n">3</td><td class="n">3</td></tr>
+          <tr><td>증거</td><td class="n">2</td><td class="n">4</td></tr>
+          <tr class="hit"><td>추론(연결)</td><td class="n">1</td><td class="n">3</td></tr>
+        </table>
+        <h3 style="margin-top:10px">조 학급, 증거를 주장에 잇는 방식 <span class="pg">Table 9 · p.13</span></h3>
+        <div class="bars">
+          <div class="bar r"><span>추론이 아예 없음</span><i><em style="width:50%"></em></i><b>50%</b></div>
+          <div class="bar"><span>“~ 때문인 것 같다” 수준</span><i><em style="width:25%"></em></i><b>25%</b></div>
+          <div class="bar"><span>정교하게 연결</span><i><em style="width:13%"></em></i><b>13%</b></div>
+          <div class="bar"><span>연결하는 말 없음</span><i><em style="width:13%"></em></i><b>13%</b></div>
+        </div>
+        <p style="font-size:20px">8명 중 4명은 논리적 추론도 과학 개념도 쓰지 않아 0점 <span class="pg">p.12</span></p>
+      </div>
+      <div class="apx-col">
+        <h3>왜 빠졌나</h3>
+        <p>조 교사는 설명을 ‘지식 주장(knowledge claim)’, 곧 <b>실험 증거에 기반한 일반화된 주장</b>으로 정의해 가르쳤습니다 <span class="pg">p.19</span>. 저자들은 이 정의가 주장과 증거를 한 덩어리로 묶고, <b>과학 이론으로 결과를 이해하는 추론을 빼놓았다</b>고 봅니다 <span class="pg">p.27</span>.</p>
+        <h3 style="margin-top:6px">조 학급 학생 답안 (발췌·번역) <span class="pg">p.22</span></h3>
+        <blockquote class="student">수집한 자료로 보아 가설이 옳았다. 열은 반응을 빠르게 한다. 70 °C에서 평균 17.64초, 40 °C에서 25.05초, 실온에서 116.80초. 그러므로 열은 반응 속도를 높인다.</blockquote>
+        <p style="font-size:21px">주장과 증거는 분명하지만, 왜 그런지(분자 운동론)는 한 줄도 없다는 것이 저자들의 평가입니다.</p>
+      </div>
+    </div>
+    <div class="apx-foot">
+      <div><b>해석할 때 주의</b>두 학급 사례 연구(학급당 8편)라 일반화에는 한계가 있고, 저자들도 예비 결과라고 밝힙니다 <span class="pg">p.27–28</span>.</div>
+      <div class="so"><b>서술 실험실에서는</b>‘연결’을 따로 요구하는 상대를 게임 안에 둡니다. 콧대 교수가 카드마다 “그래서 그게 왜?”를 묻습니다.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 15 부록 B: 선행연구 ② 자세히 (질의응답용) -->
+<section class="slide apx" data-title="부록 B · 이기영 외">
+  <div class="body">
+    <h2><span class="meta" style="display:block;font-size:19px;margin-bottom:10px">부록 B · 4장 선행연구 ②</span>중3 7,390명: ‘무엇’은 답하지만 ‘왜’는 쓰지 않았습니다
+      <small>이기영, 동효관, 최원호, 권경필, 이인호, 김용진 (2017). 국가수준 학업성취도 평가의 서답형 문항을 이용한 중학교 과학 8개 핵심 개념에 대한 학습발달과정 탐색. <i>과학교육연구지, 41</i>(3), 382–404. <a href="https://doi.org/10.21796/jse.2017.41.3.382">doi.org/10.21796/jse.2017.41.3.382</a></small></h2>
+    <div class="apx-grid">
+      <div class="apx-col">
+        <h3>무엇을 봤나</h3>
+        <ul>
+          <li>2015 국가수준 학업성취도 평가에 표집으로 참여한 중학교 3학년 7,390명의 과학 서답형 8문항 답안 <span class="pg">p.384</span></li>
+          <li>답안을 모두 입력해 문항마다 5수준으로 나눈 구인구성도를 만들고, Rasch 모델로 예비 학습발달과정을 작성 <span class="pg">p.385–387</span></li>
+        </ul>
+        <h3 style="margin-top:8px">8개 핵심 개념 평균 <span class="pg">p.392</span></h3>
+        <p><b style="font-size:46px;background:linear-gradient(transparent 58%,var(--hl) 58%,var(--hl) 92%,transparent 92%)">1.66</b> / 5수준 · 수준 2 이하의 낮은 단계</p>
+      </div>
+      <div class="apx-col">
+        <h3>문항 1 · 물결파의 굴절 <span class="pg">p.392</span></h3>
+        <div class="bars" style="--w:150px">
+          <div class="bar"><span>각의 크기 비교<br><small style="color:var(--ink-soft)">부등호 고르기</small></span><i><em style="width:88.5%"></em></i><b>88.5%</b></div>
+          <div class="bar r"><span>굴절하는 이유<br><small style="color:var(--ink-soft)">서술하기</small></span><i><em style="width:24.1%"></em></i><b>24.1%</b></div>
+        </div>
+        <p style="font-size:21px">응답 비율. 같은 문제 상황에서도 이유를 쓰는 칸에서 응답이 크게 줄었고, 전체 답안의 76%가 무의미한 답변 또는 무응답이었습니다.</p>
+        <p style="font-size:20px;color:var(--ink-soft)">반면 문항 2(자기장 속 도선이 받는 힘)는 무의미·무응답이 하위 문항별 약 16%·27%로 훨씬 적었습니다 <span class="pg">p.392–393</span>. 개념마다 차이가 큽니다.</p>
+      </div>
+      <div class="apx-col">
+        <h3>문항 4 · 강철솜의 연소 (우리 미션의 소재) <span class="pg">p.389, Table 4</span></h3>
+        <div class="levels">
+          <div class="top"><b>수준 5</b>철이 산소와 결합해 산화철이 되기 때문에 질량이 증가한다고 설명</div>
+          <div><b>수준 4</b>철이 공기와 결합해 질량이 증가한다고 설명</div>
+          <div><b>수준 3</b>어떤 물질과 결합해 증가했는지는 모름</div>
+          <div><b>수준 2</b>질량 증가는 알지만 원인을 화학 결합으로 설명하지 못함</div>
+          <div><b>수준 1</b>질량이 증가함을 모름</div>
+        </div>
+        <p style="font-size:21px">강철솜 미션은 수준 5에서 한 걸음 더 갑니다: <b>늘어난 0.5 g이 그 산소의 질량</b>이고, 닫힌 플라스크는 <b>드나든 물질이 없어</b> 그대로라는 연결까지.</p>
+      </div>
+    </div>
+    <div class="apx-foot">
+      <div><b>해석할 때 주의</b>성적에 반영되지 않는 시험이라 성실히 답하지 않은 무응답도 섞일 수 있고 <span class="pg">p.394</span>, 학습발달과정은 개별 학생을 종단 추적한 것이 아니라 가설적·추론적입니다 <span class="pg">p.400</span>.</div>
+      <div class="so"><b>저자 제언과 서술 실험실</b>다층 서답형은 ‘선택→설명’, ‘단답→설명’처럼 단계를 거쳐 심층적 사고를 이끌어야 한다 <span class="pg">p.401</span>. 게임도 카드를 고르고 → 뒷면에 그 뜻을 쓰는 순서로 짰습니다.</div>
+    </div>
+  </div>
+</section>
+
+</div></div>
+
+<!-- 시연 장면: 보여 줄 기능까지만 진행되고(게임은 ?demo=, 교사 화면은 tour-teacher.js), 끝나면 '다음 장' 표시가 뜬다 -->
+<div class="demo" id="demo-d1"><iframe title="시연 1 · 꼬투리 ①" data-src="../%EA%B0%95%EC%B2%A0%EC%86%9C%20%EC%A7%88%EB%9F%89%20%EB%B3%B4%EC%A1%B4/web/index.html?demo=1"></iframe><div class="finish" role="button" aria-label="다음 장으로"><span>다음 장 ▸</span></div><button class="reload" type="button">↻ 장면 처음부터</button></div>
+<div class="demo" id="demo-d2"><iframe title="시연 2 · 마법 현미경" data-src="../%EA%B0%95%EC%B2%A0%EC%86%9C%20%EC%A7%88%EB%9F%89%20%EB%B3%B4%EC%A1%B4/web/index.html?demo=2"></iframe><div class="finish" role="button" aria-label="다음 장으로"><span>다음 장 ▸</span></div><button class="reload" type="button">↻ 장면 처음부터</button></div>
+<div class="demo" id="demo-d3"><iframe title="시연 3 · 완전한 설명" data-src="../%EA%B0%95%EC%B2%A0%EC%86%9C%20%EC%A7%88%EB%9F%89%20%EB%B3%B4%EC%A1%B4/web/index.html?demo=3"></iframe><div class="finish" role="button" aria-label="다음 장으로"><span>다음 장 ▸</span></div><button class="reload" type="button">↻ 장면 처음부터</button></div>
+<div class="demo" id="demo-d4"><iframe title="교사 화면 · 실제 기록" data-src="../teacher.html"></iframe><div class="finish" role="button" aria-label="다음 장으로"><span>다음 장 ▸</span></div><button class="reload" type="button">↻ 장면 처음부터</button></div>
+<div id="hud"></div>
+
+<script>
+/* 넘기기: → · Space · PageDown(다음) / ← · PageUp(이전) / F 전체 화면 / 숫자+Enter 해당 장 이동
+   한 장 안의 .step은 다음을 누를 때마다 하나씩 드러난다.
+   시연 장면에서는 보여 줄 기능이 끝날 때까지 다음 장으로 넘어가지 않는다.
+   - 게임(시연 1~3): 리모컨의 다음(PageDown)은 게임 속 대사 넘기기(탭)로 쓰인다. 기능이 끝나면 게임이 멈추고 '다음 장' 표시가 뜬다.
+   - 교사 화면(Google 시트의 실제 기록): 다음을 누르면 노란 테두리로 가리킨 버튼을 대신 누른다(tour-teacher.js). 끝까지 보면 '다음 장' 표시가 뜬다.
+   - 시연 중 막히면 Esc로 게임에서 빠져나온 뒤 → 로 넘길 수 있다. 오른쪽 아래 구석의 '장면 처음부터'로 다시 시작한다. */
+(function () {
+  const deck = document.getElementById('deck');
+  const slides = [...document.querySelectorAll('.slide')];
+  const hud = document.getElementById('hud');
+  let cur = 0, typed = '', hudTimer;
+
+  function fit() {
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    deck.style.transform = `translate(${-960 * s}px, ${-540 * s}px) scale(${s})`;
+    drawLinkArrows();
+  }
+  // 3장: 증거(초록) 끝에서 주장(분홍) 끝으로 휘어 들어가는 점선 화살표. 글자가 놓인 자리를 재서 그린다.
+  function drawLinkArrows() {
+    document.querySelectorAll('.link-arrow').forEach((svg) => {
+      const sheet = svg.parentElement, from = sheet.querySelector('#gapFrom'), to = sheet.querySelector('#gapTo');
+      if (!from || !to) return;
+      const box = sheet.getBoundingClientRect(), k = box.width / sheet.offsetWidth || 1;
+      const last = (el) => { const r = el.getClientRects(); return r[r.length - 1]; };
+      const a = last(from), b = last(to);
+      if (!a || !b) return;
+      const p = (r, dx) => [(r.right - box.left) / k + dx, (r.top - box.top) / k + (r.height / k) * 0.62];
+      const [x1, y1] = p(a, 12), [x2, y2] = p(b, 16);
+      const bulge = Math.max(x1, x2) + 115;
+      const c1 = [bulge, y1 + 6], c2 = [bulge, y2 - 6];
+      svg.querySelector('.shaft').setAttribute('d', `M${x1} ${y1} C${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${x2} ${y2}`);
+      const ang = Math.atan2(y2 - c2[1], x2 - c2[0]), len = 26, spread = 0.5;
+      const w1 = [x2 - len * Math.cos(ang - spread), y2 - len * Math.sin(ang - spread)];
+      const w2 = [x2 - len * Math.cos(ang + spread), y2 - len * Math.sin(ang + spread)];
+      svg.querySelector('.head').setAttribute('d', `M${w1[0]} ${w1[1]} L${x2} ${y2} L${w2[0]} ${w2[1]}`);
+    });
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawLinkArrows);
+  // 한 장 안의 .step은 data-order가 있으면 그 순서로, 없으면 문서 순서로 드러난다
+  const steps = (el) => [...el.querySelectorAll('.step')].map((s, i) => [s, Number(s.dataset.order || i + 1)]).sort((a, b) => a[1] - b[1]).map(([s]) => s);
+  const demoOf = (el) => el && el.dataset.demo ? document.getElementById('demo-' + el.dataset.demo) : null;
+  const curDemo = () => demoOf(slides[cur]);
+
+  function load(demo, fresh) {
+    const f = demo.querySelector('iframe');
+    if (!fresh && f.getAttribute('src')) return;
+    demo.classList.remove('done');
+    f.src = f.dataset.src + (fresh ? (f.dataset.src.includes('?') ? '&' : '?') + 't=' + Date.now() : '');
+  }
+  function showHud() {
+    hud.textContent = `${cur + 1} / ${slides.length} · ${slides[cur].dataset.title || ''}`;
+    document.body.classList.add('hud'); clearTimeout(hudTimer);
+    hudTimer = setTimeout(() => document.body.classList.remove('hud'), 1600);
+  }
+  function go(n, atEnd) {
+    n = Math.max(0, Math.min(slides.length - 1, n));
+    slides[cur].classList.remove('on');
+    const prevDemo = curDemo(); if (prevDemo) prevDemo.classList.remove('on');
+    cur = n;
+    const el = slides[cur];
+    el.classList.add('on');
+    steps(el).forEach((s) => s.classList.toggle('shown', !!atEnd));
+    const demo = curDemo();
+    if (demo) { load(demo); demo.classList.add('on'); setTimeout(() => demo.querySelector('iframe').focus(), 50); }
+    else { if (document.activeElement && document.activeElement.tagName === 'IFRAME') document.activeElement.blur(); window.focus(); }
+    // 다음 장이 시연이면 미리 불러 둔다(장면은 첫 대사에서 탭을 기다린다)
+    const next = demoOf(slides[cur + 1]); if (next) load(next);
+    try { history.replaceState(null, '', '#' + (cur + 1)); } catch (e) {}
+    showHud();
+  }
+  function next() {
+    const hidden = steps(slides[cur]).find((s) => !s.classList.contains('shown'));
+    if (hidden) { hidden.classList.add('shown'); return; }
+    if (cur < slides.length - 1) go(cur + 1);
+  }
+  function prev() {
+    const shown = steps(slides[cur]).filter((s) => s.classList.contains('shown'));
+    if (shown.length) { shown[shown.length - 1].classList.remove('shown'); return; }
+    if (cur > 0) go(cur - 1, true);
+  }
+  const NEXT = ['ArrowRight', ' ', 'ArrowDown', 'PageDown'];
+  const PREV = ['ArrowLeft', 'ArrowUp', 'PageUp'];
+  // 시연 장면 안에서 누른 키. 기능이 끝나기 전에는 장을 넘기지 않는다.
+  function demoKey(e, demo) {
+    const f = demo.querySelector('iframe');
+    if (e.key === 'Escape' && !(demo.id === 'demo-d4' && !demo.classList.contains('done'))) { e.preventDefault(); f.blur(); window.focus(); return; }
+    if (e.key === 'PageUp') { e.preventDefault(); e.stopPropagation(); prev(); return; }
+    if (demo.classList.contains('done')) {
+      if (NEXT.includes(e.key) || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); next(); }
+      return;
+    }
+    let w; try { w = f.contentWindow; } catch (err) { return; }
+    const tour = w && w.__sciwTour;
+    if (tour) { // 교사 화면 안내
+      const typing = e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+      if (typing && e.key !== 'PageDown') return; // 교사 암호를 입력할 때는 키를 그대로 둔다
+      if (NEXT.includes(e.key)) { e.preventDefault(); e.stopPropagation(); if (!tour.next()) next(); }
+      return;
+    }
+    if (e.key === 'PageDown') { // 게임: 리모컨의 다음 = 대사 넘기기(탭)
+      e.preventDefault(); e.stopPropagation();
+      const d = w.document, t = d.activeElement && d.activeElement !== d.body ? d.activeElement : w;
+      t.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    }
+  }
+  function key(e) {
+    const t = e.target; const typing = t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.isContentEditable);
+    const demo = curDemo();
+    if (demo && demo.classList.contains('done') && (NEXT.includes(e.key) || e.key === 'Enter')) { e.preventDefault(); next(); return; }
+    if (typing) return;
+    if (NEXT.includes(e.key)) { e.preventDefault(); if (!demo || demo.classList.contains('done')) next(); else demo.querySelector('iframe').focus(); }
+    else if (PREV.includes(e.key)) { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(slides.length - 1);
+    else if (/^[0-9]$/.test(e.key)) { typed += e.key; }
+    else if (e.key === 'Enter' && typed) { go(Number(typed) - 1); typed = ''; }
+    else if (e.key === 'f' || e.key === 'F') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {}); }
+  }
+  document.addEventListener('keydown', key);
+  // 시연 장면이 '보여 줄 기능 끝'을 알려 오면 '다음 장' 표시를 띄운다
+  addEventListener('message', (e) => {
+    if (e.origin !== location.origin || !e.data || e.data.type !== 'sciw-demo-done') return;
+    document.querySelectorAll('.demo').forEach((demo) => { if (demo.querySelector('iframe').contentWindow === e.source) demo.classList.add('done'); });
+  });
+  const TOUR = new URL('tour-teacher.js', location.href).href;
+  document.querySelectorAll('.demo').forEach((demo) => {
+    const f = demo.querySelector('iframe');
+    f.addEventListener('load', () => {
+      try {
+        const w = f.contentWindow;
+        w.addEventListener('keydown', (e) => { if (curDemo() === demo) demoKey(e, demo); }, true);
+        if (demo.id === 'demo-d4') { const s = w.document.createElement('script'); s.src = TOUR; w.document.body.appendChild(s); }
+      } catch (err) { /* 다른 출처면 안내 없이 게임만 뜬다 */ }
+    });
+    demo.querySelector('.finish').addEventListener('click', () => next());
+    demo.querySelector('.reload').addEventListener('click', () => { load(demo, true); setTimeout(() => f.focus(), 300); });
+  });
+  addEventListener('resize', fit);
+  addEventListener('hashchange', () => { const n = Number((location.hash || '').slice(1)) - 1; if (n >= 0 && n !== cur) go(n); });
+  fit();
+  const start = Number((location.hash || '').slice(1));
+  go(start >= 1 ? start - 1 : 0);
+})();
+</script>
+</body>
+</html>
