@@ -2,10 +2,12 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "sciw-lab-preview",
   "account_id": "b1657b0b72f2cb39b70cf6dd4f5f4431",
-  "main": "worker.mjs",
+  "main": "runtime.mjs",
   "compatibility_date": "2026-11-02",
   "workers_dev": true,
   "preview_urls": false,
+  "durable_objects": {"bindings": [{"name":"CLASS_PROGRESS","class_name":"ClassProgress"}]},
+  "migrations": [{"tag":"v1","new_sqlite_classes":["ClassProgress"]}],
   "assets": {
     "directory": "../../.local/cloudflare-site",
     "binding": "ASSETS",
@@ -13,6 +15,7 @@
     "html_handling": "none",
     "not_found_handling": "none"
   },
+  "ratelimits": [{"name":"TEACHER_LOGIN_LIMIT","namespace_id":"51719","simple":{"limit":8,"period":60}}],
   "observability": {
     "enabled": true,
     "logs": { "enabled": true, "invocation_logs": false, "head_sampling_rate": 1 },

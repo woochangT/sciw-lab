@@ -19,17 +19,17 @@ npx wrangler deploy --dry-run
 npx wrangler deploy
 ```
 
-Wrangler 4.156.1을 프로젝트에 고정했다. 현재 로그인 계정을 `npx wrangler whoami`로 확인하고 지정된 개인 계정의 이 Worker만 대상으로 배포한다. OAuth 원문/API 키를 소스나 인자에 넣지 않는다. 새 비밀정보는 필요하지 않으며, 수업 분석은 기존 Apps Script URL의 서버 속성을 그대로 사용한다.
+Wrangler 4.156.1을 프로젝트에 고정했다. 현재 로그인 계정을 `npx wrangler whoami`로 확인하고 지정된 개인 계정의 이 Worker만 대상으로 배포한다. OAuth 원문/API 키를 소스나 인자에 넣지 않는다. 수업 분석은 기존 Apps Script URL의 서버 속성을 사용한다. 새 교사 인증 버전은 아래 배포 설정을 먼저 준비해야 한다.
 
 `build.mjs`는 루트 인트로·교사 HTML과 필요한 웹 자산만 `.local/cloudflare-site`로 복사한다. 저장소 문서·디자인 원본·시험 도구·시트 기록·`.git`·비밀 파일은 올리지 않는다. symlink와 25MiB 초과 자산은 거절한다. `html_handling: none`을 사용하므로 Worker에서 `/`를 `/index.html`로 명시적으로 연결한다.
 
 ## 서버 계약
 
-기존 `/api/sheet/classes`, `/api/sheet/class`, `/api/sheet/analysis` 경로를 유지한다. 두 탭 A:I의 CSV를 8MB/20초로 제한해 읽고, CSV 따옴표·여러 줄·JSON 필드를 보존한다. 전체 원문을 디스크나 배포 자산에 저장하지 않는다. 조회 실패를 빈 반/예시로 바꾸지 않는다. API 응답은 `private, no-store`이다.
+기존 `/api/sheet/classes`, `/api/sheet/class`, `/api/sheet/analysis` 경로를 유지한다. 교사 API는 먼저 서명된 로그인 세션을 확인하고, 기록 Apps Script의 인증된 읽기 경로를 사용해 두 미션 탭을 최대 16 MB/20초 범위에서 읽는다. 여러 줄 답안·JSON 필드를 보존한다. 전체 원문을 디스크나 배포 자산에 저장하지 않는다. 조회 실패를 빈 반/예시로 바꾸지 않는다. API 응답은 `private, no-store`이다.
 
 반 정규화·게임 분리와 LLM 입력은 기존 `teacher/model.js`, `scope.js`, `evidence.js`를 재사용한다. 브라우저의 임의 답안/집계는 무시하고 선택한 시트 기록으로 분석 자료를 재구성한다. POST는 허용한 수업 화면 Origin·JSON·1024바이트 제한을 적용한다. 기존 Apps Script의 캐시·재생성·호출 상한은 유지하며, AI는 생성/재생성 버튼에서만 요청한다.
 
-Worker 로그에는 실패 종류/HTTP 상태만 기록한다. 답안·API 키를 출력하지 않고 기본 invocation 로그는 끈다. 학생 저장 및 강철솜 평가 API, 시트 권한·기존 교사 키 인증은 변경하지 않았다.
+Worker 로그에는 실패 종류/HTTP 상태만 기록한다. 답안·API 키를 출력하지 않고 기본 invocation 로그는 끈다. 학생 저장 및 강철솜 평가 API, 기존 반별 교사 키 인증은 그대로 사용한다. 재판정은 로그인한 대시보드에서 추가 키 없이 이용한다.
 
 ## 검증
 
@@ -43,8 +43,24 @@ Worker 로그에는 실패 종류/HTTP 상태만 기록한다. 답안·API 키�
 
 2026-11-03: `/api/sheet/classes`에 익명 집계 오버뷰를 포함한다. `teacher/insights.js`를 브라우저와 Workers에서 재사용하며, Python은 같은 함수를 Node로 호출한다. 여러 반의 같은 번호를 합치지 않고, 판정 버전과 노트 열람 의미를 구분한다. 오버뷰 응답에는 개별 학생 번호·세션 ID·답안 원문을 넣지 않는다.
 
-2026-11-03 GitHub Pages 연결: `https://woochangt.github.io/sciw-lab/teacher.html`은 정적 호스팅이므로 `teacher/config.js`에서 기존 Workers의 `/api/sheet`를 사용한다. Workers는 자기 Origin과 `https://woochangt.github.io`만 허용하며 와일드카드·쿠키 허용을 사용하지 않는다. 교차 출처 JSON 분석 요청은 `OPTIONS`로 경로별 메서드와 `Content-Type`만 사전 확인한다. 성공·오류 응답 모두 허용된 Origin의 CORS 헤더와 `Vary: Origin`을 반환한다. Origin은 경로를 포함하지 않으므로 허용 단위는 GitHub Pages 계정 출처다. 로컬 미리보기는 기존 로컬 API를 계속 사용한다.
+2026-11-03 GitHub Pages 연결: `https://woochangt.github.io/sciw-lab/teacher.html`은 정적 호스팅이므로 `teacher/config.js`에서 기존 Workers의 `/api/sheet`를 사용한다. Workers는 자기 Origin과 `https://woochangt.github.io`만 허용하며 와일드카드·쿠키 허용을 사용하지 않는다. 교차 출처 요청은 `OPTIONS`로 경로별 메서드와 `Content-Type`, `Authorization` 헤더를 사전 확인한다. 성공·오류 응답 모두 허용된 Origin의 CORS 헤더와 `Vary: Origin`을 반환한다. Origin은 경로를 포함하지 않으므로 허용 단위는 GitHub Pages 계정 출처다. 로컬 미리보기는 기존 로컬 API를 계속 사용한다.
 
 CORS 동작은 [Cloudflare의 공식 예제](https://developers.cloudflare.com/workers/examples/cors-header-proxy/)를 참고했다. 자동 검사는 Pages 조회·분석 사전 요청·합성 분석·오류 응답·허용하지 않은 출처 거부를 포함한다.
 
 2026-11-03 대화 기록 v2: A:T 범위를 읽어 J:Q의 분할 대화 배열을 복원하고, 기존 개별 attempt 행과 함께 반/게임별로 필터링한다. 대화의 세션·미션·반이 행과 다르면 해당 행을 오류로 집계한다. 오버뷰에는 여전히 개별 답안·대화를 포함하지 않는다. 교사 페이지는 `record-ui.js`의 항목별 근거와 단계별 대화를 사용하며, GitHub Pages 자산 버전을 journal-v2로 갱신한다.
+
+## 교사 화면 암호 배포 설정
+
+1. 팀이 사용할 암호를 Worker 비밀 `TEACHER_PASSWORD`에 지정한다. 암호는 소스나 Pages 파일에 넣지 않는다. 교사 로그인은 8시간 유효하며 브라우저 탭 단위로 저장한다. 암호를 교체하면 기존 세션도 만료된다.
+2. 별도로 충분히 긴 무작위 `TEACHER_PROXY_SECRET`을 준비해 Worker 비밀과 기록용 Apps Script의 같은 이름의 스크립트 속성에 넣는다. 이 값은 교사 암호와 다르며 브라우저로 전달하지 않는다. 학생 기록 쓰기에는 필요하지 않다.
+3. 기록용 Apps Script의 기존 웹 앱 배포를 새 버전으로 갱신하고, Worker와 GitHub Pages의 교사 화면을 같은 배포 일정으로 업데이트한다. 운영 중이면 학생 작업 전후 시간대를 사용한다. 인증 실패, 로그인, 양쪽 미션 조회 및 재판정까지 검증한다.
+4. 암호가 시트 원문까지 보호하려면 원본 Google 시트의 링크 공유도 제한해야 한다. 원본 시트 소유자와 공동 편집자 권한을 확인한 뒤 공개 CSV 조회가 차단됐는지 확인한다.
+
+대시보드는 활성 화면에서 20초마다 시트를 확인한다. 숨겨진 탭, 학생 상세, 리포트, 용어 팝업을 열었을 때는 자동 갱신을 쉬며, 학생 화면의 클릭 자체가 아니라 서버에 저장된 기록을 보여 준다.
+
+## Apps Script 저장 직후 교사 화면 갱신
+
+- 기록용 Apps Script의 스크립트 속성 `TEACHER_LIVE_URL`에 운영 Worker의 `/api/sheet/changed` 전체 HTTPS 주소를 설정한다. 서명에는 기존 `TEACHER_PROXY_SECRET`을 사용한다.
+- Worker의 `CLASS_PROGRESS` 바인딩은 게임과 테스트 여부별 WebSocket 알림을 전달한다. 알림에는 학급, 게임, 변경 종류만 담고 학생 답안·이름·번호는 포함하지 않는다.
+- 기록용 Apps Script는 쓰기 잠금을 해제한 뒤 알림을 보낸다. 알림이 실패해도 저장 성공 응답을 반환하고 교사 화면은 20초 보조 조회로 변경을 확인한다. 변경이 없으면 답안이나 대화 기록을 다시 전송하지 않는다.
+- 배포 시 먼저 Worker를 올리고, 기록용 Apps Script 새 버전에 `TEACHER_LIVE_URL`을 설정한다. 그다음 두 게임에서 동시 입장·최종 제출을 검증하고, 각 게임 탭과 `Sessions`의 세션 ID 중복 여부와 교사 화면 반영 시간을 확인한다.

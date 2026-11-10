@@ -1,21 +1,25 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const vm=require('node:vm');const fs=require('node:fs');const crypto=require('node:crypto');
 const {evaluatorSources}=require('../../tools/export-record-apps-script.cjs');
-function make({fetchResult}={}){
+const proxySecret='synthetic-server-to-server-secret-only';
+function make({fetchResult,liveUrl=''}={}){
  const head=['recordType','recordId','sessionId','classCode','studentNo','missionId','createdAt','updatedAt','payload'];
- function sheet(rows){return {rows,deleteRows(start,count){this.rows.splice(start-1,count)},getLastRow(){return this.rows.length},getLastColumn(){return Math.max(0,...this.rows.map(r=>r.length))},getRange(row,col,n,m){const self=this;return {getValues(){return Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>self.rows[row-1+i]?.[col-1+j]??''))},getDisplayValues(){return this.getValues().map(r=>r.map(String))},setNumberFormat(){return this},setFontWeight(){return this},setValues(values){values.forEach((r,i)=>{self.rows[row-1+i]??=[];r.forEach((v,j)=>self.rows[row-1+i][col-1+j]=v)});return this},createTextFinder(value){return {matchEntireCell(){return this},findNext(){const i=self.rows.findIndex((r,i)=>i>=row-1&&i<row-1+n&&String(r[col-1])===value);return i<0?null:{getRow:()=>i+1}}}}}},setFrozenRows(){}}}
+ function sheet(rows){return {rows,deleteRows(start,count){this.rows.splice(start-1,count)},getLastRow(){return this.rows.length},getLastColumn(){return Math.max(0,...this.rows.map(r=>r.length))},getRange(row,col,n,m){const self=this;return {getValues(){return Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>self.rows[row-1+i]?.[col-1+j]??''))},getDisplayValues(){return this.getValues().map(r=>r.map(String))},setNumberFormat(){return this},setFontWeight(){return this},setValues(values){values.forEach((r,i)=>{self.rows[row-1+i]??=[];r.forEach((v,j)=>self.rows[row-1+i][col-1+j]=v)});return this},createTextFinder(value){return {matchCase(){return this},matchEntireCell(){return this},findAll(){return self.rows.flatMap((r,i)=>i>=row-1&&i<row-1+n&&String(r[col-1])===value?[{getRow:()=>i+1}]:[])},findNext(){const i=self.rows.findIndex((r,i)=>i>=row-1&&i<row-1+n&&String(r[col-1])===value);return i<0?null:{getRow:()=>i+1}}}}}},setFrozenRows(){}}}
  const sheets={'감자':sheet([head]),'강철솜':sheet([head])};let access='';
- const c={console:{log(){}},SpreadsheetApp:{flush(){},openById(){return {getSheetByName:n=>sheets[n],insertSheet:n=>(sheets[n]=sheet([]))}}},ContentService:{MimeType:{JSON:'json'},createTextOutput:s=>({setMimeType(){return s}})},PropertiesService:{getScriptProperties:()=>({getProperty:()=>access})},Utilities:{DigestAlgorithm:{SHA_256:'sha256'},computeDigest:(algo,val)=>Array.from(crypto.createHash(algo).update(val).digest()).map(x=>x>127?x-256:x)},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})}};
+ const c={console:{log(){}},SpreadsheetApp:{flush(){},openById(){return {getSheetByName:n=>sheets[n],insertSheet:n=>(sheets[n]=sheet([]))}}},ContentService:{MimeType:{JSON:'json'},createTextOutput:s=>({setMimeType(){return s}})},PropertiesService:{getScriptProperties:()=>({getProperty:name=>name==='TEACHER_PROXY_SECRET'?proxySecret:access})},Utilities:{DigestAlgorithm:{SHA_256:'sha256'},computeDigest:(algo,val)=>Array.from(crypto.createHash(algo).update(val).digest()).map(x=>x>127?x-256:x)},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})}};
+ const originalProperty=c.PropertiesService.getScriptProperties().getProperty;
+ c.PropertiesService.getScriptProperties=()=>({getProperty:name=>name==='TEACHER_LIVE_URL'?liveUrl:originalProperty(name)});
+ c.Utilities.computeHmacSha256Signature=(payload,secret)=>Array.from(crypto.createHmac('sha256',secret).update(payload).digest());
  let locked=false;
  c.LockService={getScriptLock:()=>({waitLock(){assert.equal(locked,false);locked=true},releaseLock(){locked=false}})};
  c.UrlFetchApp={fetch(url,options){
   assert.equal(locked,false,'the evaluator must run outside the sheet lock');
-  const value=fetchResult(url,JSON.parse(options.payload));
+  const value=fetchResult(url,JSON.parse(options.payload),options);
   return {getResponseCode:()=>200,getContentText:()=>JSON.stringify(value)};
  }};
  vm.createContext(c);
  for(const file of ['Code.gs','Rejudge.gs'])vm.runInContext(fs.readFileSync('apps-script/'+file,'utf8'),c);
  vm.runInContext(evaluatorSources(),c);
- return {sheets,sheet,cleanup(){return c.deleteInvalidClassRecords()},previewCleanup(){return c.previewInvalidClassRecords()},reconcile(){return c.reconcileLegacy()},setAccess(v){access=JSON.stringify(v)},post(body){return JSON.parse(c.doPost({postData:{contents:JSON.stringify(body)}}))},get(q){return JSON.parse(c.doGet({parameter:q}))}};
+ return {sheets,sheet,cleanup(){return c.deleteInvalidClassRecords()},previewCleanup(){return c.previewInvalidClassRecords()},reconcile(){return c.reconcileLegacy()},setAccess(v){access=JSON.stringify(v)},post(body){return JSON.parse(c.doPost({postData:{contents:JSON.stringify(body.action==='rejudge'?{proxySecret,...body}:body)}}))},get(q){return JSON.parse(c.doGet({parameter:q}))}};
 }
 test('rejudgment rejects completed, pending, unavailable and unsubmitted answers without touching the sheet',()=>{
  const m=make(), classCode='3-2', missionId='m02';
@@ -33,6 +37,55 @@ test('rejudgment rejects completed, pending, unavailable and unsubmitted answers
   assert.equal(m.post(request).code,i===3?'STALE_SUBMISSION':'REJUDGE_NOT_NEEDED');
   assert.equal(JSON.stringify(m.sheets['강철솜'].rows),before);
  }
+});
+
+test('dashboard reuses the selected class revision until its own saved record changes',()=>{
+ const m=make(),scope={action:'teacherDashboardData',proxySecret,classKey:'g:3:r:2',missionId:'m02'};
+ const start=(sessionId,classCode,missionId)=>m.post({action:'startSession',session:{sessionId,classCode,missionId,studentNo:'1'}});
+ assert.equal(start('steel','3-2','m02').ok,true);
+ assert.equal(start('other','3-3','m02').ok,true);
+ const first=m.post(scope);
+ assert.match(first.revision,/^[a-f0-9]{64}$/);
+ assert.deepEqual(Object.keys(first.records),['m02']);
+ assert.deepEqual(first.records.m02.slice(1).map(row=>row[1]),['steel']);
+ assert.equal(start('potato','3-2','m01').ok,true);
+ assert.deepEqual(m.post({...scope,since:first.revision}),{ok:true,unchanged:true,revision:first.revision});
+ assert.equal(m.post({action:'updateSession',sessionId:'steel',fields:{finalAnswer:'저장한 답안'}}).ok,true);
+ const next=m.post({...scope,since:first.revision});
+ assert.notEqual(next.revision,first.revision);
+ assert.equal(JSON.parse(next.records.m02[1][8]).finalAnswer,'저장한 답안');
+});
+
+test('30 synthetic starts and submissions keep one row each; signed notices follow successful writes',()=>{
+ const sent=[],liveUrl='https://synthetic.example/api/sheet/changed';
+ const m=make({liveUrl,fetchResult(url,body,options){
+  assert.equal(url,liveUrl);
+  assert.equal(options.headers['X-Sciw-Signature'],crypto.createHmac('sha256',proxySecret).update(options.payload).digest('hex'));
+  sent.push(...body.changes);
+  return {ok:true};
+ }});
+ for(let i=1;i<=30;i++){
+  const missionId=i%2?'m01':'m02',sessionId='session-'+i;
+  const begin={action:'startSession',session:{sessionId,missionId,classCode:'3-2',studentNo:String(i)}};
+  assert.equal(m.post(begin).ok,true);
+  assert.equal(m.post(begin).ok,true);
+  assert.equal(m.post({action:'batch',ops:[
+   {action:'logAttempt',attempt:{attemptId:'answer-'+i,sessionId,input:'학생의 답안',questId:'studentInput'}},
+   {action:'logAttempt',attempt:{attemptId:'feedback-'+i,sessionId,feedbackText:'교수의 피드백',questId:'professorSpeech'}},
+   {action:'updateSession',sessionId,fields:{finalAnswer:'최종 답안',clearType:'full'}}
+  ]}).ok,true);
+ }
+ assert.equal(m.sheets.Sessions.rows.length,31);
+ for(const tab of ['감자','강철솜']){
+  assert.equal(m.sheets[tab].rows.length,16);
+  for(const row of m.sheets[tab].rows.slice(1)){
+   assert.equal(JSON.parse(row[8]).finalAnswer,'최종 답안');
+   assert.equal(JSON.parse(row[9]).length,2);
+  }
+ }
+ assert.equal(sent.filter(event=>event.kind==='entered').length,30);
+ assert.equal(sent.filter(event=>event.kind==='completed').length,30);
+ assert.ok(sent.every(event=>!Object.hasOwn(event,'studentNo')&&!Object.hasOwn(event,'sessionId')));
 });
 test('two missions save to separate tabs, retry safely, and teacher access is scoped',()=>{
  const m=make(), key='synthetic-test-key-1234567890';
@@ -107,10 +160,14 @@ test('one login stays one mission row across many answers, feedback pages and re
  const {parseRecords}=await import('../../deploy/cloudflare/worker.mjs');
  const quote=v=>'"'+String(v??'').replaceAll('"','""')+'"';
  const csv=m.sheets['강철솜'].rows.map(r=>r.map(quote).join(',')).join('\r\n');
- const parsed=parseRecords(csv,'m02');assert.equal(parsed.invalidRows,0);assert.equal(parsed.sessions.length,1);assert.equal(parsed.attempts.length,2);assert.equal(parsed.attempts[0].input,answer.attempt.input);assert.equal(parsed.attempts[0].eventOrder,1);assert.equal(parsed.attempts[1].eventOrder,2);assert.equal(parsed.attempts[1].feedbackText[0],feedback.attempt.feedbackText[0]);
- const {spawnSync}=require('node:child_process');
- const py=spawnSync('python3',['-c',"import sys,json;sys.path.insert(0,'scripts');from local_server import parse_records;print(json.dumps(parse_records(sys.stdin.read(),'m02'),ensure_ascii=False))"],{input:csv,encoding:'utf8'});
- assert.equal(py.status,0,py.stderr);assert.deepEqual(JSON.parse(py.stdout),parsed);
+ const parsed=parseRecords(m.sheets['강철솜'].rows.map(row=>row.map(v=>String(v??''))),'m02');assert.equal(parsed.invalidRows,0);assert.equal(parsed.sessions.length,1);assert.equal(parsed.attempts.length,2);assert.equal(parsed.attempts[0].input,answer.attempt.input);assert.equal(parsed.attempts[0].eventOrder,1);assert.equal(parsed.attempts[1].eventOrder,2);assert.equal(parsed.attempts[1].feedbackText[0],feedback.attempt.feedbackText[0]);
+ const {spawn}=require('node:child_process');
+ const py=await new Promise((resolve,reject)=>{
+  const process=spawn('python3',['-c',"import sys,json;sys.path.insert(0,'scripts');from local_server import parse_records;print(json.dumps(parse_records(sys.stdin.read(),'m02'),ensure_ascii=False))"]);
+  let out='',err='';process.stdout.setEncoding('utf8').on('data',x=>out+=x);process.stderr.setEncoding('utf8').on('data',x=>err+=x);
+  process.on('error',reject);process.stdin.on('error',reject);process.on('close',code=>code===0?resolve(out):reject(Error(err)));process.stdin.end(csv);
+ });
+ assert.deepEqual(JSON.parse(py),parsed);
  assert.equal(m.post({action:'logAttempt',attempt:{attemptId:'conflict',sessionId:'journal',missionId:'m01',input:'다른 미션'}}).ok,false);
  assert.equal(m.sheets['강철솜'].rows.length,2);
 });
@@ -159,14 +216,12 @@ test('both missions rejudge the saved answer in the same row and use it in the d
   }
   return {ok:true,result:m02Result};
  }});
- const csv=rows=>rows.map(row=>row.map(value=>'"'+String(value??'').replaceAll('"','""')+'"').join(',')).join('\n');
- const handler=createHandler(async(url,options)=>{
-  const gid=new URL(url).searchParams.get('gid');
-  if(gid)return new Response(csv(m.sheets[gid==='807310001'?'감자':'강철솜'].rows),{headers:{'Content-Type':'text/csv'}});
-  return Response.json(m.post(JSON.parse(options.body)));
- });
- const post=async body=>handler(new Request('https://test.example/api/sheet/rejudge',{method:'POST',
-  headers:{Origin:'https://test.example','Content-Type':'application/json'},body:JSON.stringify(body)}),{});
+ const env={TEACHER_PASSWORD:'synthetic-login',TEACHER_PROXY_SECRET:proxySecret};
+ const {issueToken}=await import('../../deploy/cloudflare/teacher-auth.mjs');
+ const headers={Authorization:'Bearer '+await issueToken(env),Origin:'https://test.example','Content-Type':'application/json'};
+ const handler=createHandler(async(url,options)=>Response.json(m.post(JSON.parse(options.body))));
+ const post=async body=>handler(new Request('https://test.example/api/sheet/rejudge',{method:'POST',headers,body:JSON.stringify(body)}),env);
+ const read=async mission=>handler(new Request('https://test.example/api/sheet/class?classKey=g:3:r:2&missionId='+mission,{headers}),env);
  for(const missionId of ['m01','m02']){
   const sessionId='play-'+missionId, classCode='3-2', studentNo='1', attemptId='original-'+missionId;
   const input=missionId==='m01'?'감자 세포 안 농도는 5%에서 10% 사이다.':m02Text;
@@ -204,7 +259,7 @@ test('both missions rejudge the saved answer in the same row and use it in the d
   const retry=await post(request);
   assert.deepEqual((await retry.json()).rejudgment,rejudgment);
   assert.equal((await (await post({...request,requestId:'already-completed'})).json()).code,'REJUDGE_NOT_NEEDED');
-  const restored=await handler(new Request('https://test.example/api/sheet/class?classKey=g:3:r:2&missionId='+missionId),{});
+  const restored=await read(missionId);
   const db=await restored.json();
   const effective=I.evaluation(db,db.sessions[0]);
   assert.equal(effective.judgment.C,true);
@@ -222,7 +277,7 @@ test('both missions rejudge the saved answer in the same row and use it in the d
    assert.equal((await (await post(race)).json()).code,'STALE_SUBMISSION');
    assert.deepEqual(JSON.parse(rows[1][8]).teacherRejudgment,rejudgment);
    assert.equal(rows.length,2);
-   const after=await (await handler(new Request('https://test.example/api/sheet/class?classKey=g:3:r:2&missionId=m02'),{})).json();
+   const after=await (await read('m02')).json();
    assert.equal(I.evaluation(after,after.sessions[0]).rejudgment,null);
   }
  }
@@ -236,6 +291,16 @@ test('an explicit failure event belongs to its own submitted input',async()=>{
  const failed={sessionId:s.sessionId,attemptId:'failed',questId:'finalEvaluation',stage:'compose',evaluationStatus:'failed',evaluationErrorCode:'TIMEOUT',inReplyTo:'raw',eventOrder:2};
  assert.equal(I.judgmentStatus({attempts:[raw,failed]},s).errorCode,'TIMEOUT');
  assert.equal(I.judgmentStatus({attempts:[raw,failed,{...raw,attemptId:'newer',eventOrder:3}]},s).code,'pending');
+});
+
+test('private dashboard data and rejudgment require the server secret; student writes stay public',()=>{
+ const m=make(),session={sessionId:'dashboard-test',missionId:'m01',classCode:'3-2',studentNo:'1'};
+ assert.equal(m.post({action:'startSession',session}).ok,true);
+ assert.equal(m.post({action:'teacherDashboardData'}).ok,false);
+ assert.equal(m.post({action:'teacherDashboardData',proxySecret:'incorrect-secret-longer-than-32-characters'}).ok,false);
+ assert.equal(m.post({action:'rejudge',proxySecret:null}).error,'교사 서버 인증 실패');
+ const snapshot=m.post({action:'teacherDashboardData',proxySecret});
+ assert.equal(snapshot.ok,true);assert.equal(snapshot.records.m01[1][1],session.sessionId);assert.equal(snapshot.records.m02.length,1);
 });
 
 test('student reentry finds only the newest session for the exact class, number and mission',()=>{

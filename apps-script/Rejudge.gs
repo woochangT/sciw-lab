@@ -70,7 +70,7 @@ function canRejudgeFinal_(data) {
 }
 
 function saveRejudgeSession_(data, fields) {
-  const session = Object.assign({},data.session,fields,{updatedAt:new Date().toISOString()});
+  const session = Object.assign({},data.session,fields,{updatedAt:nextRecordTime_(data.existing.values[7])});
   putRecord_('session',session.sessionId,session,data.existing.mission,data.existing);
 }
 

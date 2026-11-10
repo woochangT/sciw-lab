@@ -43,19 +43,22 @@ class LocalEndpointTests(unittest.TestCase):
         import threading
         from functools import partial
         from http.server import ThreadingHTTPServer
-        from local_server import Handler
+        from local_server import Handler, LocalTeacherAuth
         class Reader:
             def read(self, refresh=False):
                 sessions=[{'sessionId':'a','classCode':'A','studentNo':'1'},{'sessionId':'b','classCode':'B','studentNo':'2'},{'sessionId':'test-play','classCode':'test','studentNo':'2'},{'sessionId':'qa_auto','classCode':'test','studentNo':'9'}]
                 for s in sessions:s.update(missionId='m02',firstAnswer='산소와 철의 결합')
                 return {'sessions':sessions,'attempts':[{'attemptId':'aa','sessionId':'a'},{'attemptId':'bb','sessionId':'b'}],'invalidRows':0,'fetchedAt':'now','sheetUrl':'url'}
-        self.server=ThreadingHTTPServer(('127.0.0.1',0),partial(Handler,reader=Reader()))
+        self.server=ThreadingHTTPServer(('127.0.0.1',0),partial(Handler,reader=Reader(),auth=LocalTeacherAuth('synthetic-password')))
         self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start()
         self.base='http://127.0.0.1:'+str(self.server.server_port)
+        self.authorization=''
+        self.authorization='Bearer '+self.request('/api/sheet/login',data=b'{"password":"synthetic-password"}',headers={'Origin':self.base,'Content-Type':'application/json'})['token']
     def tearDown(self):
         self.server.shutdown();self.server.server_close();self.thread.join()
     def request(self,path,**kwargs):
         import urllib.request
+        kwargs['headers']={'Authorization':self.authorization,**kwargs.get('headers',{})}
         with urllib.request.urlopen(urllib.request.Request(self.base+path,**kwargs)) as r:return json.load(r)
     def test_class_queries_never_return_another_class_or_its_attempts(self):
         value=self.request('/api/sheet/class?classCode=A')
@@ -95,7 +98,7 @@ class LocalEndpointTests(unittest.TestCase):
         upstream.__enter__.return_value.read.return_value=json.dumps({'ok':True,'analysis':{'model':'gpt-6-luna','effort':'medium','result':{'summary':'합성 테스트 응답'}}}).encode()
         with patch('local_server.urllib.request.urlopen',return_value=upstream) as fetch:
             connection=http.client.HTTPConnection('127.0.0.1',self.server.server_port)
-            connection.request('POST','/api/sheet/analysis',json.dumps({'classCode':'A','mode':'latest','evidence':{'participants':999}}),{'Origin':self.base,'Content-Type':'application/json'})
+            connection.request('POST','/api/sheet/analysis',json.dumps({'classCode':'A','mode':'latest','evidence':{'participants':999}}),{'Origin':self.base,'Content-Type':'application/json','Authorization':self.authorization})
             response=connection.getresponse();value=json.loads(response.read());connection.close()
             self.assertEqual(response.status,200)
             self.assertEqual(value['basis']['participants'],1)

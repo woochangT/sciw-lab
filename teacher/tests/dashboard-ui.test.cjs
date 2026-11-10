@@ -17,18 +17,26 @@ test('class game views reuse the same matrix layout and preserve original scoped
  }
  assert.equal(JSON.stringify(db),before);
 });
-test('ambiguous criterion headers have accurate help while obvious headers and stored fields stay intact',()=>{
- const data=M.analyze(db,'3-2','latest',{missionId:'m02'}),html=D.screen({portfolio,data,selectedClass,mission:'m02',source:'demo'});
- assert.match(html,/<th scope="col" title="열린 실험 자료 \(D-A\)">A 질량 증가<button[^>]*data-info-text="[^"]*최종 답안에서 식별/);
- assert.match(html,/실험을 관찰했는지의 기록은 아닙니다/);
- assert.match(html,/<th scope="col" title="닫힌 실험 자료 \(D-B\)">B 전체 질량<button/);
- assert.match(html,/<th scope="col">AI 판정<button/);
- assert.match(html,/<th scope="col">출석번호<\/th>/);
- assert.doesNotMatch(html,/<th scope="col">출석번호<button/);
- assert.match(html,/id="recordFilter"/);assert.match(html,/id="playMode"/);assert.match(html,/status-/);
- assert.deepEqual(I.definitions.m02[1],['D-A','열린 실험 자료']);
- const comparison=html.match(/<div class="comparison-scroll">([\s\S]*?)<\/table>/)?.[1]||'';
- assert.match(comparison,/첫 판 인정<button/);assert.match(comparison,/비교 인원<button/);assert.match(comparison,/제외 이유<button/);
+test('heatmap headers explain the rubric and teaching prep phrases the same element as a question',()=>{
+ const changed={...db,sessions:db.sessions.map(s=>s.sessionId==='a'?{...s,finalJudgment:{C:true,'D-B':false}}:s)};
+ for(const mission of ['m01','m02']){
+  const data=M.analyze(changed,'3-2','latest',{missionId:mission});
+  for(const selected of [selectedClass,null]){
+   const html=D.screen({portfolio,data,selectedClass:selected,mission,source:'demo'});
+   const header=html.split('class="dashboard-matrix"')[1].match(/<thead>(.*?)<\/thead>/)[1];
+   const columns=header.match(/<th scope="col"[^>]*>.*?<\/th>/g);
+   assert.equal(columns.length,I.definitions[mission].length+(selected?4:2));
+   for(const col of columns)assert.match(col,/data-info-text="[^"]+"/);
+   if(mission==='m02'&&selected){
+    const prep=D.screen({portfolio,data,selectedClass:selected,mission,view:'overview',source:'demo'});
+    assert.match(prep,/닫힌 플라스크 전체의 질량은 실험 전후에 어떻게 달라졌나요/);
+    assert.match(prep,/150.0 g/);
+    assert.match(header,/<th scope="col" title="B 전체 질량 \(D-B\)">B 전체 질량<button[^>]*aria-label="B 전체 질량 설명"/);
+    assert.doesNotMatch(html,/닫힌 실험 자료/);
+    assert.doesNotMatch(html,/수업에서 살펴볼 요소와 처음·최근 판 비교/);
+   }
+  }
+ }
 });
 test('pagination clamps stale page indexes and search changes visible rows rather than analysis denominators',()=>{
  const rows=Array.from({length:32},(_,i)=>i+1);assert.deepEqual(D.pageRows(rows,99,10),{rows:[31,32],index:3,pages:4,total:32,start:31,end:32});assert.equal(D.pageRows([],5,10).index,0);
@@ -39,11 +47,11 @@ test('rubric versions remain isolated across both screen types',()=>{
  const s=session('old','3-2','3','m02',{finalAnswer:'이전 버전',finalJudgment:{C:true},rubricVersion:'m02-docx-1.1.0'}),source={sessions:[...db.sessions,s],attempts:[]},p=I.overview(source);
  const v=D.model({portfolio:p,mission:'m02',criterion:'m02-docx-1.1.0'});assert.equal(v.cells[0].assessed,1);assert.equal(v.cells[0].rate,100);
  const data=M.analyze(source,'3-2','latest',{missionId:'m02'}),html=D.screen({portfolio:p,data,selectedClass,mission:'m02',criterion:'m02-docx-1.1.0',source:'sheet'});
- assert.match(html,/m02-docx-1.1.0/);assert.match(html,/1번 자신의 결론 판정 없음/);assert.match(html,/3번 자신의 결론 인정/);
+ assert.match(html,/m02-docx-1.1.0/);assert.match(html,/1번 강철솜이 무거워진 이유 판정 없음/);assert.match(html,/3번 강철솜이 무거워진 이유 인정/);
 });
 test('stored AI summaries are escaped and only expose an explicit generation action',()=>{
- const data=M.analyze(db,'3-2','latest',{missionId:'m02'}),html=D.screen({portfolio,data,selectedClass,mission:'m02',source:'sheet',available:true,report:{analysis:{result:{headline:'<script>head</script>',teachingFocus:'<img onerror=bad>'}}}});
- assert.doesNotMatch(html,/<script>|<img onerror/);assert.match(html,/&lt;script&gt;/);assert.match(html,/data-ai-generate/);assert.match(html,/data-open-report/);
+ const data=M.analyze(db,'3-2','latest',{missionId:'m02'}),html=D.screen({portfolio,data,selectedClass,mission:'m02',view:'overview',source:'sheet',available:true,report:{analysis:{result:{headline:'<script>head</script>',teachingFocus:'<img onerror=bad>'}}}});
+ assert.doesNotMatch(html,/<script>|<img onerror/);assert.match(html,/&lt;img onerror=bad&gt;/);assert.match(html,/data-ai-generate/);assert.doesNotMatch(html,/data-open-report|상세 리포트/);
 });
 test('lesson priority counts only assessed students under the selected rubric and links candidates to originals',()=>{
  const records=[session('one','3-2','1','m02',{finalAnswer:'합성 답안 1',finalJudgment:{C:false,W1a:false},rubricVersion:'m02-docx-1.2.0'}),session('two','3-2','2','m02',{finalAnswer:'합성 답안 2',finalJudgment:{C:false,W1a:true},rubricVersion:'m02-docx-1.2.0'}),session('old','3-2','3','m02',{finalAnswer:'이전 기준',finalJudgment:{C:false,W1a:false},rubricVersion:'m02-docx-1.1.0'}),session('none','3-2','4','m02',{finalAnswer:'미판정 답안'}),session('unclear','3-2','5','m02',{finalAnswer:'판정 불가 답안',finalJudgment:{C:false},rubricVersion:'m02-docx-1.2.0'})];
@@ -51,19 +59,19 @@ test('lesson priority counts only assessed students under the selected rubric an
  const priority=I.lessonPriority(data,data.reps,'m02',choice);
  assert.deepEqual(priority.missing.map(c=>[c.key,c.revise,c.assessed]),[['C',2,2],['W1a',1,2]]);
  assert.deepEqual(priority.candidates.map(c=>c.sessionId),['one','two']);
- const html=D.screen({portfolio:p,data,selectedClass:p.classes[0],mission:'m02',criterion:choice,source:'demo'});
- assert.ok(html.indexOf('가장 많이 누락된 설명 요소')<html.indexOf('id="matrixViewport"'));
- assert.match(html,/2 \/ 2명 미인정/);assert.match(html,/반 전체 경향으로 해석하지 마세요/);assert.match(html,/data-session="one" data-element="C"/);
- assert.doesNotMatch(html.split('class="dashboard-analysis-grid"')[0],/data-session="old" data-element="C"/);
- assert.match(html,/id="matrixViewport"/);assert.match(html,/id="recordFilter"/);assert.match(html,/id="playMode"/);
+ assert.deepEqual(priority.missing.map(c=>c.students.map(s=>s.studentNo)),[['1','2'],['1']]);
+ const html=D.screen({portfolio:p,data,selectedClass:p.classes[0],mission:'m02',criterion:choice,view:'overview',source:'demo'});
+ assert.match(html,/2명 중 2명/);assert.match(html,/data-session="one" data-element="C"/);
+ assert.doesNotMatch(html,/data-analysis-student="[345]"|id="matrixViewport"/);
+ assert.match(html,/id="recordFilter"/);assert.match(html,/id="playMode"/);
  assert.equal(I.lessonPriority(data,data.reps,'m02','AI 평가 · 버전 미기록').missing.length,0);
 });
 test('saved question is reused safely; empty question offers only an explicit generation button',()=>{
- const data=M.analyze(db,'3-2','latest',{missionId:'m02'}),state={portfolio,data,selectedClass,mission:'m02',source:'sheet',available:true};
+ const data=M.analyze(db,'3-2','latest',{missionId:'m02'}),state={portfolio,data,selectedClass,mission:'m02',view:'overview',source:'sheet',available:true};
  const saved=D.screen({...state,report:{basis:{mode:'latest'},analysis:{result:{questions:[{question:'<script>다음 수업 질문</script>'}]}}}});
- assert.match(saved,/&lt;script&gt;다음 수업 질문&lt;\/script&gt;/);assert.doesNotMatch(saved,/<script>/);assert.match(saved,/저장된 수업 리포트 보기/);
- const empty=D.screen(state);assert.match(empty,/저장된 수업 질문이 없습니다/);assert.match(empty,/수업 요약·질문 생성/);
- const all=D.screen({portfolio,mission:'m02',source:'sheet'});assert.doesNotMatch(all,/class="lesson-priority"/);
+ assert.match(saved,/&lt;script&gt;다음 수업 질문&lt;\/script&gt;/);assert.doesNotMatch(saved,/<script>|상세 리포트와 수업 자료/);
+ const empty=D.screen(state);assert.doesNotMatch(empty,/추가로 물어볼 질문/);assert.match(empty,/↻<\/span> 학급 재분석/);
+ const all=D.screen({portfolio,mission:'m02',source:'sheet'});assert.doesNotMatch(all,/class="weakness-grid"/);
 });
 test('answer candidates favor matching saved quotes and reasons, deduplicate students, and stop at three',()=>{
  const judged=(id,no,extra={})=>session(id,'3-2',no,'m02',{finalAnswer:'합성 답안 산소',finalJudgment:{C:false},rubricVersion:'m02-docx-1.2.0',...extra});
@@ -96,9 +104,66 @@ test('selected missing element drives candidates and a missing original shows an
  ],attempts:[]};
  const data=M.analyze(source,'3-2','latest',{missionId:'m02'}),p=I.overview(source),key='m02-docx-1.2.0';
  assert.deepEqual(I.lessonPriority(data,data.reps,'m02',key,'W1a').candidates.map(c=>c.sessionId),['w']);
- const html=D.screen({portfolio:p,data,selectedClass:p.classes[0],mission:'m02',criterion:key,focusElement:'W1a',source:'demo'}),top=html.split('class="dashboard-analysis-grid"')[0];
- assert.match(top,/data-focus-element="W1a" aria-pressed="true"/);assert.match(top,/data-session="w" data-element="W1a"/);
- assert.doesNotMatch(top,/data-session="c" data-element="W1a"/);assert.doesNotMatch(top,/합성 근거/);
- const onlyEmpty={sessions:[source.sessions[2]],attempts:[]},emptyData=M.analyze(onlyEmpty,'3-2','latest',{missionId:'m02'}),empty=D.screen({portfolio:I.overview(onlyEmpty),data:emptyData,selectedClass:I.overview(onlyEmpty).classes[0],mission:'m02',criterion:key,source:'demo'});
- assert.match(empty,/후보가 없습니다/);assert.doesNotMatch(empty.split('class="dashboard-analysis-grid"')[0],/data-session=/);
+ const html=D.screen({portfolio:p,data,selectedClass:p.classes[0],mission:'m02',criterion:key,focusElement:'W1a',view:'overview',source:'demo'}),comparison=html.split('class="focus-examples"')[1].split('</section>')[0];
+ assert.match(html,/data-compare-element="W1a"[^>]*aria-pressed="true"/);assert.match(comparison,/data-session="w" data-element="W1a"/);
+ assert.match(comparison,/합성 근거/);assert.match(comparison,/같은 요소가 드러난 글/);
+ const onlyEmpty={sessions:[source.sessions[2]],attempts:[]},emptyData=M.analyze(onlyEmpty,'3-2','latest',{missionId:'m02'}),empty=D.screen({portfolio:I.overview(onlyEmpty),data:emptyData,selectedClass:I.overview(onlyEmpty).classes[0],mission:'m02',criterion:key,view:'overview',source:'demo'});
+ assert.match(empty,/아래 목록에서 학생별로 저장된 답안을/);assert.doesNotMatch(empty.split('class="student-records"')[0],/data-session=/);
+});
+
+test('teaching prep shows focus, examples and answer previews; student records shows the rubric',()=>{
+ const data=M.analyze(db,'3-2','latest',{missionId:'m02'}),state={portfolio,data,selectedClass,mission:'m02',source:'sheet'};
+ const classes=D.screen({portfolio,mission:'m02',view:'overview'});
+ assert.match(classes,/어느 반을 살펴볼까요/);assert.doesNotMatch(classes,/id="matrixViewport"/);
+ const focus=D.screen({...state,view:'overview'});
+ assert.match(focus,/다음 수업에서 함께 물어볼 질문/);
+ assert.match(focus,/답안 비교/);
+ assert.match(focus,/수업에서 함께 읽을 학생 답안[\s\S]*학생별 진행과 답안/);
+ assert.match(focus,/<small>제출 답안<\/small><span>답안<\/span>/);
+ assert.doesNotMatch(focus,/id="matrixViewport"/);
+ const records=D.screen({...state,view:'progress'});
+ assert.match(records,/id="task-progress"[^>]*>참여 현황<\/button>/);
+ assert.match(records,/class="progress-table"/);
+ assert.match(records,/href="#student-answer-1"/);
+ const result=records.match(/<a class="progress-result"[\s\S]*?<\/a>/)[0];
+ assert.equal((result.match(/class="result-square /g)||[]).length,7);
+ assert.match(result,/<strong>14%<\/strong>/);
+ assert.doesNotMatch(result,/>\s*(인정|보완)\s+\d/);
+ const metrics=records.match(/<section class="dashboard-metrics progress-metrics"[\s\S]*?<\/section>/)[0];
+ assert.match(metrics,/참여 학생[\s\S]*최종 답안[\s\S]*작성 전/);
+ assert.doesNotMatch(metrics,/자동 판정/);
+ const analysis=D.screen({...state,view:'analysis',highlightedStudent:'1'});
+ assert.match(analysis,/id="task-analysis"[^>]*>학생 답안 분석<\/button>/);
+ assert.match(analysis,/id="student-answer-1"[^>]*class="student-answer-highlight"/);
+ assert.match(analysis,/class="matrix-judged">자동 판정 <b>1명/);
+ assert.doesNotMatch(analysis,/수업에서 살펴볼 요소와 처음·최근 판 비교|dashboard-metrics|dashboard-insights|교수 노트 열람/);
+});
+
+test('a completed alternative steel-wool route does not make its optional elements group weaknesses',()=>{
+ const sessions=[
+  session('open-route','3-2','1','m02',{finalAnswer:'열린 실험의 설명',finalJudgment:{C:true,'D-A':true,'D-B':false,W1a:true,W1b:true,W2a:false,W2b:true},rubricVersion:'m02-docx-1.2.1'}),
+  session('missing-reason','3-2','2','m02',{finalAnswer:'닫힌 플라스크 설명',finalJudgment:{C:true,'D-B':true,W2a:false},rubricVersion:'m02-docx-1.2.1'})
+ ];
+ const data=M.analyze({sessions,attempts:[]},'3-2','latest',{missionId:'m02'});
+ const priority=I.lessonPriority(data,data.reps,'m02','m02-docx-1.2.1');
+ assert.deepEqual(priority.missing.map(group=>[group.key,group.assessed,group.students.map(s=>s.studentNo)]),[['W2a',1,['2']]]);
+ const progress=I.studentProgress(data,sessions[0],I.evaluation(data,sessions[0]),'m02');
+ assert.equal(progress.percent,100);
+ assert.deepEqual(progress.elements.map(item=>item.state),['met','met','alternate','met','met','alternate','met']);
+ const portfolio=I.overview(data),html=D.screen({portfolio,data,selectedClass:portfolio.classes[0],mission:'m02',view:'analysis'});
+ assert.match(html,/1번 B 전체 질량 대체 설명/);
+ assert.match(R.criterion(data,sessions[0],'D-B'),/B 전체 질량 · 대체 설명으로 충족/);
+});
+
+test('potato progress shows seven raw criteria and gives full credit to either accepted range explanation',()=>{
+ const judged=session('potato-range','3-2','1','m01',{finalAnswer:'감자 농도 설명',finalJudgment:{C:true,D:true,W1:true,W2a:true,W2b:true,W3:false,WB:true}});
+ const data={sessions:[judged],attempts:[]};
+ const {elements,percent}=I.studentProgress(data,judged,I.evaluation(data,judged),'m01');
+ assert.equal(elements.length,7);
+ assert.equal(elements.find(item=>item.key==='W3').state,'alternate');
+ assert.equal(percent,100);
+ const all={...judged,finalJudgment:{...judged.finalJudgment,W3:true}};
+ const full=I.studentProgress(data,all,I.evaluation(data,all),'m01');
+ assert.equal(full.elements.filter(item=>item.state==='met').length,7);
+ assert.equal(full.percent,100);
 });

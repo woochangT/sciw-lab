@@ -20,7 +20,7 @@ function sheet(name){
         getDisplayValues(){return this.getValues().map(r=>r.map(String));},
         setValues(values){for(let i=0;i<height;i++){const r=db[name][row-1+i]||=[];for(let j=0;j<width;j++)r[col-1+j]=values[i][j];}dirty=true;return range;},
         setNumberFormat(){return range;},setFontWeight(){return range;},
-        createTextFinder(value){return {matchEntireCell(){return this;},findNext(){for(let i=0;i<height;i++)if(String(db[name][row-1+i]?.[col-1]??'')===value)return {getRow:()=>row+i};return null;}};}
+        createTextFinder(value){return {matchCase(){return this;},matchEntireCell(){return this;},findAll(){return db[name].flatMap((r,i)=>i>=row-1&&i<row-1+height&&String(r[col-1])===value?[{getRow:()=>i+1}]:[]);},findNext(){for(let i=0;i<height;i++)if(String(db[name][row-1+i]?.[col-1]??'')===value)return {getRow:()=>row+i};return null;}};}
       };return range;
     }
   };
