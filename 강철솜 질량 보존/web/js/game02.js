@@ -1646,6 +1646,7 @@
       await sleep(900);
       acquire([M.links[i].clue], () => {
         if (M.links[i].lens !== M.links[i].clue) addCard(M.links[i].lens);
+        if (window.SCIW_DEMO && window.SCIW_DEMO.reached('scope' + i)) return; // 발표 시연 2는 현미경 관찰 단서를 얻으면 멈춘다
         askLink(i);
       });
     };
@@ -1841,6 +1842,7 @@
     setNose(S.nose - 1);
     await sleep(reduced ? 200 : 1300);
     await zoomOut();
+    if (window.SCIW_DEMO && window.SCIW_DEMO.reached('link' + i)) return; // 발표 시연 1은 꼬투리 ① 통과에서 멈춘다
     closeScope();
     if (S.link === null) { exitArena(); startCombine(); return; }
     nextGap(S.link);
@@ -2327,6 +2329,7 @@
     $('#againBtn').addEventListener('click', () => location.reload());
     $('#exitBtn').addEventListener('click', () => { location.href = '../../index.html'; });
     typeOut(prepType(wrap.querySelector('.say')), 60);
+    if (window.SCIW_DEMO) window.SCIW_DEMO.reached('submitted'); // 발표 시연 3은 선생님께 제출하면 끝난다
   }
   function finish(type, text, r, restoring = false) {
     S.resumePoint = 'complete';

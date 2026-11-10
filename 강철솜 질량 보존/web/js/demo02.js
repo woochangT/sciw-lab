@@ -4,6 +4,7 @@
  *   1  꼬투리 ①: 교수가 실험 B 카드를 제멋대로 읽고, 학생이 뒷면을 고쳐 쓴다 (종속 변인 번역)
  *   2  꼬투리 ③: "왜 하필 산소인가?" → 마법 현미경에서 공기 중의 기체를 지켜본다 (모형화)
  *   3  완전한 설명: 최종 답안 제출 → 처음/지금 비교·형광펜 결과 → 선생님께 제출
+ * 각 장면은 보여 줄 기능이 끝나면(END) 거기서 멈추고 발표 화면에 'sciw-demo-done'을 보낸다.
  * 시연 모드에서는 팀 시트에 기록하지 않는다(js/config.js가 기록 주소를 비운다).
  * 입력칸에는 시연 문장이 미리 들어간다. 문장을 그대로 내면 아래 FIXTURES의 판정 결과를 쓰고(js/api.js),
  * 발표자가 문장을 고쳐 쓰면 실제 AI 판정을 요청한다.
@@ -169,7 +170,15 @@
       }
     }
   };
-  window.SCIW_DEMO = { scene, text: TEXT, fixtures: FIXTURES, prefill: (q) => (q === 'final' ? TEXT.final : TEXT[q] || '') };
+  // 장면마다 보여 줄 기능이 끝나는 지점. 게임은 여기서 멈추고, 발표 화면(presentation/)에 끝났다고 알린다.
+  const END = { 1: 'link0', 2: 'scope2', 3: 'submitted' };
+  function reached(point) {
+    if (END[scene] !== point) return false;
+    document.body.classList.add('demo-done');
+    try { window.parent.postMessage({ type: 'sciw-demo-done', scene }, location.origin); } catch (e) { /* 단독으로 열었을 때 */ }
+    return true;
+  }
+  window.SCIW_DEMO = { scene, text: TEXT, fixtures: FIXTURES, reached, prefill: (q) => (q === 'final' ? TEXT.final : TEXT[q] || '') };
 
   const claimCard = () => {
     S.claim = M.claimOptions.find((o) => o.correct);
@@ -187,7 +196,7 @@
     document.body.classList.add('demo-mode');
     // 시연 중에는 '이 브라우저에 저장됨' 같은 기록 상태 표시를 감춘다
     const style = document.createElement('style');
-    style.textContent = '.demo-mode #sciw-save-status{display:none!important}';
+    style.textContent = '.demo-mode #sciw-save-status{display:none!important}.demo-done #clearScreen .btns.two{display:none!important}';
     document.head.appendChild(style);
     S.classCode = '3-1'; S.studentNo = '7';
     S.sessionId = API.uid('demo');
