@@ -69,6 +69,7 @@ h2 small{display:block;margin-top:14px;font-size:28px;font-weight:400;color:var(
 .chain .link::before{content:"";position:absolute;left:0;right:0;top:50%;border-top:5px dashed var(--red)}
 .chain .link span{position:absolute;left:50%;top:-52px;transform:translateX(-50%);font-family:var(--hand);font-size:54px;font-weight:400;color:var(--red);white-space:nowrap}
 .conan{position:absolute;right:200px;bottom:110px;height:700px;width:auto}
+.conan-credit{position:absolute;right:200px;bottom:80px;font-size:14px;color:var(--ink-soft)}
 
 /* 답안지 */
 .sheet{background:var(--sheet);border:2px solid var(--rule);padding:44px 56px;font-family:var(--hand);font-size:66px;line-height:1.55;color:#22303a;box-shadow:0 2px 0 rgba(0,0,0,.04)}
@@ -111,13 +112,13 @@ h2 small{display:block;margin-top:14px;font-size:28px;font-weight:400;color:var(
 .clip li.model span{border-bottom:3px solid var(--pen)}
 
 /* 해결 */
-.rows{display:grid;gap:40px}
-.row{display:grid;grid-template-columns:1fr 90px 1fr;align-items:center;gap:20px}
-.row .why{font-size:38px;line-height:1.4}
-.row .why b{font-family:var(--mono);font-size:22px;color:var(--ink-soft);display:block;margin-bottom:6px;font-weight:500;letter-spacing:.06em}
-.row .arrow{font-size:60px;color:var(--red);text-align:center;font-family:var(--hand)}
-.row .fix{background:var(--sheet);border:2px solid var(--rule);padding:26px 32px;font-size:38px;font-weight:700;line-height:1.35}
-.row .fix small{display:block;font-size:24px;font-weight:400;color:var(--ink-soft);margin-top:8px}
+.rows{display:grid;gap:100px}
+.row{display:grid;grid-template-columns:1fr 80px 1fr;align-items:center;gap:24px}
+.row .why{font-size:44px;font-weight:500;line-height:1.45;word-break:keep-all}
+.row .why b{font-family:var(--mono);font-size:28px;color:var(--pen);display:block;margin-bottom:14px;font-weight:700;letter-spacing:.06em}
+.row .arrow{font-size:72px;color:var(--red);text-align:center;font-family:var(--hand)}
+.row .fix{background:var(--sheet);border:2px solid var(--rule);padding:30px 32px;font-size:44px;font-weight:700;line-height:1.35;word-break:keep-all}
+.row .fix small{display:block;font-size:30px;font-weight:400;color:var(--ink-soft);margin-top:12px;line-height:1.45}
 
 /* 세부 문제정의 */
 .chips{display:flex;flex-wrap:wrap;gap:14px 16px}
@@ -140,16 +141,30 @@ h2 small{display:block;margin-top:14px;font-size:28px;font-weight:400;color:var(
 .flow{display:flex;align-items:center;gap:18px;font-size:30px;font-weight:600}
 .flow span{background:#fff;border:2px solid var(--rule);padding:16px 26px}
 .flow i{font-style:normal;color:var(--red);font-family:var(--hand);font-size:48px}
+.demo-context .body{display:grid;gap:44px;align-content:start;word-break:keep-all}
+.demo-context header{display:grid;gap:16px}
+.demo-context .kicker{margin:0;font-size:28px;font-weight:600;color:var(--pen)}
+.demo-context .topic{margin:0;font-size:36px;line-height:1.4;color:#33454e}
+.demo-context .prior{border-left:5px solid var(--pen);padding:14px 28px;background:var(--sheet)}
+.demo-context .prior .k{font-size:26px;color:var(--ink-soft);margin-bottom:10px}
+.demo-context .prior p{margin:0;font-size:38px;font-weight:600;line-height:1.4}
+.demo-context .facts{gap:32px}
+.demo-context .fact{gap:14px}
+.demo-context .fact .k{font-size:24px}
+.demo-context .fact .d{font-size:28px;line-height:1.45}
+.demo-context .flow{gap:14px;font-size:30px}
+.demo-context .flow span{padding:18px 20px;white-space:nowrap}
+.demo-context .flow span:last-child{border-color:var(--pen);color:var(--pen);font-weight:700}
 
 /* 마무리 */
-.closing .prof{position:absolute;left:150px;bottom:0;height:740px}
-.closing .say{position:absolute;left:820px;top:150px;right:150px;font-family:var(--hand);font-size:86px;line-height:1.25;color:var(--ink)}
-.closing .think{position:absolute;left:820px;top:470px;right:150px;background:var(--sheet);border:2px dashed var(--pen);border-radius:28px;padding:30px 40px;font-family:var(--hand);font-size:58px;line-height:1.3;color:var(--pen)}
-.closing .think b{font-weight:400;background:linear-gradient(transparent 55%,var(--hl) 55%,var(--hl) 92%,transparent 92%)}
-.missions{position:absolute;left:820px;right:150px;bottom:90px;display:flex;align-items:flex-end;gap:30px}
+.closing .prof{position:absolute;right:50px;bottom:0;height:740px}
+.closing .say{position:absolute;left:224px;top:150px;right:700px;font-family:var(--hand);font-size:86px;line-height:1.25;color:var(--ink);word-break:keep-all}
+.closing .think{position:absolute;left:224px;top:470px;right:700px;background:var(--sheet);border:2px dashed var(--pen);border-radius:28px;padding:30px 40px;font-family:var(--hand);font-size:58px;line-height:1.3;color:var(--pen);word-break:keep-all}
+.closing .think b{font-weight:400;white-space:nowrap;background:linear-gradient(transparent 55%,var(--hl) 55%,var(--hl) 92%,transparent 92%)}
+.missions{position:absolute;left:224px;right:700px;bottom:90px;display:flex;align-items:flex-end;gap:30px}
 .missions figure{margin:0;display:grid;justify-items:center;gap:6px;font-size:20px;color:var(--ink-soft)}
 .missions img{height:90px;width:auto}
-.missions .end{margin-left:auto;text-align:right;font-size:28px;font-weight:700;color:var(--ink)}
+.missions .end{margin-left:auto;text-align:right;font-size:28px;font-weight:700;color:var(--ink);white-space:nowrap}
 .missions .end small{display:block;font-family:var(--mono);font-size:18px;font-weight:500;color:var(--ink-soft);letter-spacing:.08em}
 
 /* 참고 자료 */
@@ -233,6 +248,7 @@ body.hud #hud{opacity:1}
     <div class="chain step"><div class="box">단서</div><div class="link"><span>연결 고리</span></div><div class="box">주장</div></div>
   </div>
   <img class="conan" src="img/conan.webp" alt="범인을 가리키는 코난">
+  <small class="conan-credit">© 명탐정 코난</small>
 </section>
 
 <!-- 2 고등학생 답안 -->
@@ -249,7 +265,7 @@ body.hud #hud{opacity:1}
 <!-- 3 왜 연결 고리인가 -->
 <section class="slide" data-title="가장 흔한 빈칸">
   <div class="body" style="display:grid;grid-template-columns:420px 1fr;gap:70px;align-content:start">
-    <h2 style="grid-column:1/-1">좋은 과학적 설명의 요건은 많지만,<br>가장 흔한 빈칸은 <span class="hl">연결 고리</span>입니다</h2>
+    <h2 style="grid-column:1/-1"><strong>'좋은 과학적 설명'</strong>이기 위한 여러 요건 중,<br>가장 흔히 놓치는 것은 바로 <span class="hl">'연결 고리'</span></h2>
     <ul class="reqs" style="margin:10px 0 0;padding:0">
       <li>분명한 주장</li><li>알맞은 자료</li><li>정확한 개념과 용어</li><li>반론 고려</li><li class="key">자료와 주장의 연결</li>
     </ul>
@@ -268,7 +284,7 @@ body.hud #hud{opacity:1}
       </div>
     </div>
   </div>
-  <div class="note step" style="left:1270px;top:860px;width:560px;font-size:50px;transform:rotate(-2deg);text-align:left">저희도: 너무 당연해서 안 썼다가 감점</div>
+  <div class="note step" style="left:1270px;top:860px;width:560px;font-size:50px;transform:rotate(-2deg);text-align:left">저희의 학창시절에도:<br>너무 당연해서 안 썼다가 감점</div>
 </section>
 
 <!-- 4 교육과정 -->
@@ -301,20 +317,20 @@ body.hud #hud{opacity:1}
 
 <!-- 5 왜 비워 두나 -->
 <section class="slide" data-title="왜 비워 두나">
-  <div class="body" style="display:grid;gap:56px;align-content:start;right:560px">
-    <h2>왜 연결 고리를 비워 둘까요</h2>
+  <div class="body" style="display:grid;gap:72px;align-content:start;right:470px">
+    <h2 style="font-size:68px">왜 연결 고리를 비워 둘까요</h2>
     <div class="rows">
-      <div class="row"><div class="why"><b>이유 1</b>혼자 쓰는 답안지 앞에는 “그래서 그게 왜?”라고 되묻는 상대가 없다</div><div class="arrow step">→</div><div class="fix step">되묻는 상대<small>콧대 교수가 카드마다 꼬투리를 잡는다</small></div></div>
-      <div class="row"><div class="why"><b>이유 2</b>연결 고리를 드러내는 전략을 따로 배운 적이 없다</div><div class="arrow step">→</div><div class="fix step">손으로 해 보는 전략<small>게임 속 조작이 곧 그 사고 과정</small></div></div>
+      <div class="row"><div class="why"><b>이유 1</b>혼자 쓰는 답안지 앞에는 “그래서 그게 왜?”라고<br><strong>되묻는 상대가 없다</strong></div><div class="arrow step">→</div><div class="fix step">되묻는 상대<small>콧대 교수가 카드마다 꼬투리를 잡는다</small></div></div>
+      <div class="row"><div class="why"><b>이유 2</b>연결 고리를 드러내는<br><strong>전략을 따로 배운 적이 없다</strong></div><div class="arrow step">→</div><div class="fix step">손으로 해 보는 전략<small>게임 속 조작이 곧 그 사고 과정</small></div></div>
     </div>
   </div>
-  <img class="step" src="img/prof-thinking.webp" alt="턱을 괸 콧대 교수" style="position:absolute;right:90px;bottom:0;height:820px">
+  <img class="step" src="img/prof-thinking.webp" alt="턱을 괸 콧대 교수" style="position:absolute;right:45px;bottom:0;height:600px">
 </section>
 
 <!-- 6 세부 문제정의 -->
 <section class="slide" data-title="두 가지 전략">
   <div class="body" style="display:grid;gap:36px;align-content:start">
-    <h2>연결 고리를 드러내는 여러 방법 중,<br>강철솜 미션은 두 가지에 집중합니다</h2>
+    <h2>연결 고리를 드러내는 여러 방법 중,<br><span class="hl">「서술 실험실」</span>은 두 가지에 집중합니다</h2>
     <div class="chips"><span>원리 적용하기</span><span>비교 조건 읽기</span><span>다른 설명 닫기</span><span>예측과 결과 맞대기</span><span class="on">종속 변인 번역</span><span class="on">모형화</span></div>
     <div class="two">
       <div class="wcard step">
@@ -330,21 +346,29 @@ body.hud #hud{opacity:1}
         <div class="ex">저울이 재는 범위 · 공기 중에서 줄어드는 기체는 산소뿐</div>
       </div>
     </div>
-    <p class="step" style="margin:0;font-size:36px;font-weight:700">이 둘이 문장에 드러나면, 결과 보고가 과학적 설명이 됩니다.</p>
+    <p class="step" style="margin:0;font-size:36px;font-weight:700">이 둘이 문장에 드러나면, '과학적 설명'에 가까워집니다</p>
   </div>
 </section>
 
 <!-- 7 사용 장면 -->
-<section class="slide" data-title="사용 장면">
-  <div class="body" style="display:grid;gap:64px;align-content:start">
-    <h2>중학교 3학년 과학, 질량 보존을 배운 다음<small>교과서에서 “강철솜이 공기 중의 산소와 결합한다”를 이미 배운 학생들</small></h2>
-    <div class="facts">
-      <div class="fact"><div class="k">대상</div><div class="v">중학교 3학년 과학</div><div class="d">화학 반응의 규칙 · 질량 보존</div></div>
-      <div class="fact"><div class="k">시점</div><div class="v">개념 수업 후반부</div><div class="d">또는 서술형 평가 전 한 차시</div></div>
-      <div class="fact"><div class="k">방식</div><div class="v">1인 1기기</div><div class="d">반 코드와 출석번호로 입장 · 한 판 9~12분</div></div>
-      <div class="fact"><div class="k">교사</div><div class="v">반별 결과 확인</div><div class="d">학생 답안과 판정이 교사 화면에 모인다</div></div>
+<section class="slide demo-context" data-title="시연에 앞서 · 수업 상황">
+  <div class="body">
+    <header>
+      <p class="kicker">시연에 앞서 · 가정한 수업 상황</p>
+      <h2>앱의 여러 미션 중, 오늘은 <span class="hl">강철솜 미션</span></h2>
+      <p class="topic">질량 보존과 철의 연소를 주제로 한 미션 게임</p>
+    </header>
+    <div class="prior">
+      <div class="k">교과서에서 이미 배운 내용</div>
+      <p>질량 보존 · 연소 과정에서 철과 산소의 결합</p>
     </div>
-    <div class="flow step"><span>게임 플레이</span><i>→</i><span>최종 답안 제출</span><i>→</i><span>교사 화면 히트맵</span><i>→</i><span>다음 차시 재설명</span></div>
+    <div class="facts">
+      <div class="fact"><div class="k">대상</div><div class="v">중학교 3학년 과학</div><div class="d">화학 반응의 규칙</div></div>
+      <div class="fact"><div class="k">시점</div><div class="v">서술형 평가 전<br>한 차시</div></div>
+      <div class="fact"><div class="k">방식</div><div class="v">크롬북 1인 1기기</div><div class="d">반 코드·출석번호로 입장<br>한 판 9~12분</div></div>
+      <div class="fact"><div class="k">교사</div><div class="v">학급별 결과 확인</div><div class="d">학생 답안과 판정이<br>교사 화면에 모임</div></div>
+    </div>
+    <div class="flow step"><span>게임 플레이</span><i>→</i><span>최종 답안 제출</span><i>→</i><span>교사 화면 히트맵</span><i>→</i><span>교사의 학급별 맞춤 지도</span></div>
   </div>
   <div class="src">교과서: 비상교육 『중학 과학 3』 26–27쪽 (질량 보존 법칙, 강철솜의 연소)</div>
 </section>
@@ -358,8 +382,8 @@ body.hud #hud{opacity:1}
 <!-- 12 마무리 -->
 <section class="slide closing" data-title="마무리">
   <img class="prof" src="img/prof-acknowledging.webp" alt="손을 모은 콧대 교수">
-  <div class="say">“앞으로 글 쓸 때도 내가 어깨너머로 보고 있다고 생각하게.”</div>
-  <div class="think step">‘아, 이것만 쓰면 연결이 안 드러나는구나. <b>이 결과가 무슨 뜻인지</b>, 여기서 한 줄 더 설명해야겠다.’</div>
+  <div class="say">“앞으로 글 쓸 때도 내가 어깨너머로<br>보고 있다고 생각하게.”</div>
+  <div class="think step">‘아, 이것만 쓰면 연결이 안 드러나는구나.<br><b>이 결과가 무슨 뜻인지</b>, 여기서 한 줄 더 설명해야겠다.’</div>
   <div class="missions step">
     <figure><img src="../intro/potato-silhouette.webp" alt=""><figcaption>감자 삼투</figcaption></figure>
     <figure><img src="../intro/steel-wool-silhouette.webp" alt=""><figcaption>강철솜</figcaption></figure>
