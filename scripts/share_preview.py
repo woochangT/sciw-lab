@@ -16,7 +16,7 @@ import time
 import urllib.parse
 
 COOKIE = '__Host-sciw_preview'
-API_PATHS = {'/api/sheet/classes', '/api/sheet/class', '/api/sheet/analysis'}
+API_PATHS = {'/api/sheet/classes', '/api/sheet/class', '/api/sheet/analysis', '/api/sheet/rejudge', '/api/sheet/login', '/api/sheet/session'}
 WEB_ROOTS = ('teacher/', 'intro/', 'ui/', '감자 삼투/web/', '강철솜 질량 보존/web/')
 WEB_TYPES = {'.html', '.js', '.css', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.ico', '.woff', '.woff2', '.mp4', '.webm', '.gif', '.mp3', '.json'}
 
@@ -125,7 +125,7 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlsplit(self.path)
         if parsed.scheme or parsed.netloc or parsed.fragment or (parsed.path not in API_PATHS and not web_path(parsed.path)):
             return self.reply(404, '찾을 수 없는 화면입니다.')
-        if self.command == 'POST' and parsed.path != '/api/sheet/analysis':
+        if self.command == 'POST' and parsed.path not in ('/api/sheet/analysis','/api/sheet/rejudge','/api/sheet/login'):
             return self.reply(405)
         try:
             size = int(self.headers.get('Content-Length', '0'))
@@ -133,6 +133,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(413)
             upstream = f'127.0.0.1:{self.server.upstream_port}'
             headers = {'Host': upstream, 'Sec-Fetch-Site': 'same-origin'}
+            if parsed.path in API_PATHS and self.headers.get('Authorization'):
+                headers['Authorization'] = self.headers['Authorization']
             if self.command == 'POST':
                 if not self.same_origin():
                     return self.reply(403, '같은 미리보기 화면에서 요청해 주세요.')

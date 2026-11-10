@@ -42,9 +42,21 @@ test('the class row and answer detail show the same status independently of answ
  const html=D.screen({portfolio,data,selectedClass,mission:'m02',source:'demo'});
  for(const label of ['판정 완료','판정 대기','판정 실패','판정 불가','판정 기록 없음'])assert.match(html,new RegExp(label));
  assert.match(html,/<th scope="col">AI 판정/);
- const pendingRow=html.match(/<tr><th scope="row"><b>2번<\/b>[\s\S]*?<\/tr>/)?.[0];
+ const pendingRow=html.match(/<tr id="student-answer-2"[\s\S]*?<\/tr>/)?.[0];
  assert.match(pendingRow,/submission-status written">작성/);assert.match(pendingRow,/status-pending">판정 대기/);
  assert.match(U.criterion(data,sessions[2],''),/판정 실패/);
  assert.match(U.criterion(data,sessions[2],''),/&lt;FAIL&gt;/);
  assert.doesNotMatch(U.criterion(data,sessions[2],''),/<FAIL>/);
+});
+
+test('progress uses the saved checkpoint and animates only a recent explicit pending submission',()=>{
+ const s=session('progress',1,{stage:'rebuttal',checkpoint:{point:'link'},finalAnswer:''});
+ const start={attempts:[]};
+ assert.equal(I.studentProgress(start,s,I.evaluation(start,s),'m02').reached,4);
+ assert.equal(I.studentProgress(start,{...s,checkpoint:'null'},I.evaluation(start,s),'m02').reached,3);
+ const pending=createdAt=>({attempts:[attempt('input',s,{questId:'studentInput',evaluationStage:'final',evaluationStatus:'pending',createdAt})]});
+ const active=pending(new Date().toISOString()),old=pending(new Date(Date.now()-300000).toISOString());
+ assert.equal(I.studentProgress(active,s,I.evaluation(active,s),'m02').reached,5);
+ assert.ok(I.studentProgress(active,s,I.evaluation(active,s),'m02').evaluationEnds>Date.now());
+ assert.equal(I.studentProgress(old,s,I.evaluation(old,s),'m02').evaluationEnds,0);
 });

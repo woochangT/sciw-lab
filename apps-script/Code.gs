@@ -58,18 +58,83 @@ function doPost(e) {
       authorizeTeacher_(body);
       return json_(Object.assign({ok:true}, getMissionClassData_(body.classCode, body.missionId)));
     }
-    if (body.action === 'rejudge') return json_(rejudgeFinal_(body));
+    if (body.action === 'teacherDashboardData') {
+      authorizeDashboardProxy_(body);
+      return json_(dashboardRecords_(body));
+    }
+    if (body.action === 'rejudge') {
+      authorizeDashboardProxy_(body);
+      return json_(rejudgeFinal_(body));
+    }
     if (body.action === 'judge') return json_({ok:true,result:judge_(body)});
     // Input-only teaching suggestions: never reads a class or exposes stored records.
     if (body.action === 'analyzeClass') return json_({ok:true,analysis:analyzeClass_(body)});
     const ops = body.action === 'batch' ? body.ops : [body];
     if (!Array.isArray(ops) || !ops.length || ops.length > 40) throw new Error('잘못된 기록 묶음');
     const lock = LockService.getScriptLock(); lock.waitLock(20000);
-    try { ops.forEach(applyMissionOp_); } finally {
+    const changes=[];
+    try {
+      const batch={sheets:{},sessions:new Map()};
+      for (const op of ops) {
+        const change=applyMissionOp_(op,batch);
+        if(change)changes.push(change);
+      }
+    } finally {
       try { SpreadsheetApp.flush(); } finally { lock.releaseLock(); }
     }
+    if(changes.length)publishDashboardChanges_(changes);
     return json_({ok:true,applied:ops.length});
   } catch (err) { return json_({ok:false,error:String(err && err.message || err)}); }
+}
+// Shared only by the Worker and this script; the dashboard password is never sent here.
+function authorizeDashboardProxy_(body) {
+  const expected=PropertiesService.getScriptProperties().getProperty('TEACHER_PROXY_SECRET'),actual=body.proxySecret;
+  if (!expected || expected.length < 32 || typeof actual !== 'string' || actual.length < 32 || actual.length > 256) throw new Error('교사 서버 인증 실패');
+  const want=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,expected), got=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,actual);
+  let diff=0;
+  for (let i=0;i<want.length;i++) diff|=want[i]^got[i];
+  if (diff) throw new Error('교사 서버 인증 실패');
+}
+function dashboardClassKey_(code) {
+  const m=String(code).match(/^\s*(\d{1,2})\s*(?:학년|[-_/])\s*(\d{1,3})\s*반?\s*$/);
+  return m&&+m[1]>0&&+m[1]<=3&&+m[2]>0&&+m[2]<=99?'g:'+(+m[1])+':r:'+(+m[2]):'code:'+code;
+}
+function dashboardRecords_(body) {
+  const matches=row=>row[1]&&(!body.classKey||dashboardClassKey_(row[3])===body.classKey)&&(!body.classCode||row[3]===body.classCode);
+  const missions=body.missionId?[body.missionId]:Object.keys(MISSION_SHEETS);
+  const tabs=missions.map(mission=>{
+    const sh=missionSheet_(mission),last=sh.getLastRow();
+    const rows=last<2?[]:sh.getRange(2,1,last-1,8).getDisplayValues();
+    return {mission,sh,last,rows};
+  });
+  const stamp=JSON.stringify(tabs.map(t=>[t.mission,t.rows.filter(matches)]));
+  const revision=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,stamp).map(v=>((v+256)%256).toString(16).padStart(2,'0')).join('');
+  if(body.since===revision)return {ok:true,unchanged:true,revision};
+  const records={};
+  for(const tab of tabs){
+    const spans=[];
+    tab.rows.forEach((row,i)=>{
+      if(!matches(row))return;
+      const index=i+2,prev=spans[spans.length-1];
+      if(prev&&prev[1]+1===index)prev[1]=index;else spans.push([index,index]);
+    });
+    const ranges=spans.length>6?[[2,tab.last]]:spans;
+    records[tab.mission]=[ALL_RECORD_HEADERS].concat(...ranges.map(([start,end])=>
+      tab.sh.getRange(start,1,end-start+1,ALL_RECORD_HEADERS.length).getDisplayValues().filter(matches)));
+  }
+  return {ok:true,revision,records};
+}
+function publishDashboardChanges_(changes) {
+  try{
+    const props=PropertiesService.getScriptProperties(),url=props.getProperty('TEACHER_LIVE_URL');
+    if(!url||!/^https:\/\//.test(url))return;
+    const secret=props.getProperty('TEACHER_PROXY_SECRET');
+    if(!secret||secret.length<32)return;
+    const payload=JSON.stringify({at:Date.now(),changes});
+    const signature=Utilities.computeHmacSha256Signature(payload,secret).map(v=>((v+256)%256).toString(16).padStart(2,'0')).join('');
+    const response=UrlFetchApp.fetch(url,{method:'post',contentType:'application/json',payload,headers:{'X-Sciw-Signature':signature},followRedirects:false,muteHttpExceptions:true});
+    if(response.getResponseCode()>=300)console.warn('교사 진행 알림 전송 실패: '+response.getResponseCode());
+  }catch(_){console.warn('교사 진행 알림 전송 실패');}
 }
 // 별도 키를 정적 웹 파일에 넣지 않는다. 강한 비밀값과 반·미션 매핑을 운영자가 Script Properties에 설정해야 한다.
 function authorizeTeacher_(body) {
@@ -97,14 +162,15 @@ function validateStudentCheckpoint_(checkpoint, missionId) {
 function findStudentSession_(body) {
   requireClassCode_(body.classCode);
   if (!MISSION_SHEETS[body.missionId] || !/^[1-9]\d{0,2}$/.test(String(body.studentNo || ''))) throw new Error('학급·번호·미션을 확인해 주세요.');
-  const rows = missionRows_(body.missionId).rows.filter(function(r) {
-    return r[0] === 'session' && r[3] === body.classCode && /^\d{1,3}$/.test(String(r[4])) && Number(r[4]) === Number(body.studentNo);
-  });
+  const sh=missionSheet_(body.missionId),last=sh.getLastRow();
+  const rows=(last<2?[]:sh.getRange(2,1,last-1,8).getDisplayValues()).map((data,index)=>({data,index})).filter(({data:r})=>
+    r[0]==='session'&&r[3]===body.classCode&&/^\d{1,3}$/.test(String(r[4]))&&Number(r[4])===Number(body.studentNo));
   // 새로 하기는 이전 판을 덮어쓰지 않는다. 생성 시각 기준으로 최신 판을 고른다.
-  rows.sort(function(a,b){return String(b[6]).localeCompare(String(a[6])) || String(b[7]).localeCompare(String(a[7]));});
+  rows.sort(({data:a},{data:b})=>String(b[6]).localeCompare(String(a[6]))||String(b[7]).localeCompare(String(a[7])));
   if (!rows.length) return {ok:true,schema:'student-resume-v1',session:null};
-  const row=rows[0]; let session;
-  try {session=JSON.parse(row[8]);}catch(e){throw new Error('이전 기록을 읽지 못했습니다. 담당 선생님께 알려 주세요.');}
+  const {data:row,index}=rows[0]; let session;
+  try {session=JSON.parse(sh.getRange(index+2,9,1,1).getDisplayValues()[0][0]);}catch(e){throw new Error('이전 기록을 읽지 못했습니다. 담당 선생님께 알려 주세요.');}
+  if(session.sessionId!==row[2]||session.classCode!==row[3]||session.missionId&&session.missionId!==body.missionId)throw new Error('기록이 변경되었습니다. 다시 시도해 주세요.');
   let checkpoint=session.checkpoint || null;
   if(checkpoint){try{validateStudentCheckpoint_(checkpoint,body.missionId);}catch(e){checkpoint=null;}}
   return {ok:true,schema:'student-resume-v1',session:{sessionId:row[2],classCode:body.classCode,
@@ -112,34 +178,45 @@ function findStudentSession_(body) {
     savedAt:session.checkpointSavedAt || session.updatedAt || row[7],completed:!!session.clearType}};
 }
 
-function missionSheet_(missionId) {
+function missionSheet_(missionId,sheets) {
   const name = MISSION_SHEETS[missionId]; if (!name) throw new Error('지원하지 않는 미션');
+  if(sheets&&sheets[missionId])return sheets[missionId];
   const sh = SpreadsheetApp.openById(TARGET_SPREADSHEET_ID).getSheetByName(name);
   if (!sh) throw new Error('미션 탭이 없습니다');
-  const header = sh.getRange(1,1,1,RECORD_HEADERS.length).getValues()[0].map(String);
+  const row = sh.getRange(1,1,1,ALL_RECORD_HEADERS.length).getDisplayValues()[0];
+  const header = row.slice(0,RECORD_HEADERS.length);
   if (header.join('\t') !== RECORD_HEADERS.join('\t')) throw new Error('미션 탭 헤더가 다릅니다');
-  const tail=sh.getRange(1,10,1,HISTORY_HEADERS.length).getValues()[0];
+  const tail=row.slice(RECORD_HEADERS.length);
   if(tail.some(function(v,i){return v && String(v)!==HISTORY_HEADERS[i];})) throw new Error('대화 기록 열 헤더가 다릅니다');
   if(tail.some(function(v,i){return String(v)!==HISTORY_HEADERS[i];})) sh.getRange(1,10,1,HISTORY_HEADERS.length).setValues([HISTORY_HEADERS]);
+  if(sheets)sheets[missionId]=sh;
   return sh;
 }
 function missionRows_(missionId) {
   const sh = missionSheet_(missionId), last = sh.getLastRow();
   return {sh:sh, rows:last < 2 ? [] : sh.getRange(2,1,last-1,ALL_RECORD_HEADERS.length).getDisplayValues()};
 }
-function locate_(kind,id) {
+function locate_(kind,id,sheets) {
   const hits=[];
-  Object.keys(MISSION_SHEETS).forEach(function(m) { const data=missionRows_(m); data.rows.forEach(function(r,i){if(r[0]===kind && r[1]===id) hits.push({mission:m,sh:data.sh,row:i+2,values:r});}); });
+  for(const mission of Object.keys(MISSION_SHEETS)){
+    const sh=missionSheet_(mission,sheets),last=sh.getLastRow();
+    if(last<2)continue;
+    const matches=sh.getRange(2,2,last-1,1).createTextFinder(id).matchCase(true).matchEntireCell(true).findAll();
+    for(const match of matches){
+      const row=match.getRow(),values=sh.getRange(row,1,1,ALL_RECORD_HEADERS.length).getDisplayValues()[0];
+      if(values[0]===kind&&values[1]===id)hits.push({mission,sh,row,values});
+    }
+  }
   if (hits.length > 1) throw new Error('기록 ID가 중복되어 확인이 필요합니다');
   return hits[0] || null;
 }
-function putRecord_(kind, id, record, mission, existing) {
+function putRecord_(kind, id, record, mission, existing, sheets) {
   requireClassCode_(record.classCode);
   const clean=Object.assign({},record),history=Array.isArray(clean.attempts)?clean.attempts:[];
   delete clean.attempts;
   const serialized=JSON.stringify(clean),journal=JSON.stringify(history);
   if (!id || typeof id !== 'string' || id.length > 128 || serialized.length > 45000 || journal.length>360000) throw new Error('기록이 잘못되었거나 너무 큽니다. 전송 기록을 보관하고 다시 확인해 주세요.');
-  const sh = existing ? existing.sh : missionSheet_(mission), timestamp = new Date().toISOString();
+  const sh = existing ? existing.sh : missionSheet_(mission,sheets), timestamp = new Date().toISOString();
   const row = [kind,id,String(record.sessionId || ''),String(record.classCode || ''),String(record.studentNo || ''),mission,String(record.createdAt || record.startedAt || timestamp),String(record.updatedAt || timestamp),serialized];
   const chunks=[];let offset=0;
   while(offset<journal.length){let end=Math.min(offset+45000,journal.length);const code=journal.charCodeAt(end-1);if(end<journal.length&&code>=0xD800&&code<=0xDBFF)end--;chunks.push(journal.slice(offset,end));offset=end;}
@@ -148,7 +225,9 @@ function putRecord_(kind, id, record, mission, existing) {
   const conversation=history.filter(function(a){return a.input||a.feedbackText||a.feedbackQuestion;}).map(function(a){return '['+(a.stage||'활동')+' · '+(a.questId||'')+']\n학생: '+(a.input||'입력 미기록')+'\n교수: '+([].concat(a.feedbackText||a.feedbackQuestion||'피드백 미기록').join('\n'));}).join('\n\n');
   const display=function(v){v=String(v||'');return v.charAt(0)==='='?"'"+v:v;};
   row.push(display(record.firstAnswer),display(record.finalAnswer),conversation.length>44000?conversation.slice(0,44000)+'\n[전체 대화는 history 열에 보존됨]':conversation);
-  sh.getRange(existing ? existing.row : sh.getLastRow()+1,1,1,ALL_RECORD_HEADERS.length).setNumberFormat('@').setValues([row]);
+  const rowNo=existing?existing.row:sh.getLastRow()+1;
+  sh.getRange(rowNo,1,1,ALL_RECORD_HEADERS.length).setNumberFormat('@').setValues([row]);
+  return {mission,sh,row:rowNo,values:row};
 }
 function readPayload_(record) {
   let value; try { value=JSON.parse(record[8]); } catch(e) { throw new Error('기록 payload를 읽을 수 없습니다'); }
@@ -158,21 +237,23 @@ function readPayload_(record) {
   // 이전 이관본에 JSON 문자열로 남은 필드도 새 기록과 같은 형태로 읽는다.
   return rowToObj_(Object.keys(value), Object.keys(value).map(function(k) { return value[k]; }));
 }
+function nextRecordTime_(previous){
+  const now=Date.now(),last=Date.parse(previous);
+  return new Date(last>=now&&last<now+10000?last+1:now).toISOString();
+}
 // 미션 저장을 먼저 검증한다. 두 번째 쓰기가 실패해도 재전송으로 두 저장소를 복구한다.
-function applyMissionOp_(op) {
-  writeMissionOp_(op);
-  if (op.action === 'startSession') {
-    const saved = locate_('session', op.session.sessionId);
-    const copy=readPayload_(saved.values);delete copy.attempts;upsertSession_(op.session.sessionId, copy);
-  } else if (op.action === 'updateSession') {
-    const saved = locate_('session', op.sessionId);
-    const copy=readPayload_(saved.values);delete copy.attempts;upsertSession_(op.sessionId, copy);
-
+function applyMissionOp_(op,batch) {
+  const {session,kind}=writeMissionOp_(op,batch);
+  if(op.action==='startSession'||op.action==='updateSession'){
+    const copy=Object.assign({},session);delete copy.attempts;
+    upsertSession_(session.sessionId,copy);
   }
+  if(kind)return {classCode:session.classCode,missionId:session.missionId,kind,
+    isTest:[true,1,'1','true','TRUE'].includes(session.isTest)||/^test/i.test(String(session.studentNo||''))||/^qa_/i.test(session.sessionId)};
 }
 
 // 배포 전에 시작된 판도 startSession 재전송 없이 계속 기록할 수 있다.
-function restoreLegacySession_(sid) {
+function restoreLegacySession_(sid,sheets) {
   const sh = SpreadsheetApp.openById(TARGET_SPREADSHEET_ID).getSheetByName(SHEET_SESSIONS);
   if (!sh) return null;
   const row = findRow_(sh, sid);
@@ -180,10 +261,9 @@ function restoreLegacySession_(sid) {
   const h = headers_(sh);
   const session = rowToObj_(h, sh.getRange(row, 1, 1, h.length).getValues()[0]);
   const mission = session.missionId || DEFAULT_MISSION;
-  putRecord_('session', sid, session, mission, null);
-  return locate_('session', sid);
+  return putRecord_('session',sid,session,mission,null,sheets);
 }
-function writeMissionOp_(op) {
+function writeMissionOp_(op,{sheets,sessions}) {
   if (!op || ['startSession','updateSession','logAttempt'].indexOf(op.action)<0) throw new Error('지원하지 않는 기록 작업');
   const fields=op.action==='startSession'?op.session:op.action==='updateSession'?op.fields:op.attempt;
   if (!fields || typeof fields !== 'object' || Array.isArray(fields)) throw new Error('잘못된 기록');
@@ -192,15 +272,18 @@ function writeMissionOp_(op) {
   if (fields.checkpoint !== undefined) validateStudentCheckpoint_(fields.checkpoint, fields.missionId);
   const sid=op.action==='startSession'?fields.sessionId:op.action==='updateSession'?op.sessionId:fields.sessionId;
   if (typeof sid !== 'string' || !sid || sid.length>128) throw new Error('세션 ID 오류');
-  const existing=locate_('session',sid) || (op.action==='startSession' ? null : restoreLegacySession_(sid));
+  const existing=sessions.get(sid)||locate_('session',sid,sheets)||(op.action==='startSession'?null:restoreLegacySession_(sid,sheets));
+  if(existing)sessions.set(sid,existing);
   if (op.action==='startSession') {
     const mission=fields.missionId || 'm01'; if (!MISSION_SHEETS[mission]) throw new Error('지원하지 않는 미션');
     if (existing) {
       const old=readPayload_(existing.values);
       if (existing.mission!==mission || String(old.classCode)!==String(fields.classCode) || String(old.studentNo)!==String(fields.studentNo)) throw new Error('세션 범위 충돌');
-      return; // 재시작 재전송이 기존 진행을 되돌리지 않는다.
+      return {session:old}; // 재시작 재전송이 기존 진행을 되돌리지 않는다.
     }
-    putRecord_('session',sid,Object.assign({},fields,{missionId:mission,recordSchema:'session-journal-v2',attempts:[]}),mission,null); return;
+    const session=Object.assign({},fields,{missionId:mission,recordSchema:'session-journal-v2',updatedAt:nextRecordTime_(),attempts:[]});
+    sessions.set(sid,putRecord_('session',sid,session,mission,null,sheets));
+    return {session,kind:'entered'};
   }
   if (!existing) throw new Error('세션이 없어 기록을 보류합니다');
   const old=readPayload_(existing.values), mission=existing.mission;
@@ -209,21 +292,29 @@ function writeMissionOp_(op) {
   if (op.action==='updateSession') {
     ['sessionId','missionId','classCode','studentNo'].forEach(function(k){ if (fields[k]!==undefined && String(fields[k])!==String(old[k])) throw new Error('세션 범위 변경 불가'); });
     if(Object.prototype.hasOwnProperty.call(fields,'attempts'))throw new Error('대화는 logAttempt로 기록해 주세요');
-    const merged=Object.assign({},old,fields,{sessionId:sid,missionId:mission,updatedAt:new Date().toISOString()});
+    const merged=Object.assign({},old,fields,{sessionId:sid,missionId:mission,updatedAt:nextRecordTime_(existing.values[7])});
     if (fields.finalAnswer!==undefined && fields.finalAnswer!==old.finalAnswer) {
       if (old.teacherRejudgment?.attemptId==='') delete merged.teacherRejudgment;
       if (old.teacherRejudgeRequest?.attemptId==='') delete merged.teacherRejudgeRequest;
     }
-    putRecord_('session',sid,merged,mission,existing); return;
+    sessions.set(sid,putRecord_('session',sid,merged,mission,existing,sheets));
+    const kind=merged.clearType&&!old.clearType?'completed':
+      (merged.stage!==old.stage||merged.checkpoint?.point!==old.checkpoint?.point||merged.finalAnswer!==old.finalAnswer||fields.finalJudgment!==undefined||merged.finalEvaluationStatus!==old.finalEvaluationStatus)?'updated':'';
+    return {session:merged,kind};
   }
   if (!fields.attemptId || typeof fields.attemptId!=='string') throw new Error('시도 ID 오류');
   ['missionId','classCode','studentNo'].forEach(function(k){const expected=k==='missionId' ? mission : old[k]; if(fields[k]!==undefined && String(fields[k])!==String(expected)) throw new Error('시도 범위 충돌');});
-  const previous=locate_('attempt',fields.attemptId);
-  if (previous) { if(previous.mission!==mission || previous.values[2]!==sid) throw new Error('시도 ID 충돌'); return; }
   const history=old.attempts||[];
-  if(history.some(function(a){return a.attemptId===fields.attemptId;}))return;
+  if(history.some(function(a){return a.attemptId===fields.attemptId;}))return {};
+  const previous=locate_('attempt',fields.attemptId,sheets);
+  if(previous){if(previous.mission!==mission||previous.values[2]!==sid)throw new Error('시도 ID 충돌');return {};}
   history.push(Object.assign({},fields,{missionId:mission,classCode:old.classCode,studentNo:old.studentNo,eventOrder:fields.eventOrder||history.length+1,createdAt:fields.createdAt||new Date().toISOString()}));
-  putRecord_('session',sid,Object.assign({},old,{attempts:history,recordSchema:'session-journal-v2',updatedAt:new Date().toISOString()}),mission,existing);
+  const session=Object.assign({},old,{attempts:history,recordSchema:'session-journal-v2',updatedAt:nextRecordTime_(existing.values[7])});
+  sessions.set(sid,putRecord_('session',sid,session,mission,existing,sheets));
+  const affectsFinal=/^final(?:Evaluation)?$/i.test(fields.questId||'')||
+    fields.stage==='compose'&&fields.questId==='clarify'||
+    fields.questId==='studentInput'&&(fields.evaluationStage==='final'||fields.stage==='defense'||fields.questionId==='FINAL');
+  return {session,kind:affectsFinal?'updated':''};
 }
 function getMissionClassData_(classCode, missionId) {
   const all=missionRows_(missionId).rows, sessions=all.filter(r=>r[0]==='session' && r[3]===classCode).map(readPayload_);

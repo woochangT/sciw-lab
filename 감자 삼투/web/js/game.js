@@ -1556,7 +1556,10 @@
 
   async function submitDefense() {
     const text = S.defenseText.trim();
-    const finalInputId = API.recordInput(S.session.sessionId, {stage:'defense',input:text,questionId:'FINAL',displayedPrompt:S.defenseQuestion || ''});
+    const finalInputId = API.recordInput(S.session.sessionId, {
+      stage:'defense', input:text, questionId:'FINAL', displayedPrompt:S.defenseQuestion || '',
+      ...(CFG.USE_LLM && CFG.API_URL ? {evaluationStatus:'pending'} : {})
+    });
     S.lastAnswerAttempt = finalInputId;
     closeSheet();
     S.busy = true; updateDo();

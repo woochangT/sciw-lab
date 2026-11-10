@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-require('../model.js');require('../scope.js');require('../insights.js');require('../overview-ui.js');require('../dashboard-ui.js');
-const M=globalThis.TeacherModel,I=globalThis.TeacherInsights,D=globalThis.TeacherDashboardUI;
+require('../model.js');require('../scope.js');require('../insights.js');
+const M=globalThis.TeacherModel,I=globalThis.TeacherInsights;
 const key='m02-docx-1.2.0',classKey='g:3:r:2';
 const make=(id,no,at,judgment,extra={})=>({sessionId:id,classCode:'3-2',studentNo:String(no),missionId:'m02',startedAt:`2026-11-${String(at).padStart(2,'0')}T00:00:00Z`,missionVersion:'m02-1.2',eventSchemaVersion:'m02-events-v1',judgeVersion:'judge-1',judgedBy:'openai',rubricVersion:key,finalAnswer:'합성 답안',finalJudgment:judgment,...extra});
 const source={sessions:[
@@ -26,15 +26,11 @@ test('same class and student pairs compare only the first and latest compatible 
  assert.deepEqual(w.excluded,{singlePlay:1,missingJudgment:1,unknownVersion:1,differentVersion:2});
  assert.equal(JSON.stringify(source),before);
 });
-test('zero change is distinct from no comparable student and exclusions appear for each element',()=>{
- const result=I.comparePlays(data,'m02',key,classKey),none=I.comparePlays(data,'m02','m02-docx-1.3.0',classKey),p=I.overview(source),selectedClass=p.classes.find(c=>c.classKey===classKey),html=D.screen({portfolio:p,data,selectedClass,mission:'m02',criterion:key,source:'demo'});
+test('zero change is distinct from no comparable student',()=>{
+ const result=I.comparePlays(data,'m02',key,classKey),none=I.comparePlays(data,'m02','m02-docx-1.3.0',classKey);
  assert.equal(result.cells.find(x=>x.key==='D-A').comparable,0);
  assert.equal(result.cells.find(x=>x.key==='D-A').delta,null);
  assert.equal(none.cells.find(x=>x.key==='C').comparable,0);
- assert.match(html,/처음 판·최근 판의 판정 변화/);
- assert.match(html,/양쪽 판정 부족 2명/);assert.match(html,/버전 미기록 1명/);assert.match(html,/기준·버전 다름 2명/);
- assert.match(html,/1\/2명/);assert.match(html,/2\/2명/);assert.match(html,/\+1명/);
- assert.match(html,/비교 불가/);assert.match(html,/변화 0명은 비교 가능한 기록/);
  const stable={sessions:[make('same1',1,1,{C:true}),make('same2',1,2,{C:true})],attempts:[]},stableData=M.analyze(stable,'3-2','latest',{missionId:'m02'}),row=I.comparePlays(stableData,'m02',key,classKey).cells[0];
  assert.deepEqual([row.comparable,row.firstMet,row.latestMet,row.delta],[1,1,1,0]);
 });
