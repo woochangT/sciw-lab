@@ -58,6 +58,10 @@ CORS 동작은 [Cloudflare의 공식 예제](https://developers.cloudflare.com/w
 
 대시보드는 활성 화면에서 20초마다 시트를 확인한다. 숨겨진 탭, 학생 상세, 리포트, 용어 팝업을 열었을 때는 자동 갱신을 쉬며, 학생 화면의 클릭 자체가 아니라 서버에 저장된 기록을 보여 준다.
 
+## Google Sheets 직접 조회
+
+Worker 비밀 `GOOGLE_SHEETS_API_KEY`에 Google Sheets API로 제한한 키를 설정하면 교사 조회는 `values.batchGet`으로 미션 탭을 직접 읽는다. API 키 방식은 시트의 기존 링크 접근 권한을 사용한다. 매 요청마다 시트 값을 읽으며, 키가 없는 환경은 기존 Apps Script 조회를 사용한다. 학생 저장과 재판정은 기존 Apps Script 경로를 사용한다.
+
 ## Apps Script 저장 직후 교사 화면 갱신
 
 - 기록용 Apps Script의 스크립트 속성 `TEACHER_LIVE_URL`에 운영 Worker의 `/api/sheet/changed` 전체 HTTPS 주소를 설정한다. 서명에는 기존 `TEACHER_PROXY_SECRET`을 사용한다.

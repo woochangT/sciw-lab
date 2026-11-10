@@ -165,3 +165,32 @@ test('signed save hook publishes validated notices to separate game and test roo
  assert.deepEqual(published,[['m01:false',[{missionId:'m01',classCode:'3-2',classKey:'g:3:r:2',isTest:false,kind:'entered'}]],
   ['m02:true',[{missionId:'m02',classCode:'3-3',classKey:'g:3:r:3',isTest:true,kind:'completed'}]]]);
 });
+
+test('configured teacher reads use one uncached Sheets API request for both mission tabs',async()=>{
+ const apiKey='synthetic-sheets-api-key',calls=[];
+ const handler=createHandler(async(url,opts)=>{
+  calls.push(url.searchParams.getAll('ranges'));
+  assert.equal(url.origin,'https://sheets.googleapis.com');
+  assert.match(url.pathname,/\/values:batchGet$/);
+  assert.equal(url.searchParams.get('valueRenderOption'),'FORMATTED_VALUE');
+  assert.equal(opts.headers['X-Goog-Api-Key'],apiKey);
+  assert.equal(opts.cache,'no-store');
+  const missions=url.searchParams.getAll('ranges').map(range=>range.startsWith("'감자'")?'m01':'m02');
+  return Response.json({valueRanges:missions.map(mission=>({values:toRows(fixtures[mission],mission)}))});
+ });
+ const configured={...env,GOOGLE_SHEETS_API_KEY:apiKey};
+ const list='/api/sheet/classes';
+ assert.equal((await handler(request(list,undefined,{Authorization:''}),configured)).status,401);
+ assert.equal(calls.length,0);
+ const result=await (await handler(request(list),configured)).json();
+ const expected=await (await setup().handler(request(list),env)).json();
+ assert.deepEqual(result.classes,expected.classes);
+ assert.deepEqual(result.overview,expected.overview);
+ assert.deepEqual(calls,[["'감자'!A:Q","'강철솜'!A:Q"]]);
+ assert.deepEqual(await (await handler(request(list+'?since='+result.revision),configured)).json(),
+   {ok:true,live:false,unchanged:true,revision:result.revision});
+ assert.equal(calls.length,2,'a conditional request still reads live sheet values');
+ const scoped=await (await handler(request('/api/sheet/class?classKey=g:3:r:2&missionId=m01'),configured)).json();
+ assert.deepEqual(scoped.sessions.map(s=>s.sessionId),['a','b']);
+ assert.deepEqual(calls[2],["'감자'!A:Q"]);
+});

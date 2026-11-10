@@ -5,7 +5,7 @@ import '../../teacher/evidence.js';
 import '../../teacher/insights.js';
 const M=globalThis.TeacherModel,S=globalThis.TeacherScope,E=globalThis.TeacherEvidence,I=globalThis.TeacherInsights;
 const SHEET='1oA71tk0hqCXC0ImV3c5MZq938hZFKcj2XkJnB3XNnAU';
-const MISSIONS={m01:{name:'감자 삼투',gid:'807310001'},m02:{name:'강철솜 질량 보존',gid:'807310002'}};
+const MISSIONS={m01:{tab:'감자',gid:'807310001'},m02:{tab:'강철솜',gid:'807310002'}};
 const SCRIPT='https://script.google.com/macros/s/AKfycbxS7kGYURyYRhRZHWZZw0B0sChUE5UAFP3TqUhxLcAMDty_1OGk0OrxVQzKv2RdhCG4/exec';
 const HEADERS=['recordType','recordId','sessionId','classCode','studentNo','missionId','createdAt','updatedAt','payload'];
 const HISTORY_HEADERS=['history1','history2','history3','history4','history5','history6','history7','history8','처음 생각','최종 답안','단계별 대화'];
@@ -22,8 +22,11 @@ export async function boundedText(message,limit){
   try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>limit){await reader.cancel();throw new HttpError(413,'응답 또는 요청이 너무 큽니다.')}text+=decoder.decode(value,{stream:true})}return text+decoder.decode()}
   finally{reader.releaseLock()}
 }
-export function parseRecords([head,...rows],mission){
+function validateRecordHeader(head){
   if(JSON.stringify(head?.slice(0,9))!==JSON.stringify(HEADERS)||head.slice(9).some((h,i)=>h&&h!==HISTORY_HEADERS[i]))throw new HttpError(502,'미션 탭의 제목 행을 확인해 주세요.');
+}
+export function parseRecords([head,...rows],mission){
+  validateRecordHeader(head);
   const result={sessions:[],attempts:[],invalidRows:0},seen=new Set();
   for(const values of rows){
     if(!values[1])continue;
@@ -41,16 +44,46 @@ export function parseRecords([head,...rows],mission){
   }
   return result;
 }
-export async function readSheet(fetcher,proxySecret,{missionId,classKey,classCode,since}={}){
+async function readDirectSheet(fetcher,apiKey,missions,{classKey,classCode}){
+  const url=new URL(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET}/values:batchGet`);
+  for(const mission of missions){
+    // A:Q contains the records and journal. R:T repeats them for spreadsheet readers.
+    url.searchParams.append('ranges',`'${MISSIONS[mission].tab}'!A:Q`);
+  }
+  url.searchParams.set('valueRenderOption','FORMATTED_VALUE');
+  const response=await fetcher(url,{headers:{'X-Goog-Api-Key':apiKey},cache:'no-store',signal:AbortSignal.timeout(12000)});
+  if(!response.ok)throw Error();
+  const {valueRanges}=JSON.parse(await boundedText(response,16_000_000));
+  if(!Array.isArray(valueRanges)||valueRanges.length!==missions.length)throw Error();
+  const records={},metadata=[];
+  for(const [index,mission] of missions.entries()){
+    const [head,...rows]=valueRanges[index].values||[];
+    validateRecordHeader(head);
+    const matching=rows.filter(row=>row[1]&&(classKey?S.identity(String(row[3]??'')).classKey===classKey:!classCode||String(row[3]??'')===classCode));
+    records[mission]=[head,...matching.map(row=>Array.from({length:17},(_,i)=>String(row[i]??'')))];
+    metadata.push([mission,records[mission].slice(1).map(row=>row.slice(0,8))]);
+  }
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(metadata)));
+  const revision=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
+  return {ok:true,records,revision};
+}
+
+export async function readSheet(fetcher,proxySecret,{missionId,classKey,classCode,since,apiKey}={}){
   try{
-    const res=await fetcher(SCRIPT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({action:'teacherDashboardData',proxySecret,missionId,classKey,classCode:classKey?'':classCode,since}),redirect:'follow',signal:AbortSignal.timeout(20000)});
-    if(!res.ok)throw Error();
-    const value=JSON.parse(await boundedText(res,16_000_000));
+    const missions=missionId?[missionId]:Object.keys(MISSIONS);
+    let value;
+    if(apiKey){
+      value=await readDirectSheet(fetcher,apiKey,missions,{classKey,classCode});
+    }else{
+      const response=await fetcher(SCRIPT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({action:'teacherDashboardData',proxySecret,missionId,classKey,classCode:classKey?'':classCode,since}),redirect:'follow',signal:AbortSignal.timeout(20000)});
+      if(!response.ok)throw Error();
+      value=JSON.parse(await boundedText(response,16_000_000));
+    }
     if(!value.ok)throw Error();
     const revision=/^[a-f0-9]{64}$/.test(value.revision||'')?value.revision:'';
-    if(value.unchanged===true&&revision&&since===revision)return {unchanged:true,revision};
-    const parts=(missionId?[missionId]:Object.keys(MISSIONS)).map(mission=>parseRecords(value.records[mission],mission));
+    if((apiKey||value.unchanged===true)&&revision&&since===revision)return {unchanged:true,revision};
+    const parts=missions.map(mission=>parseRecords(value.records[mission],mission));
     return {sessions:parts.flatMap(p=>p.sessions),attempts:parts.flatMap(p=>p.attempts),invalidRows:parts.reduce((n,p)=>n+p.invalidRows,0),fetchedAt:new Date().toISOString(),sheetUrl:sheetUrl(missionId||'m02'),revision};
   }catch{throw new HttpError(502,'시트 기록을 읽지 못했습니다. 잠시 후 새로고침해 주세요.')}
 }
@@ -126,11 +159,11 @@ function coreHandler(fetcher){return async(request,env)=>{
       const requested=url.searchParams.get('since'),since=/^[a-f0-9]{64}$/.test(requested||'')?requested:undefined;
       const live=Boolean(env.CLASS_PROGRESS);
       if(url.pathname.endsWith('/classes')){
-        const d=await readSheet(fetcher,env.TEACHER_PROXY_SECRET,{since});
+        const d=await readSheet(fetcher,env.TEACHER_PROXY_SECRET,{since,apiKey:env.GOOGLE_SHEETS_API_KEY});
         return json(d.unchanged?{ok:true,live,...d}:{ok:true,live,classes:catalog(d),overview:I.overview(d),fetchedAt:d.fetchedAt,sheetUrl:d.sheetUrl,invalidRows:d.invalidRows,revision:d.revision});
       }
       const scope=validScope({classKey:url.searchParams.get('classKey')||'',classCode:url.searchParams.get('classCode')||'',missionId:url.searchParams.get('missionId')||'m02',includeTests:url.searchParams.get('includeTests')==='1'});
-      const data=await readSheet(fetcher,env.TEACHER_PROXY_SECRET,{...scope,since});
+      const data=await readSheet(fetcher,env.TEACHER_PROXY_SECRET,{...scope,since,apiKey:env.GOOGLE_SHEETS_API_KEY});
       return json({ok:true,live,...(data.unchanged?data:scoped(data,scope))});
     }
     if(!allowedOrigin(origin,url))throw new HttpError(403,'같은 수업 화면에서 요청해 주세요.');
@@ -148,7 +181,7 @@ function coreHandler(fetcher){return async(request,env)=>{
       const code=typeof result.code==='string'&&/^[A-Z_]{2,40}$/.test(result.code)?result.code:'REJUDGE_UNAVAILABLE';
       return json({ok:false,code},['STALE_SUBMISSION','REJUDGE_BUSY','REJUDGE_NOT_NEEDED'].includes(code)?409:400);
     }
-    const scope=validScope(body),data=scoped(await readSheet(fetcher,env.TEACHER_PROXY_SECRET,scope),scope);
+    const scope=validScope(body),data=scoped(await readSheet(fetcher,env.TEACHER_PROXY_SECRET,{...scope,apiKey:env.GOOGLE_SHEETS_API_KEY}),scope);
     const evidence=E.build(data,scope.classCode,scope.mode,{missionId:scope.missionId,includeTests:scope.includeTests,classCodes:data.classCodes});
     if(!evidence.participants)throw new HttpError(400,'분석할 참여 기록이 없습니다.');
     const res=await fetcher(SCRIPT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'analyzeClass',evidence,regenerate:scope.regenerate}),redirect:'follow',signal:AbortSignal.timeout(120000)});
