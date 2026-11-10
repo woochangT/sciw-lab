@@ -57,3 +57,10 @@ CORS 동작은 [Cloudflare의 공식 예제](https://developers.cloudflare.com/w
 4. 암호가 시트 원문까지 보호하려면 원본 Google 시트의 링크 공유도 제한해야 한다. 원본 시트 소유자와 공동 편집자 권한을 확인한 뒤 공개 CSV 조회가 차단됐는지 확인한다.
 
 대시보드는 활성 화면에서 20초마다 시트를 확인한다. 숨겨진 탭, 학생 상세, 리포트, 용어 팝업을 열었을 때는 자동 갱신을 쉬며, 학생 화면의 클릭 자체가 아니라 서버에 저장된 기록을 보여 준다.
+
+## Apps Script 저장 직후 교사 화면 갱신
+
+- 기록용 Apps Script의 스크립트 속성 `TEACHER_LIVE_URL`에 운영 Worker의 `/api/sheet/changed` 전체 HTTPS 주소를 설정한다. 서명에는 기존 `TEACHER_PROXY_SECRET`을 사용한다.
+- Worker의 `CLASS_PROGRESS` 바인딩은 게임과 테스트 여부별 WebSocket 알림을 전달한다. 알림에는 학급, 게임, 변경 종류만 담고 학생 답안·이름·번호는 포함하지 않는다.
+- 기록용 Apps Script는 쓰기 잠금을 해제한 뒤 알림을 보낸다. 알림이 실패해도 저장 성공 응답을 반환하고 교사 화면은 20초 보조 조회로 변경을 확인한다. 변경이 없으면 답안이나 대화 기록을 다시 전송하지 않는다.
+- 배포 시 먼저 Worker를 올리고, 기록용 Apps Script 새 버전에 `TEACHER_LIVE_URL`을 설정한다. 그다음 두 게임에서 동시 입장·최종 제출을 검증하고, 각 게임 탭과 `Sessions`의 세션 ID 중복 여부와 교사 화면 반영 시간을 확인한다.

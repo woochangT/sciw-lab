@@ -2,10 +2,12 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "sciw-lab-preview",
   "account_id": "b1657b0b72f2cb39b70cf6dd4f5f4431",
-  "main": "worker.mjs",
+  "main": "runtime.mjs",
   "compatibility_date": "2026-11-02",
   "workers_dev": true,
   "preview_urls": false,
+  "durable_objects": {"bindings": [{"name":"CLASS_PROGRESS","class_name":"ClassProgress"}]},
+  "migrations": [{"tag":"v1","new_sqlite_classes":["ClassProgress"]}],
   "assets": {
     "directory": "../../.local/cloudflare-site",
     "binding": "ASSETS",

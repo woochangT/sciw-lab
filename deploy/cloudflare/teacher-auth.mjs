@@ -9,6 +9,9 @@ export async function passwordMatches(env,value){
  const key=await signKey(env.TEACHER_PROXY_SECRET),expected=await crypto.subtle.sign('HMAC',key,encoder.encode('password:'+env.TEACHER_PASSWORD));
  return crypto.subtle.verify('HMAC',key,expected,encoder.encode('password:'+value));
 }
+export async function signedProgress(env,payload,signature){
+ return /^[a-f0-9]{64}$/.test(signature||'')&&crypto.subtle.verify('HMAC',await signKey(env.TEACHER_PROXY_SECRET),bytes(signature),encoder.encode(payload));
+}
 async function sessionKey(env){
  const signing=await signKey(env.TEACHER_PROXY_SECRET);
  const derived=await crypto.subtle.sign('HMAC',signing,encoder.encode('teacher-session:'+env.TEACHER_PASSWORD));

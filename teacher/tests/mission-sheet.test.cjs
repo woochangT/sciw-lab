@@ -1,16 +1,19 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const vm=require('node:vm');const fs=require('node:fs');const crypto=require('node:crypto');
 const {evaluatorSources}=require('../../tools/export-record-apps-script.cjs');
 const proxySecret='synthetic-server-to-server-secret-only';
-function make({fetchResult}={}){
+function make({fetchResult,liveUrl=''}={}){
  const head=['recordType','recordId','sessionId','classCode','studentNo','missionId','createdAt','updatedAt','payload'];
- function sheet(rows){return {rows,deleteRows(start,count){this.rows.splice(start-1,count)},getLastRow(){return this.rows.length},getLastColumn(){return Math.max(0,...this.rows.map(r=>r.length))},getRange(row,col,n,m){const self=this;return {getValues(){return Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>self.rows[row-1+i]?.[col-1+j]??''))},getDisplayValues(){return this.getValues().map(r=>r.map(String))},setNumberFormat(){return this},setFontWeight(){return this},setValues(values){values.forEach((r,i)=>{self.rows[row-1+i]??=[];r.forEach((v,j)=>self.rows[row-1+i][col-1+j]=v)});return this},createTextFinder(value){return {matchEntireCell(){return this},findNext(){const i=self.rows.findIndex((r,i)=>i>=row-1&&i<row-1+n&&String(r[col-1])===value);return i<0?null:{getRow:()=>i+1}}}}}},setFrozenRows(){}}}
+ function sheet(rows){return {rows,deleteRows(start,count){this.rows.splice(start-1,count)},getLastRow(){return this.rows.length},getLastColumn(){return Math.max(0,...this.rows.map(r=>r.length))},getRange(row,col,n,m){const self=this;return {getValues(){return Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>self.rows[row-1+i]?.[col-1+j]??''))},getDisplayValues(){return this.getValues().map(r=>r.map(String))},setNumberFormat(){return this},setFontWeight(){return this},setValues(values){values.forEach((r,i)=>{self.rows[row-1+i]??=[];r.forEach((v,j)=>self.rows[row-1+i][col-1+j]=v)});return this},createTextFinder(value){return {matchCase(){return this},matchEntireCell(){return this},findAll(){return self.rows.flatMap((r,i)=>i>=row-1&&i<row-1+n&&String(r[col-1])===value?[{getRow:()=>i+1}]:[])},findNext(){const i=self.rows.findIndex((r,i)=>i>=row-1&&i<row-1+n&&String(r[col-1])===value);return i<0?null:{getRow:()=>i+1}}}}}},setFrozenRows(){}}}
  const sheets={'감자':sheet([head]),'강철솜':sheet([head])};let access='';
  const c={console:{log(){}},SpreadsheetApp:{flush(){},openById(){return {getSheetByName:n=>sheets[n],insertSheet:n=>(sheets[n]=sheet([]))}}},ContentService:{MimeType:{JSON:'json'},createTextOutput:s=>({setMimeType(){return s}})},PropertiesService:{getScriptProperties:()=>({getProperty:name=>name==='TEACHER_PROXY_SECRET'?proxySecret:access})},Utilities:{DigestAlgorithm:{SHA_256:'sha256'},computeDigest:(algo,val)=>Array.from(crypto.createHash(algo).update(val).digest()).map(x=>x>127?x-256:x)},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})}};
+ const originalProperty=c.PropertiesService.getScriptProperties().getProperty;
+ c.PropertiesService.getScriptProperties=()=>({getProperty:name=>name==='TEACHER_LIVE_URL'?liveUrl:originalProperty(name)});
+ c.Utilities.computeHmacSha256Signature=(payload,secret)=>Array.from(crypto.createHmac('sha256',secret).update(payload).digest());
  let locked=false;
  c.LockService={getScriptLock:()=>({waitLock(){assert.equal(locked,false);locked=true},releaseLock(){locked=false}})};
  c.UrlFetchApp={fetch(url,options){
   assert.equal(locked,false,'the evaluator must run outside the sheet lock');
-  const value=fetchResult(url,JSON.parse(options.payload));
+  const value=fetchResult(url,JSON.parse(options.payload),options);
   return {getResponseCode:()=>200,getContentText:()=>JSON.stringify(value)};
  }};
  vm.createContext(c);
@@ -34,6 +37,55 @@ test('rejudgment rejects completed, pending, unavailable and unsubmitted answers
   assert.equal(m.post(request).code,i===3?'STALE_SUBMISSION':'REJUDGE_NOT_NEEDED');
   assert.equal(JSON.stringify(m.sheets['강철솜'].rows),before);
  }
+});
+
+test('dashboard reuses the selected class revision until its own saved record changes',()=>{
+ const m=make(),scope={action:'teacherDashboardData',proxySecret,classKey:'g:3:r:2',missionId:'m02'};
+ const start=(sessionId,classCode,missionId)=>m.post({action:'startSession',session:{sessionId,classCode,missionId,studentNo:'1'}});
+ assert.equal(start('steel','3-2','m02').ok,true);
+ assert.equal(start('other','3-3','m02').ok,true);
+ const first=m.post(scope);
+ assert.match(first.revision,/^[a-f0-9]{64}$/);
+ assert.deepEqual(Object.keys(first.records),['m02']);
+ assert.deepEqual(first.records.m02.slice(1).map(row=>row[1]),['steel']);
+ assert.equal(start('potato','3-2','m01').ok,true);
+ assert.deepEqual(m.post({...scope,since:first.revision}),{ok:true,unchanged:true,revision:first.revision});
+ assert.equal(m.post({action:'updateSession',sessionId:'steel',fields:{finalAnswer:'저장한 답안'}}).ok,true);
+ const next=m.post({...scope,since:first.revision});
+ assert.notEqual(next.revision,first.revision);
+ assert.equal(JSON.parse(next.records.m02[1][8]).finalAnswer,'저장한 답안');
+});
+
+test('30 synthetic starts and submissions keep one row each; signed notices follow successful writes',()=>{
+ const sent=[],liveUrl='https://synthetic.example/api/sheet/changed';
+ const m=make({liveUrl,fetchResult(url,body,options){
+  assert.equal(url,liveUrl);
+  assert.equal(options.headers['X-Sciw-Signature'],crypto.createHmac('sha256',proxySecret).update(options.payload).digest('hex'));
+  sent.push(...body.changes);
+  return {ok:true};
+ }});
+ for(let i=1;i<=30;i++){
+  const missionId=i%2?'m01':'m02',sessionId='session-'+i;
+  const begin={action:'startSession',session:{sessionId,missionId,classCode:'3-2',studentNo:String(i)}};
+  assert.equal(m.post(begin).ok,true);
+  assert.equal(m.post(begin).ok,true);
+  assert.equal(m.post({action:'batch',ops:[
+   {action:'logAttempt',attempt:{attemptId:'answer-'+i,sessionId,input:'학생의 답안',questId:'studentInput'}},
+   {action:'logAttempt',attempt:{attemptId:'feedback-'+i,sessionId,feedbackText:'교수의 피드백',questId:'professorSpeech'}},
+   {action:'updateSession',sessionId,fields:{finalAnswer:'최종 답안',clearType:'full'}}
+  ]}).ok,true);
+ }
+ assert.equal(m.sheets.Sessions.rows.length,31);
+ for(const tab of ['감자','강철솜']){
+  assert.equal(m.sheets[tab].rows.length,16);
+  for(const row of m.sheets[tab].rows.slice(1)){
+   assert.equal(JSON.parse(row[8]).finalAnswer,'최종 답안');
+   assert.equal(JSON.parse(row[9]).length,2);
+  }
+ }
+ assert.equal(sent.filter(event=>event.kind==='entered').length,30);
+ assert.equal(sent.filter(event=>event.kind==='completed').length,30);
+ assert.ok(sent.every(event=>!Object.hasOwn(event,'studentNo')&&!Object.hasOwn(event,'sessionId')));
 });
 test('two missions save to separate tabs, retry safely, and teacher access is scoped',()=>{
  const m=make(), key='synthetic-test-key-1234567890';

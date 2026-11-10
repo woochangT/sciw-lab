@@ -10,8 +10,10 @@ const stageLabels={explore:'실험하고 있어요',claim:'처음 생각을 쓰�
 const games={m01:{name:'감자 삼투',title:'감자 속은 얼마나 진할까?',topic:'농도 차이와 물의 이동',asset:'intro/potato-silhouette.webp'},m02:{name:'강철솜 질량 보존',title:'태웠는데, 왜 더 무거워졌을까?',topic:'산소와의 결합, 측정 범위와 질량 보존',asset:'intro/steel-wool-silhouette.webp'}};
 const elements=()=>missionId()==='m01'?{C:'감자 안의 농도 결론',D:'실험에서 관찰한 질량 변화',W1:'질량 변화와 물의 이동',W2a:'물이 이동하는 방향',W2b:'안팎 농도 비교',W3:'농도 범위의 근거',WB:'질량 변화가 0인 조건'}:{C:'자신의 결론','D-A':'열린 실험의 측정값','D-B':'닫힌 실험의 측정값',W1a:'질량은 새로 생기지 않음',W1b:'산소와 철의 결합',W2a:'전체 질량이 같은 이유',W2b:'늘어난 질량의 의미'};
 let db={sessions:[],attempts:[]},sourceDB=db,data=M.analyze(db,''),classes=[],chosenClass=null,chosenMission='',phase='class',view='overview',filter='all',mode='latest',aiMode='latest',isTest=false,loading=false,request=0,controller,previousFocus,selected=null,lastSuccess=null,loadError='',invalidRows=0;
-let classGameData={},portfolioData=null,overviewGrade='',overviewMission='',overviewCriterion='',overviewTests=false,detailCriterion='',focusElement='';
-let dashPage=0,dashSize=8,dashQuery='',dashObserver=null,dashFrame=null;
+let portfolioData=null,portfolioRevision='',overviewGrade='',overviewMission='',overviewCriterion='',overviewTests=false,detailCriterion='',focusElement='';
+let dashPage=0,dashQuery='';
+const dashSize=8;
+let liveSocket=null,liveKey='',liveTimer=null,liveReconnect=null,liveSupported=false;
 const recordCache=new Map(), confirmedRejudgments=new Map(), rejudgeJobs=new Set();
 const reports=new Map(),aiJobs=new Set(),aiErrors=new Map();
 const source=()=>$('#source').value,classCode=()=>chosenClass?.classCode||'',classLabel=()=>chosenClass?.label||'',missionId=()=>chosenMission||'m02',missionName=()=>games[missionId()].name;
@@ -106,12 +108,10 @@ function bindPlanForm(form,id){if(!form)return;form.onsubmit=e=>{e.preventDefaul
 
 /* Selection, report and load flow below. */
 
-function classPortfolio(){return U.overview({value:portfolioData,grade:overviewGrade,mission:overviewMission||'m01',criterion:overviewCriterion,includeTests:overviewTests,loading})}
-function classDashboard(){return `<section class="class-overview"><div class="class-overview-heading"><span class="paper-tag">${esc(classLabel())} · 전체 게임</span><h2>게임별 수업 결과를 한눈에 살펴보세요.</h2><p>게임의 진행 현황과 저장된 수업 요약을 먼저 보고, 확인할 게임을 선택하세요.</p></div><div class="game-summary-grid">${Object.entries(games).map(([id,g])=>{const raw=classGameData[id],stat=raw?S.gameSummary(raw,chosenClass.classCodes,id,isTest):null,catalogStat=chosenClass.byMission[id],entry=readReport(id,'latest')||readReport(id,'first'),out=entry?.analysis.result,stale=Boolean(raw&&entry&&entry.basis.sourceRevision!==E.revision(M.analyze(raw,'','latest',{classCodes:chosenClass.classCodes,missionId:id,includeTests:isTest})));return `<article class="paper game-summary-card"><header><img src="${g.asset}" alt="" width="65" height="80"><div><span class="paper-tag">${g.name}</span><h3>${g.title}</h3><p>${g.topic}</p></div></header><div class="game-card-metrics"><div><strong>${stat?stat.participants:catalogStat?.numbers??'—'}</strong><span>${isTest?'테스트 번호':'참여 번호'}</span></div><div><strong>${stat?stat.written:'—'}</strong><span>최종 답안 있음</span></div><div><strong>${stat?stat.pending:'—'}</strong><span>최종 답안 없음</span></div></div><p class="game-current-summary">${stat?stat.participants?`${stat.participants}개 번호 중 ${stat.written}개에 최종 답안이 있어요. 같은 번호는 최근 판으로 한 번씩 셉니다.`:'이 반의 플레이 기록이 아직 없어요.':loading?'현재 답안 현황을 확인하고 있어요…':'답안 현황을 불러오지 못했어요. 시트를 다시 확인해 주세요.'}</p><section class="game-teaching-preview ${out?'has-summary':'no-summary'}" aria-label="${g.name} 저장된 수업 요약"><span>${out?'저장된 수업 요약':'수업 요약'}</span><h4>${out?aiText(out.headline):'아직 생성한 수업 요약이 없어요.'}</h4><p>${out?aiText(out.teachingFocus):'게임 분석 화면에서 기록을 읽고 요약·리포트를 만들 수 있어요. 게임 선택만으로 AI를 호출하지 않습니다.'}</p>${entry?`<small>${date(entry.analysis.generatedAt)} 생성 · ${entry.basis.mode==='first'?'처음 판':'최근 판'} · ${entry.basis.participants}개 번호 기준${stale?' · 새 기록 있음':''}</small>`:''}</section><footer><span>${stat?stat.plays:catalogStat?.plays??'—'}판 저장${stat?.review?' · 번호 검토 '+stat.review+'판':''}</span><button class="button" data-game="${id}">${g.name} 분석 보기 →</button></footer></article>`}).join('')}</div></section>`}
 function cacheKey(game=missionId()){return JSON.stringify([source(),chosenClass?.classKey,isTest,game])}
-function enterClassDashboard(next,game='',criterion=''){closeDetail();chosenClass=next;isTest=next.isTest;overviewTests=isTest;chosenMission=game||overviewMission||'m01';overviewMission=chosenMission;phase='dashboard';view='overview';mode='latest';filter='all';detailCriterion=criterion;focusElement='';dashPage=0;dashSize=8;dashQuery='';aiMode=readReport(chosenMission,'first')&&!readReport(chosenMission,'latest')?'first':'latest';db=recordCache.get(cacheKey())||{sessions:[],attempts:[]};loading=true;analyze();$('#content').scrollTop=0;$('#content').focus({preventScroll:true});load()}
+function enterClassDashboard(next,game='',criterion=''){closeDetail();chosenClass=next;isTest=next.isTest;overviewTests=isTest;chosenMission=game||overviewMission||'m01';overviewMission=chosenMission;phase='dashboard';view='overview';mode='latest';filter='all';detailCriterion=criterion;focusElement='';dashPage=0;dashQuery='';aiMode=readReport(chosenMission,'first')&&!readReport(chosenMission,'latest')?'first':'latest';db=recordCache.get(cacheKey())||{sessions:[],attempts:[]};loading=true;analyze();$('#content').scrollTop=0;$('#content').focus({preventScroll:true});load()}
 function returnToPortfolio(){closeDetail();overviewMission=chosenMission||overviewMission||'m01';chosenClass=null;chosenMission='';isTest=false;phase='class';view='overview';filter='all';dashPage=0;dashQuery='';db={sessions:[],attempts:[]};data=M.analyze(db,'');render();$('#content').focus({preventScroll:true});load()}
-function switchGame(game){if(!Object.hasOwn(games,game))return;closeDetail();dashPage=0;view='overview';if(phase==='class'){overviewMission=game;overviewCriterion='';render();return}chosenMission=game;overviewMission=game;detailCriterion='';focusElement='';aiMode=mode==='first'?'first':'latest';db=recordCache.get(cacheKey())||{sessions:[],attempts:[]};loading=true;analyze();$('#content').scrollTop=0;load()}
+function switchGame(game){if(!Object.hasOwn(games,game))return;closeDetail();dashPage=0;if(view==='report')view='overview';if(phase==='class'){overviewMission=game;overviewCriterion='';render();return}chosenMission=game;overviewMission=game;detailCriterion='';focusElement='';aiMode=mode==='first'?'first':'latest';db=recordCache.get(cacheKey())||{sessions:[],attempts:[]};loading=true;analyze();$('#content').scrollTop=0;load()}
 function backToClassDashboard(){returnToPortfolio()}
 function reportKey(key=scope()){return 'sciw_teaching_report_v3:'+key}
 function readReport(game=missionId(),recordMode=aiMode){const key=scope(game,recordMode);if(reports.has(key))return reports.get(key);try{const v=JSON.parse(localStorage.getItem(reportKey(key))||'null');if(v?.reportVersion===3&&v.classKey===chosenClass?.classKey&&v.missionId===game&&v.analysis?.result?.headline&&v.analysis?.result?.teachingFocus&&v.basis?.samples){reports.set(key,v);return v}}catch(_){}return null}
@@ -122,18 +122,19 @@ function materials(mission){if(mission==='m01')return `<figure class="experiment
 function reportView(){const entry=readReport();if(!entry)return teachingHero();const out=entry.analysis.result,b=entry.basis,N=b.participants;return `<div class="report-toolbar"><button class="text-button" data-back-overview>← ${esc(missionName())} 분석으로</button><button class="button secondary" data-print>리포트 인쇄 / PDF 저장 ↗</button></div><article class="lesson-report"><header class="report-cover"><span class="paper-tag">선생님의 수업 리포트</span><h2>${esc(classLabel())} · ${esc(missionName())}</h2><h3>${aiText(out.headline)}</h3><p>${aiText(out.teachingFocus)}</p><small>${date(entry.analysis.generatedAt)} 생성 · ${b.mode==='first'?'처음 한 판':'최근 판'} 기준 · ${b.participants}개 번호 / ${b.totalPlays}판 · GPT-6 Luna medium</small>${isTest?'<p class="report-test-label">테스트 기록으로 만든 기능 시연입니다.</p>':''}${reportStale(entry)?'<p class="report-new">이후 새 기록이 추가됐습니다. 이 리포트는 생성 당시의 자료를 보여줍니다.</p>':''}</header><section class="paper report-section">${conditionNotice(entry)}<span class="paper-tag">01 · 우리 반 기록</span><h2>어떤 결과를 바탕으로 했나요?</h2><p>${aiText(out.summary)}</p><div class="report-metrics"><div><b>${N}</b><span>참여 번호</span></div><div><b>${b.written}</b><span>최종 답안 있음</span></div><div><b>${b.pending}</b><span>최종 답안 없음</span></div><div><b>${b.hintOpened}</b><span>명시된 힌트 열람</span></div></div><div class="report-bars" role="img" aria-label="참여 ${N}개 번호 중 최종 답안 있음 ${b.written}개, 없음 ${b.pending}개"><div><span>최종 답안 있음</span><i><em style="width:${N?b.written/N*100:0}%"></em></i><b>${b.written} / ${N}</b></div><div><span>최종 답안 없음</span><i><em style="width:${N?b.pending/N*100:0}%"></em></i><b>${b.pending} / ${N}</b></div></div><p class="report-caption">학생 전체 재적 수가 아닌 기록된 번호 기준입니다. 힌트 열람 여부 미기록 ${b.hintUnknown}개 · 번호 검토로 집계 제외 ${b.excluded}판 · 답안 발췌 ${b.sampled}개. 발췌는 전체 답안의 비율을 나타내지 않습니다.</p></section><section class="paper report-section"><span class="paper-tag">02 · 관찰과 수업의 초점</span><h2>어떤 설명을 더 확인해 볼까요?</h2>${out.observations.map(o=>`<article class="report-observation"><h3>${aiText(o.finding)}</h3><p><b>답안 근거</b> ${aiText(o.evidence)}</p><p><b>다른 가능성·확인할 점</b> ${aiText(o.alternative)}</p></article>`).join('')}</section><section class="paper report-section"><p class="report-caption">현재 게임의 공통 수업 자료입니다. 기록마다 실험 버전·단위·조건이 다를 수 있으니 원문과 맞춰 활용하세요.</p>${materials(entry.missionId)}</section><section class="paper report-section"><span class="paper-tag">03 · 수업에서 바로 활용하기</span><h2>이 질문으로 대화를 시작해 보세요.</h2><div class="ai-teaching"><section>${out.questions.map(q=>`<article class="ai-question"><p>“${aiText(q.question)}”</p><small>${aiText(q.purpose)}</small></article>`).join('')}</section><section>${out.activities.map(a=>`<article class="ai-activity"><div><h3>${aiText(a.title)}</h3><span>${esc(a.minutes)}분</span></div><ol>${a.steps.map(t=>`<li>${aiText(t)}</li>`).join('')}</ol><small>${aiText(a.why)}</small></article>`).join('')}</section></div></section><section class="paper report-section"><span class="paper-tag">04 · 생성 당시의 답안 발췌</span><h2>리포트의 근거 문장도 함께 읽어보세요.</h2><p class="report-caption">번호를 뺀 발췌이며 문장당 최대 400자입니다. 전체 원문은 학생 답안 읽기에서 확인하세요.</p>${b.samples.map((s,i)=>`<article class="report-sample"><h3>발췌 답안 ${i+1}</h3><div class="answer-compare"><article><span>처음 생각</span><p>${esc(s.first||'미기록')}</p></article><article><span>마지막 설명</span><p>${esc(s.final||'미기록')}</p></article></div></article>`).join('')||'<p>이 기록에는 발췌할 답안이 없습니다.</p>'}</section><section class="paper report-section"><h2>선생님이 선택하기 전에</h2><ul class="report-limits">${out.limitations.map(t=>`<li>${aiText(t)}</li>`).join('')}<li>AI의 수업 제안입니다. 원문을 확인해 질문과 활동을 선택하세요. 학생의 능력 점수·순위나 자동 처방이 아닙니다.</li></ul></section></article>`}
 async function generateAnalysis(){if(phase!=='dashboard'||source()!=='sheet'||!lastSuccess||loadError||!data.stats.N)return;const key=scope();if(aiJobs.has(key))return;const existing=readReport(),payload={classKey:chosenClass.classKey,missionId:missionId(),includeTests:isTest,mode:aiMode,regenerate:Boolean(existing)},contextLabel=classLabel();aiJobs.add(key);aiErrors.delete(key);render();const abort=new AbortController(),timeout=setTimeout(()=>abort.abort(),170000);try{const response=await auth.fetch(apiBase+'/analysis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:abort.signal});const value=await response.json();if(!response.ok||!value.ok)throw Error(value.error||'분석 서버에 연결하지 못했습니다.');if(value.classKey!==payload.classKey||value.missionId!==payload.missionId||!value.analysis?.result?.teachingFocus||!value.basis?.samples)throw Error('선택한 반·게임의 리포트를 확인하지 못했습니다.');const entry={...value,reportVersion:3,classLabel:contextLabel};reports.set(key,entry);try{localStorage.setItem(reportKey(key),JSON.stringify(entry))}catch(_){showToast('리포트는 이번 화면에서만 볼 수 있어요. 브라우저 저장 공간을 확인해 주세요.')}}catch(error){aiErrors.set(key,error.name==='AbortError'?'응답이 늦어졌어요. 잠시 후 생성 버튼을 눌러 확인해 주세요.':error.message)}finally{clearTimeout(timeout);aiJobs.delete(key);if(phase==='dashboard'&&key===scope())render()}}
 function render(){
- const focused=document.activeElement,id=focused?.id,gameFocus=focused?.dataset?.switchGame,caret=id==='recordSearch'?focused.selectionStart:null;
+ const focused=document.activeElement,id=focused?.id,gameFocus=focused?.dataset?.switchGame,taskFocus=focused?.dataset?.task,caret=id==='recordSearch'?focused.selectionStart:null;
+ const analysisOpen=$('.analysis-details')?.open;
  sourceNotice();$('#dashboardNav').hidden=true;$('#changeScope').hidden=true;$('#backToClass').hidden=true;$('#scopeBadge').hidden=true;
  const game=phase==='class'?(overviewMission||'m01'):missionId();
- $('#dashboardTitle').textContent=chosenClass?classLabel():'전체 학급';$('#boardDescription').textContent=chosenClass?'학생별 답안과 설명 요소를 한눈에 확인하세요.':'각 반의 참여와 답안, 설명 요소를 비교하세요.';
+ $('#dashboardTitle').textContent=chosenClass?classLabel():'전체 학급';$('#boardDescription').textContent=chosenClass?'학생의 진행을 확인하고 다음 수업을 준비하세요.':'학급을 선택하고 참여 현황을 확인하세요.';
  $('#classNav').innerHTML=D.sidebar({portfolio:portfolioData,selectedClass:chosenClass,mission:game,grade:overviewGrade,tests:overviewTests});
  $('#content').classList.toggle('report-content',view==='report');
  if(view==='report'&&chosenClass){$('#content').innerHTML='<div class="dashboard-report">'+D.gameTabs(game)+reportView()+'</div>'}
- else $('#content').innerHTML=D.screen({portfolio:portfolioData,data,selectedClass:chosenClass,mission:game,grade:overviewGrade,tests:overviewTests,criterion:chosenClass?detailCriterion:overviewCriterion,focusElement,query:dashQuery,filter,mode,page:dashPage,pageSize:dashSize,loading,error:loadError,report:chosenClass?readReport():null,busy:aiJobs.has(scope()),aiError:aiErrors.get(scope()),aiMode,available:source()==='sheet'&&!loading&&!loadError&&lastSuccess&&data.stats.N>0,source:source()});
- bindContent();fitMatrix();
- let target=gameFocus?$('#game-'+game):id?$('#'+id):null;if(target?.disabled&&id==='matrixNext')target=$('#matrixPrev');if(target){target.focus({preventScroll:true});if(id==='recordSearch'&&caret!==null)target.setSelectionRange(caret,caret)}
+ else $('#content').innerHTML=D.screen({view,status,reportStale:chosenClass&&reportStale(readReport()),portfolio:portfolioData,data,selectedClass:chosenClass,mission:game,grade:overviewGrade,tests:overviewTests,criterion:chosenClass?detailCriterion:overviewCriterion,focusElement,query:dashQuery,filter,mode,page:dashPage,pageSize:dashSize,loading,error:loadError,report:chosenClass?readReport():null,busy:aiJobs.has(scope()),aiError:aiErrors.get(scope()),aiMode,available:source()==='sheet'&&!loading&&!loadError&&lastSuccess&&data.stats.N>0,source:source()});
+ if(analysisOpen&&$('.analysis-details'))$('.analysis-details').open=true;
+ bindContent();syncLive();
+ let target=gameFocus?$('#game-'+game):taskFocus?$('#task-'+(view==='evidence'?'overview':view)):id?document.getElementById(id):null;if(target?.disabled&&id==='matrixNext')target=$('#matrixPrev');if(target){target.focus({preventScroll:true});if(id==='recordSearch'&&caret!==null)target.setSelectionRange(caret,caret)}
 }
-function fitMatrix(){dashObserver?.disconnect();if(dashFrame)cancelAnimationFrame(dashFrame);const el=$('#matrixViewport');if(!el||el.closest('.with-comparison')||!window.ResizeObserver)return;const fit=()=>{dashFrame=requestAnimationFrame(()=>{if(!el.isConnected)return;const header=el.querySelector('thead')?.getBoundingClientRect().height||50,row=el.querySelector('tbody tr:not(.matrix-empty)')?.getBoundingClientRect().height||46;const next=Math.max(2,Math.min(20,Math.floor((el.clientHeight-header-(el.scrollWidth>el.clientWidth?16:0))/row)));if(next!==dashSize){dashSize=next;render()}})};dashObserver=new ResizeObserver(fit);dashObserver.observe(el);fit()}
 function bindContent(){
  const p=$('#playMode'),og=$('#overviewGrade'),ot=$('#overviewTests'),oc=$('#overviewCriterion'),dc=$('#detailCriterion'),q=$('#recordSearch'),f=$('#recordFilter');
  if(og)og.onchange=()=>{overviewGrade=og.value;dashPage=0;if(chosenClass)returnToPortfolio();else render()};
@@ -143,23 +144,105 @@ function bindContent(){
  $$('[data-switch-game]').forEach(button=>button.onkeydown=event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const tabs=$$('[data-switch-game]'),index=tabs.indexOf(button),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[next].focus();tabs[next].click()});
  bindPlanForm($('#content #planForm'));
 }
-function switchView(next){view=next;render();$('#content').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});$('#content').focus({preventScroll:true})}
-$('#content').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;if('page'in d){dashPage=Math.max(0,Number(d.page)||0);render();return}if(d.switchGame){switchGame(d.switchGame);return}if(d.focusElement){focusElement=d.focusElement;render();$$('.priority-element').find(x=>x.dataset.focusElement===focusElement)?.focus({preventScroll:true});return}if(d.overviewGame){overviewMission=d.overviewGame;overviewCriterion='';render();return}if(d.classKey){const next=classes.find(c=>c.classKey===d.classKey&&c.isTest===(d.classTest==='true'));if(next)enterClassDashboard(next,d.openGame||'',d.criterion||'');return}if(d.game){chosenMission=d.game;detailCriterion='';focusElement='';phase='dashboard';view='overview';filter='all';mode='latest';aiMode=readReport(d.game,'latest')?'latest':readReport(d.game,'first')?'first':'latest';db={sessions:[],attempts:[]};data=M.analyze(db,'');loading=true;render();$('#content').focus({preventScroll:true});load()}if(d.filter){filter=d.filter;render();$('.student-list')?.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'})}if(d.student){openDetail(d.student,d.session,d.element||'');if(d.element){const fold=$('#playContent .judgment-list')?.closest('details');if(fold)fold.open=true}}if('reload'in d)load(true);if('demo'in d){$('#source').value='demo';resetScope();load()}if('aiGenerate'in d)generateAnalysis();if('openReport'in d)switchView('report');if('backOverview'in d)switchView('overview');if('print'in d)window.print();if(d.editPlan){const p=readPlans().find(x=>x.id===d.editPlan),form=$('#content #planForm');if(p&&form){Object.entries(p).forEach(([k,v])=>{if(form.elements[k])form.elements[k].value=v});bindPlanForm(form,p.id);form.elements.question.focus()}}});
+function switchView(next){view=next;dashPage=0;dashQuery='';filter='all';render();$('#content').scrollTop=0;const focus=$('#task-'+next)||$('#comparisonHeading')||$('#content');if(focus.tagName==='H2')focus.tabIndex=-1;focus.focus({preventScroll:true})}
+$('#content').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;if(d.task){switchView(d.task);return}if('page'in d){dashPage=Math.max(0,Number(d.page)||0);render();return}if(d.switchGame){switchGame(d.switchGame);return}if(d.focusElement){focusElement=d.focusElement;render();$$('.priority-element').find(x=>x.dataset.focusElement===focusElement)?.focus({preventScroll:true});return}if(d.overviewGame){overviewMission=d.overviewGame;overviewCriterion='';render();return}if(d.classKey){const next=classes.find(c=>c.classKey===d.classKey&&c.isTest===(d.classTest==='true'));if(next)enterClassDashboard(next,d.openGame||'',d.criterion||'');return}if(d.game){chosenMission=d.game;detailCriterion='';focusElement='';phase='dashboard';view='overview';filter='all';mode='latest';aiMode=readReport(d.game,'latest')?'latest':readReport(d.game,'first')?'first':'latest';db={sessions:[],attempts:[]};data=M.analyze(db,'');loading=true;render();$('#content').focus({preventScroll:true});load()}if(d.filter){filter=d.filter;render();$('.student-list')?.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'})}if(d.student){openDetail(d.student,d.session,d.element||'');if(d.element){const fold=$('#playContent .judgment-list')?.closest('details');if(fold)fold.open=true}}if('reload'in d)load(true);if('demo'in d){$('#source').value='demo';resetScope();load()}if('aiGenerate'in d)generateAnalysis();if('openReport'in d)switchView('report');if('backOverview'in d)switchView('overview');if('print'in d)window.print();if(d.editPlan){const p=readPlans().find(x=>x.id===d.editPlan),form=$('#content #planForm');if(p&&form){Object.entries(p).forEach(([k,v])=>{if(form.elements[k])form.elements[k].value=v});bindPlanForm(form,p.id);form.elements.question.focus()}}});
 $$('[data-view]').forEach(b=>b.onclick=()=>switchView(b.dataset.view));$('#studentDialog').addEventListener('click',e=>{if(e.target===$('#studentDialog'))closeDetail()});$('#studentDialog').addEventListener('cancel',()=>selected=null);
-function resetScope(){closeDetail();dashPage=0;dashQuery='';loading=true;classGameData={};portfolioData=null;overviewGrade='';overviewMission='';overviewCriterion='';overviewTests=false;detailCriterion='';focusElement='';chosenClass=null;chosenMission='';phase='class';view='overview';classes=[];lastSuccess=null;loadError='';invalidRows=0;isTest=false;db={sessions:[],attempts:[]};data=M.analyze(db,'');render()}
+function resetScope(){closeDetail();dashPage=0;dashQuery='';loading=true;portfolioData=null;portfolioRevision='';overviewGrade='';overviewMission='';overviewCriterion='';overviewTests=false;detailCriterion='';focusElement='';chosenClass=null;chosenMission='';phase='class';view='overview';classes=[];lastSuccess=null;loadError='';invalidRows=0;isTest=false;db={sessions:[],attempts:[]};data=M.analyze(db,'');render()}
 function demoData(){const raw=window.TeacherDemo,db={sessions:[],attempts:[]};for(const [code,count] of [['2-3',24],['1-2',6],['1-10',4]]){const ids=new Set(raw.sessions.filter(s=>Number(s.studentNo)<=count).map(s=>s.sessionId)),prefix=code+':';db.sessions.push(...raw.sessions.filter(s=>ids.has(s.sessionId)).map(s=>({...s,classCode:code,sessionId:prefix+s.sessionId})));db.attempts.push(...raw.attempts.filter(a=>ids.has(a.sessionId)).map(a=>({...a,classCode:code,sessionId:prefix+a.sessionId,attemptId:prefix+a.attemptId})))}return db}
 const getJSON=(url,signal)=>window.TeacherConnection.getJSON(url,signal,auth.fetch);
-async function load(force=false){if(!auth.active())return;const ticket=++request;controller?.abort();controller=new AbortController();const signal=controller.signal;loading=true;loadError='';$('#refresh').disabled=true;$('#connectionState').textContent=source()==='sheet'?'Google 시트 확인 중…':source()==='demo'?'가상의 예시 수업':'브라우저 기록';const timer=setTimeout(()=>controller?.signal===signal&&controller.abort(),50000);try{let catalogValue;if(source()==='sheet'){catalogValue=await getJSON(apiBase+'/classes'+(force?'?refresh=1':''),signal)}else{sourceDB=source()==='demo'?demoData():JSON.parse(localStorage.getItem('sciw_localdb_v1')||'{"sessions":[],"attempts":[]}');sourceDB.sessions=Array.isArray(sourceDB.sessions)?sourceDB.sessions:Object.values(sourceDB.sessions||{});catalogValue={classes:S.catalog(sourceDB),overview:I.overview(sourceDB),fetchedAt:new Date().toISOString(),invalidRows:0,sheetUrl:cfg.SHEET_URL}}
- if(ticket!==request)return;classes=catalogValue.classes;portfolioData=catalogValue.overview||null;if(!overviewMission)overviewMission=Object.keys(games).find(id=>portfolioData?.classes.some(c=>!c.isTest&&c.games[id].participants))||'m02';invalidRows=catalogValue.invalidRows||0;
- if(chosenClass){const next=classes.find(c=>c.classKey===chosenClass.classKey&&c.isTest===isTest);if(next)chosenClass=next;else{chosenClass=null;chosenMission='';phase='class';db={sessions:[],attempts:[]}}}
- if(phase==='class-home'&&chosenClass){const params={classKey:chosenClass.classKey,includeTests:isTest?'1':'0'};let entries;if(source()==='sheet'){entries=await Promise.all(Object.keys(games).map(async id=>[id,await getJSON(apiBase+'/class?'+new URLSearchParams({...params,missionId:id}),signal)]))}else{entries=Object.keys(games).map(id=>{const selected=M.analyze(sourceDB,classCode(),'all',{missionId:id,classCodes:chosenClass.classCodes,includeTests:isTest});return [id,{...selected,classCodes:chosenClass.classCodes}]})}if(ticket!==request)return;classGameData=Object.fromEntries(entries)}
- if(phase==='dashboard'&&chosenClass&&chosenMission){if(source()==='sheet'){const nextDB=await getJSON(apiBase+'/class?'+new URLSearchParams({classKey:chosenClass.classKey,missionId:missionId(),includeTests:isTest?'1':'0'}),signal);if(ticket!==request)return;db=reflectRejudgments(nextDB);recordCache.set(cacheKey(),db)}else{const selected=M.analyze(sourceDB,classCode(),'all',{missionId:missionId(),classCodes:chosenClass.classCodes,includeTests:isTest});db={...selected,classCodes:chosenClass.classCodes,sheetUrl:cfg.SHEET_URL,fetchedAt:catalogValue.fetchedAt}}if(ticket!==request)return;$('#sheetLink').href=db.sheetUrl||catalogValue.sheetUrl}
- else $('#sheetLink').href=catalogValue.sheetUrl||cfg.SHEET_URL;
- lastSuccess=db.fetchedAt&&phase==='dashboard'?db.fetchedAt:catalogValue.fetchedAt;loading=false;analyze();$('#connectionState').textContent=source()==='sheet'?'✓ Google 시트 연결됨':source()==='demo'?'가상의 예시 수업':'브라우저 기록';$('#status').textContent=date(lastSuccess)+' 갱신';
- }catch(error){if(ticket!==request)return;loading=false;loadError=error.name==='AbortError'?'응답이 늦어요. 잠시 후 시트 기록 새로고침을 눌러 주세요.':error.message;$('#connectionState').textContent='시트 연결 확인 필요';$('#status').textContent=loadError;render()}finally{clearTimeout(timer);if(ticket===request){loading=false;$('#refresh').disabled=false}}}
-$('#backToClass').onclick=returnToPortfolio;$('#changeScope').onclick=returnToPortfolio;$('#refresh').onclick=()=>{closeDetail();load(true)};$('#source').onchange=()=>{recordCache.clear();resetScope();load()};
+async function load(force=false,background=false){
+ if(!auth.active())return;
+ const ticket=++request,wasError=Boolean(loadError),classView=phase==='dashboard'&&chosenClass;
+ controller?.abort();controller=new AbortController();const signal=controller.signal;
+ loading=true;$('#refresh').disabled=true;
+ if(!background)$('#connectionState').textContent='기록 확인 중…';
+ const timer=setTimeout(()=>controller?.signal===signal&&controller.abort(),50000);
+ try{
+  let unchanged=false;
+  if(source()==='sheet'){
+   const params=new URLSearchParams();
+   if(classView){params.set('classKey',chosenClass.classKey);params.set('missionId',missionId());params.set('includeTests',isTest?'1':'0')}
+   const since=classView?db.revision:portfolioRevision;
+   if(since&&!force)params.set('since',since);
+   if(force)params.set('refresh','1');
+   const value=await getJSON(apiBase+(classView?'/class':'/classes')+'?'+params,signal);
+   if(ticket!==request)return;
+   liveSupported=value.live===true;
+   unchanged=value.unchanged===true;
+   if(!unchanged){
+    if(classView){
+     db=reflectRejudgments(value);recordCache.set(cacheKey(),db);
+     if(portfolioData?.classes)portfolioData={...portfolioData,classes:portfolioData.classes.map(c=>
+      c.classKey===chosenClass.classKey&&c.isTest===isTest?{...c,games:{...c.games,[missionId()]:I.game(db,db.classCodes||c.classCodes,missionId(),isTest)}}:c)};
+    }else{
+     classes=value.classes;portfolioData=value.overview;portfolioRevision=value.revision||'';invalidRows=value.invalidRows||0;
+     if(!overviewMission)overviewMission=Object.keys(games).find(id=>portfolioData?.classes.some(c=>!c.isTest&&c.games[id].participants))||'m02';
+    }
+    $('#sheetLink').href=value.sheetUrl||cfg.SHEET_URL;
+   }
+  }else{
+   sourceDB=source()==='demo'?demoData():JSON.parse(localStorage.getItem('sciw_localdb_v1')||'{"sessions":[],"attempts":[]}');
+   sourceDB.sessions=Array.isArray(sourceDB.sessions)?sourceDB.sessions:Object.values(sourceDB.sessions||{});
+   classes=S.catalog(sourceDB);portfolioData=I.overview(sourceDB);
+   if(classView)db=M.analyze(sourceDB,classCode(),'all',{missionId:missionId(),classCodes:chosenClass.classCodes,includeTests:isTest});
+   $('#sheetLink').href=cfg.SHEET_URL;
+  }
+  lastSuccess=new Date().toISOString();loading=false;loadError='';
+  if(!unchanged||!background||wasError)analyze();
+  $('#connectionState').textContent=source()==='sheet'?'✓ Google 시트 연결됨':source()==='demo'?'가상의 예시 수업':'브라우저 기록';
+  $('#status').textContent=date(lastSuccess)+' 확인';
+ }catch(error){
+  if(ticket!==request)return;
+  loading=false;loadError=error.name==='AbortError'?'응답이 늦어요. 잠시 후 새로고침을 눌러 주세요.':error.message;
+  $('#connectionState').textContent='시트 연결 확인 필요';$('#status').textContent=loadError;render();
+ }finally{clearTimeout(timer);if(ticket===request){loading=false;$('#refresh').disabled=false}}
+}
+$('#backToClass').onclick=returnToPortfolio;$('#changeScope').onclick=returnToPortfolio;$('#refresh').onclick=()=>{closeDetail();load(true)};$('#source').onchange=()=>{liveSupported=false;recordCache.clear();resetScope();load()};
 $('#classNav').addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;if('allClasses'in button.dataset){returnToPortfolio();return}const d=button.dataset;if(d.classKey){const next=classes.find(c=>c.classKey===d.classKey&&c.isTest===(d.classTest==='true'));if(next)enterClassDashboard(next)}});
 
-const auth=window.TeacherAuth.attach({base:apiBase,open:()=>{loading=true;render();load()},close:()=>{request++;controller?.abort();sourceDB={sessions:[],attempts:[]};recordCache.clear();confirmedRejudgments.clear();reports.clear();popovers.close();$('#detail').replaceChildren();resetScope()}});
-auth.start();setInterval(()=>{if(auth.active()&&!loading&&!document.hidden&&!$('#studentDialog').open&&$('#teacherTermPopover').hidden&&view!=='report'&&document.activeElement?.tagName!=='SELECT')load()},cfg.REFRESH_MS||20000);
+function canRefresh(){return !loading&&!document.hidden&&!$('#studentDialog').open&&$('#teacherTermPopover').hidden&&view!=='report'&&document.activeElement?.tagName!=='SELECT'}
+function scheduleLiveRefresh(){
+ if(liveTimer)return;
+ liveTimer=setTimeout(()=>{
+  liveTimer=null;
+  if(!auth.active()||source()!=='sheet'||document.hidden)return;
+  if(canRefresh())load(false,true);else scheduleLiveRefresh();
+ },700);
+}
+function closeLive(){
+ const previous=liveSocket;liveSocket=null;liveKey='';previous?.close();
+ clearTimeout(liveTimer);clearTimeout(liveReconnect);liveTimer=null;
+ $('#liveMilestones').replaceChildren();
+}
+function syncLive(){
+ if(!auth.active()||source()!=='sheet'||!liveSupported){closeLive();return;}
+ const game=phase==='class'?(overviewMission||'m01'):missionId(),test=phase==='class'?overviewTests:isTest,key=game+':'+test;
+ if(liveKey===key)return;
+ closeLive();liveKey=key;
+ const socket=auth.progress({missionId:game,includeTests:test?'1':'0'});
+ if(!socket)return;
+ liveSocket=socket;
+ socket.onmessage=event=>{
+  if(liveSocket!==socket||document.hidden)return;
+  let changes;try{changes=JSON.parse(event.data)}catch{return;}
+  if(!Array.isArray(changes))return;
+  const relevant=changes.filter(change=>change?.missionId===game&&change.isTest===test&&(!chosenClass||change.classKey===chosenClass.classKey));
+  if(!relevant.length)return;
+  const area=$('#liveMilestones');
+  for(const change of relevant){
+   if(!['entered','completed'].includes(change.kind))continue;
+   const card=document.createElement('p'),kind=change.kind==='entered'?'입장':'완료';
+   card.className='live-milestone '+change.kind;
+   card.textContent=S.identity(change.classCode).label+' · 학생 '+kind;
+   while(area.children.length>=2)area.firstElementChild.remove();
+   area.append(card);setTimeout(()=>card.remove(),4200);
+  }
+  scheduleLiveRefresh();
+ };
+ socket.onclose=()=>{if(liveSocket===socket)liveReconnect=setTimeout(()=>{liveKey='';syncLive()},15000)};
+}
+const auth=window.TeacherAuth.attach({base:apiBase,open:()=>{loading=true;render();load()},close:()=>{liveSupported=false;closeLive();request++;controller?.abort();sourceDB={sessions:[],attempts:[]};recordCache.clear();confirmedRejudgments.clear();reports.clear();popovers.close();$('#detail').replaceChildren();resetScope()}});
+auth.start();
+setInterval(()=>{if(auth.active()&&source()==='sheet'&&canRefresh())load(false,true)},cfg.REFRESH_MS||20000);
+document.addEventListener('visibilitychange',()=>{if(auth.active()&&source()==='sheet'&&canRefresh())load(false,true)});
 })();

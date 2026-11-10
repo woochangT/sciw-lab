@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
+import {createHmac} from 'node:crypto';
 import {issueToken} from './teacher-auth.mjs';
 import {createHandler,parseRecords,scoped,catalog} from './worker.mjs';
 const root=new URL('../../',import.meta.url);
@@ -60,9 +61,11 @@ test('class catalog, scoped aliases and evidence match the existing local implem
  const p=spawnSync('python3',['-c',script],{cwd:root,input:JSON.stringify(data),encoding:'utf8'});assert.equal(p.status,0,p.stderr);
  const local=JSON.parse(p.stdout);assert.deepEqual(selected.sessions,local.sessions);assert.deepEqual(selected.attempts,local.attempts);assert.deepEqual(selected.classCodes.sort(),local.classCodes.sort());
 });
-test('authenticated hosted GET reads both private tabs and filters class/game',async()=>{
+test('authenticated hosted GET asks for the selected mission and class',async()=>{
  const s=setup(),res=await s.handler(request('/api/sheet/class?classKey=g:3:r:2&missionId=m02'),env),value=await res.json();
  assert.equal(res.status,200);assert.deepEqual(value.sessions.map(s=>s.sessionId),['d']);assert.equal(s.calls.length,1);assert.equal(res.headers.get('Cache-Control'),'private, no-store');
+ const payload=JSON.parse(s.calls[0].opts.body);
+ assert.equal(payload.classKey,'g:3:r:2');assert.equal(payload.missionId,'m02');
 });
 test('class overview is aggregated without student answers and does not generate an AI request',async()=>{
  const s=setup(),res=await s.handler(request('/api/sheet/classes'),env),v=await res.json();
@@ -138,4 +141,27 @@ test('teacher login blocks records and rejudgment until a valid unexpired sessio
  assert.equal((await s.handler(request('/api/sheet/session',undefined,{Authorization:'Bearer '+credentials.token}),env)).status,200);
  assert.equal((await s.handler(request(list,undefined,{Authorization:'Bearer '+credentials.token}),env)).status,200);
  assert.equal(s.calls.length,1);
+});
+
+test('unchanged teacher polls return the revision without records',async()=>{
+ const revision='a'.repeat(64),handler=createHandler(async(_url,{body})=>{
+  assert.deepEqual(JSON.parse(body),{action:'teacherDashboardData',proxySecret:env.TEACHER_PROXY_SECRET,missionId:'m02',classKey:'g:3:r:2',classCode:'',since:revision});
+  return Response.json({ok:true,unchanged:true,revision});
+ });
+ const response=await handler(request('/api/sheet/class?classKey=g:3:r:2&missionId=m02&since='+revision),env);
+ assert.deepEqual(await response.json(),{ok:true,live:false,unchanged:true,revision});
+});
+
+test('signed save hook publishes validated notices to separate game and test rooms',async()=>{
+ const published=[],handler=createHandler(()=>assert.fail('hook must not read Sheets'));
+ const bindings={...env,CLASS_PROGRESS:{getByName:key=>({publish:async changes=>published.push([key,changes])})}};
+ const changes=[{missionId:'m01',classCode:'3-2',isTest:false,kind:'entered',answer:'never forward'},
+  {missionId:'m02',classCode:'3-3',isTest:true,kind:'completed'}];
+ const payload=JSON.stringify({at:Date.now(),changes});
+ const send=signature=>handler(new Request('https://preview.example/api/sheet/changed',{method:'POST',headers:{'X-Sciw-Signature':signature},body:payload}),bindings);
+ assert.equal((await send('bad')).status,401);assert.deepEqual(published,[]);
+ const signature=createHmac('sha256',env.TEACHER_PROXY_SECRET).update(payload).digest('hex');
+ assert.equal((await send(signature)).status,200);
+ assert.deepEqual(published,[['m01:false',[{missionId:'m01',classCode:'3-2',classKey:'g:3:r:2',isTest:false,kind:'entered'}]],
+  ['m02:true',[{missionId:'m02',classCode:'3-3',classKey:'g:3:r:3',isTest:true,kind:'completed'}]]]);
 });

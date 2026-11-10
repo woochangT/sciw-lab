@@ -123,7 +123,9 @@
       const work = () => drain(Boolean(options.keepalive));
       running = (root.navigator?.locks ? root.navigator.locks.request('sciw-records:' + queueKey,work) : work()).catch(error => {
         status('서버 저장 실패 · 기록 보관 후 재시도 중');
-        backoff = Math.min(backoff * 2,30000); clearTimeout(timer); timer = setTimeout(() => flush(),backoff);
+        backoff = Math.min(backoff * 2,30000);
+        const delay = Math.round(backoff * (0.75 + Math.random() * 0.25));
+        clearTimeout(timer); timer = setTimeout(() => flush(),delay);
       }).finally(() => { running = null; });
       return running;
     }

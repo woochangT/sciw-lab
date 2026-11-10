@@ -1,4 +1,4 @@
-import {configured,hasSession,issueToken,passwordMatches} from './teacher-auth.mjs';
+import {configured,hasSession,issueToken,passwordMatches,signedProgress} from './teacher-auth.mjs';
 import '../../teacher/model.js';
 import '../../teacher/scope.js';
 import '../../teacher/evidence.js';
@@ -11,7 +11,7 @@ const HEADERS=['recordType','recordId','sessionId','classCode','studentNo','miss
 const HISTORY_HEADERS=['history1','history2','history3','history4','history5','history6','history7','history8','처음 생각','최종 답안','단계별 대화'];
 const JSON_FIELDS=['stageTimes','clueCards','modelCards','questPassed','finalJudgment','errorCounts','hintMax','judgment','extra'];
 const PAGES_ORIGIN='https://woochangt.github.io';
-const API_PATHS=new Map([['/api/sheet/login','POST'],['/api/sheet/session','GET'],['/api/sheet/classes','GET'],['/api/sheet/class','GET'],['/api/sheet/analysis','POST'],['/api/sheet/rejudge','POST']]);
+const API_PATHS=new Map([['/api/sheet/login','POST'],['/api/sheet/session','GET'],['/api/sheet/classes','GET'],['/api/sheet/class','GET'],['/api/sheet/analysis','POST'],['/api/sheet/rejudge','POST'],['/api/sheet/live','GET'],['/api/sheet/changed','POST']]);
 const allowedOrigin=(origin,url)=>origin===url.origin||origin===PAGES_ORIGIN;
 const sheetUrl=m=>`https://docs.google.com/spreadsheets/d/${SHEET}/edit#gid=${MISSIONS[m].gid}`;
 class HttpError extends Error{constructor(status,message){super(message);this.status=status}}
@@ -41,15 +41,17 @@ export function parseRecords([head,...rows],mission){
   }
   return result;
 }
-export async function readSheet(fetcher,proxySecret){
+export async function readSheet(fetcher,proxySecret,{missionId,classKey,classCode,since}={}){
   try{
     const res=await fetcher(SCRIPT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({action:'teacherDashboardData',proxySecret}),redirect:'follow',signal:AbortSignal.timeout(20000)});
+      body:JSON.stringify({action:'teacherDashboardData',proxySecret,missionId,classKey,classCode:classKey?'':classCode,since}),redirect:'follow',signal:AbortSignal.timeout(20000)});
     if(!res.ok)throw Error();
     const value=JSON.parse(await boundedText(res,16_000_000));
     if(!value.ok)throw Error();
-    const parts=Object.keys(MISSIONS).map(mission=>parseRecords(value.records[mission],mission));
-    return {sessions:parts.flatMap(p=>p.sessions),attempts:parts.flatMap(p=>p.attempts),invalidRows:parts.reduce((n,p)=>n+p.invalidRows,0),fetchedAt:new Date().toISOString(),sheetUrl:sheetUrl('m02')};
+    const revision=/^[a-f0-9]{64}$/.test(value.revision||'')?value.revision:'';
+    if(value.unchanged===true&&revision&&since===revision)return {unchanged:true,revision};
+    const parts=(missionId?[missionId]:Object.keys(MISSIONS)).map(mission=>parseRecords(value.records[mission],mission));
+    return {sessions:parts.flatMap(p=>p.sessions),attempts:parts.flatMap(p=>p.attempts),invalidRows:parts.reduce((n,p)=>n+p.invalidRows,0),fetchedAt:new Date().toISOString(),sheetUrl:sheetUrl(missionId||'m02'),revision};
   }catch{throw new HttpError(502,'시트 기록을 읽지 못했습니다. 잠시 후 새로고침해 주세요.')}
 }
 export function catalog(data){return S.catalog({...data,sessions:data.sessions.filter(s=>String(s.classCode||'').trim())})}
@@ -65,6 +67,7 @@ function validScope(body){
   return {classKey,classCode,missionId,mode,includeTests,regenerate};
 }
 function json(value,status=200){return Response.json(value,{status,headers:{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow, noarchive'}})}
+const progressRoom=(env,mission,isTest)=>env.CLASS_PROGRESS.getByName(mission+':'+isTest);
 function coreHandler(fetcher){return async(request,env)=>{
   const url=new URL(request.url);
   try{
@@ -81,6 +84,32 @@ function coreHandler(fetcher){return async(request,env)=>{
     if(!method)throw new HttpError(404,'지원하지 않는 조회');
     if(request.method!==method)throw new HttpError(405,'지원하지 않는 요청');
     if(!configured(env))throw new HttpError(503,'교사 암호 설정을 확인해 주세요.');
+    if(url.pathname==='/api/sheet/changed'){
+      if(!env.CLASS_PROGRESS)throw new HttpError(503,'실시간 알림을 사용할 수 없습니다.');
+      const raw=await boundedText(request,4096);
+      if(!await signedProgress(env,raw,request.headers.get('X-Sciw-Signature')))throw new HttpError(401,'알림 요청을 확인할 수 없습니다.');
+      let event;try{event=JSON.parse(raw)}catch{throw new HttpError(400,'알림 형식이 잘못되었습니다.');}
+      if(!Number.isFinite(event?.at)||Math.abs(Date.now()-event.at)>60000||!Array.isArray(event.changes)||event.changes.length>40)throw new HttpError(400,'알림 형식이 잘못되었습니다.');
+      const grouped=new Map();
+      for(const change of event.changes){
+        if(!/^[1-3]-[1-9]\d?$/.test(change?.classCode||'')||!Object.hasOwn(MISSIONS,change.missionId)||!['entered','completed','updated'].includes(change.kind)||typeof change.isTest!=='boolean')throw new HttpError(400,'알림 형식이 잘못되었습니다.');
+        const key=change.missionId+':'+change.isTest;
+        if(!grouped.has(key))grouped.set(key,[]);
+        grouped.get(key).push({classKey:S.identity(change.classCode).classKey,classCode:change.classCode,missionId:change.missionId,isTest:change.isTest,kind:change.kind});
+      }
+      await Promise.all([...grouped].map(([key,changes])=>env.CLASS_PROGRESS.getByName(key).publish(changes)));
+      return json({ok:true});
+    }
+    if(url.pathname==='/api/sheet/live'){
+      if(!env.CLASS_PROGRESS||request.headers.get('Upgrade')?.toLowerCase()!=='websocket')throw new HttpError(426,'실시간 연결을 열 수 없습니다.');
+      if(!allowedOrigin(origin,url))throw new HttpError(403,'같은 수업 화면에서 요청해 주세요.');
+      const [protocol,token,extra]=(request.headers.get('Sec-WebSocket-Protocol')||'').split(',').map(v=>v.trim());
+      if(protocol!=='sciw-progress'||!token||extra||!await hasSession(new Request(request.url,{headers:{Authorization:'Bearer '+token}}),env))throw new HttpError(401,'교사 암호를 입력해 주세요.');
+      const mission=url.searchParams.get('missionId');
+      if(!Object.hasOwn(MISSIONS,mission))throw new HttpError(400,'게임을 선택해 주세요.');
+      const headers=new Headers({Upgrade:'websocket','X-Sciw-Expiry':token.split('.')[0]});
+      return progressRoom(env,mission,url.searchParams.get('includeTests')==='1').fetch(new Request(request.url,{headers}));
+    }
     if(url.pathname==='/api/sheet/login'){
       if(!allowedOrigin(origin,url))throw new HttpError(403,'같은 수업 화면에서 요청해 주세요.');
       if(request.headers.get('Content-Type')?.split(';')[0]!=='application/json')throw new HttpError(400,'잘못된 로그인 요청입니다.');
@@ -94,9 +123,15 @@ function coreHandler(fetcher){return async(request,env)=>{
     if(!await hasSession(request,env))throw new HttpError(401,'교사 암호를 입력해 주세요.');
     if(url.pathname==='/api/sheet/session')return json({ok:true});
     if(request.method==='GET'&&['/api/sheet/classes','/api/sheet/class'].includes(url.pathname)){
-      if(url.pathname.endsWith('/classes')){const d=await readSheet(fetcher,env.TEACHER_PROXY_SECRET);return json({ok:true,classes:catalog(d),overview:I.overview(d),fetchedAt:d.fetchedAt,sheetUrl:d.sheetUrl,invalidRows:d.invalidRows})}
+      const requested=url.searchParams.get('since'),since=/^[a-f0-9]{64}$/.test(requested||'')?requested:undefined;
+      const live=Boolean(env.CLASS_PROGRESS);
+      if(url.pathname.endsWith('/classes')){
+        const d=await readSheet(fetcher,env.TEACHER_PROXY_SECRET,{since});
+        return json(d.unchanged?{ok:true,live,...d}:{ok:true,live,classes:catalog(d),overview:I.overview(d),fetchedAt:d.fetchedAt,sheetUrl:d.sheetUrl,invalidRows:d.invalidRows,revision:d.revision});
+      }
       const scope=validScope({classKey:url.searchParams.get('classKey')||'',classCode:url.searchParams.get('classCode')||'',missionId:url.searchParams.get('missionId')||'m02',includeTests:url.searchParams.get('includeTests')==='1'});
-      return json({ok:true,...scoped(await readSheet(fetcher,env.TEACHER_PROXY_SECRET),scope)});
+      const data=await readSheet(fetcher,env.TEACHER_PROXY_SECRET,{...scope,since});
+      return json({ok:true,live,...(data.unchanged?data:scoped(data,scope))});
     }
     if(!allowedOrigin(origin,url))throw new HttpError(403,'같은 수업 화면에서 요청해 주세요.');
     if(request.headers.get('Content-Type')?.split(';')[0]!=='application/json')throw new HttpError(400,'잘못된 분석 요청입니다.');
@@ -113,7 +148,7 @@ function coreHandler(fetcher){return async(request,env)=>{
       const code=typeof result.code==='string'&&/^[A-Z_]{2,40}$/.test(result.code)?result.code:'REJUDGE_UNAVAILABLE';
       return json({ok:false,code},['STALE_SUBMISSION','REJUDGE_BUSY','REJUDGE_NOT_NEEDED'].includes(code)?409:400);
     }
-    const scope=validScope(body),data=scoped(await readSheet(fetcher,env.TEACHER_PROXY_SECRET),scope);
+    const scope=validScope(body),data=scoped(await readSheet(fetcher,env.TEACHER_PROXY_SECRET,scope),scope);
     const evidence=E.build(data,scope.classCode,scope.mode,{missionId:scope.missionId,includeTests:scope.includeTests,classCodes:data.classCodes});
     if(!evidence.participants)throw new HttpError(400,'분석할 참여 기록이 없습니다.');
     const res=await fetcher(SCRIPT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'analyzeClass',evidence,regenerate:scope.regenerate}),redirect:'follow',signal:AbortSignal.timeout(120000)});
@@ -141,6 +176,7 @@ export function createHandler(fetcher){
         response=new Response(null,{status:204,headers:{'Access-Control-Allow-Methods':method,'Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Max-Age':'600','Cache-Control':'private, no-store'}});
       }
     }else response=await handle(request,env);
+    if(response.status===101)return response;
     const headers=new Headers(response.headers);
     headers.append('Vary','Origin');
     if(allowedOrigin(origin,url))headers.set('Access-Control-Allow-Origin',origin);
