@@ -531,6 +531,7 @@
   function updateSession(fields, immediate) { if (S.sessionId) API.updateSession(S.sessionId, fields, immediate); }
   // 시트(Apps Script) 열 이름에 맞춘다: diag→diagnosis, hint→hintLevel, elements→judgment. 나머지 값은 extra 열에 모인다.
   function logAttempt(o) {
+    if(S.restoring)return;
     if (!S.sessionId) return;
     const { diag, hint, elements, ...rest } = o;
     const a = Object.assign({ attemptId: API.uid('a'), sessionId: S.sessionId, missionId: M.id, missionVersion: 'm02-1.2', hintSchemaVersion: 'm02-note-pages-v1', rubricVersion: RUBRIC.VERSION, classCode: S.classCode, studentNo: S.studentNo, createdAt: new Date().toISOString() }, rest);
@@ -1079,15 +1080,17 @@
   }
 
   /* ───────── 2. 주장 (보완안 1: 처음 답을 학생이 직접 쓴다) ───────── */
-  async function openClaimFlow() {
+  async function openClaimFlow(restoredText = '') {
+    if(typeof restoredText !== 'string')restoredText='';
     if (S.stage !== 'explore' || !S.boardOpen) return;
+    S.resumePoint = 'first';
     setStage('claim');
     $('#board').onclick = null;
     glow(null);
     setNote('왜 무거워졌는지 내 생각 쓰기', 'topLeft');
     await say([RUBRIC.STAGES.first.question, ...M.lines.firstAsk.slice(1)], { center: true });
     openReply({
-      text: true, rows: 3, send: '교수님께 말하기', underBoard: true,
+      text: true, rows: 3, send: '교수님께 말하기', underBoard: true, value:restoredText,
       onSubmit: async ({ text }) => {
         const r = await evaluateText('first', text);
         logAttempt(Object.assign({stage:'claim',questId:'first',input:text,diag:r.diag,pass:r.pass},judgmentRecord(r)));
@@ -1104,6 +1107,7 @@
   }
 
   function openClaimBoard() {
+    S.resumePoint = 'claim';
     const b = $('#board');
     b.className = 'board big';
     b.innerHTML = `
@@ -1179,6 +1183,7 @@
 
   /* ───────── 3. 드러내기 ───────── */
   async function startRebuttal() {
+    S.resumePoint = 'scope';
     setStage('rebuttal');
     setNote(''); // 콧대가 솟고 꼬투리가 적히는 동안에는 학생이 할 일이 없다
     renderSmallBoard();
@@ -1758,6 +1763,7 @@
   }
   // 다음 꼬투리로: 카드가 있으면 뒤집어 보이고, 실험실로 돌아와 현미경으로 보낸다
   async function nextGap(i) {
+    S.resumePoint = 'scope';
     setNote(''); // 카드를 뒤집고 실험실로 돌아오는 동안에는 숨긴다
     if (S.tray.includes(M.links[i].data)) await openGap(i);
     exitArena();
@@ -1781,6 +1787,7 @@
   }
 
   async function askLink(i) {
+    S.resumePoint = 'link';
     const L = M.links[i];
     S.lensOn = null;
     if (!S.cards[L.data].mis) await openGap(i); // 현미경에서 앞면을 얻은 카드는 이제 뒤집는다
@@ -1825,6 +1832,7 @@
   async function passLink(i) {
     setNote(''); // 콧대가 꺾이는 장면 동안에는 숨긴다
     S.link = i < M.links.length - 1 ? i + 1 : null;
+    S.resumePoint = S.link === null ? 'combine' : 'scope';
     S.lensOn = null;
     renderGap(i, 'done');
     renderTray();
@@ -1840,6 +1848,7 @@
 
   /* ───────── 합치기: 세 줄이 다 이어지면 학생의 설명대로 두 실험을 장면으로 확인해 준다 ───────── */
   async function startCombine() {
+    S.resumePoint = 'combine';
     S.linkBoard = false;
     $('#stage').classList.remove('spot');
     const b = $('#board');
@@ -1921,7 +1930,8 @@
     const c = S.cards[id]; const L = M.links.find((x) => x.data === id);
     return `<div class="card k-${c.kind} look-${c.look || 'slate'} shelf-card ${L ? 'has-back' : ''}" data-card="${id}" tabindex="0"><span>${esc(L ? L.chip.join(' ') : c.text)}</span>${L ? `<button type="button" class="curl-btn" data-back="${id}" aria-label="뒷면 보기"><i class="curl-label">뒷면</i><i class="curl-flap">${ART.cardCorner()}</i></button>` : ''}</div>`;
   }
-  async function startCompose() {
+  async function startCompose(restored = null) {
+    S.resumePoint = 'compose';
     setStage('defense');
     S.phase = 'compose';
     S.composeStart = now();
@@ -1975,7 +1985,7 @@
       $('#backPeek').hidden = true; // 쓰기 시작하면 뒷면이 덮인다
       syncCorners();
       S.lastInput = now(); $('#finalSubmit').disabled = S.submitting || ta.value.trim().length < 1;
-      try { sessionStorage.setItem(finalDraftKey(), ta.value); } catch (err) { /* 저장소를 못 쓰는 브라우저 */ }
+      try { if(!API.isExperience) sessionStorage.setItem(finalDraftKey(), ta.value); } catch (err) { /* 저장소를 못 쓰는 브라우저 */ }
     });
     ta.addEventListener('blur', () => { S.caret = ta.selectionStart; });
     // 혼자 힘으로 쓸 때는 붙여넣기와 끌어다 놓기를 막는다
@@ -1988,8 +1998,10 @@
     $('#finalSubmit').addEventListener('click', submitFinal);
     // 판정을 기다리다 창을 새로 고쳤어도, 같은 학생이 이 화면에 다시 오면 쓰던 답이 돌아온다
     let saved = '';
-    try { saved = sessionStorage.getItem(finalDraftKey()) || ''; } catch (err) { /* 저장소를 못 쓰는 브라우저 */ }
+    try { if(!API.isExperience) saved = sessionStorage.getItem(finalDraftKey()) || ''; } catch (err) { /* 저장소를 못 쓰는 브라우저 */ }
+    if (restored) saved = restored.text || '';
     if (saved) { ta.value = saved; ta.dispatchEvent(new Event('input')); }
+    if(restored){ S.answerOrigins=restored.origins || Array(saved.length).fill('typed');S.answerSnapshot=saved;$('#ownMode').checked=!!restored.ownMode;setOwnMode(!!restored.ownMode); }
     setNote('처음부터 끝까지 설명하기', 'belowProf');
     await say(M.lines.composeAsk, { center: true });
     say(M.lines.hintOpen);
@@ -2296,6 +2308,7 @@
     btn.disabled = true;
     btn.querySelector('.label').textContent = '제출하는 중…';
     if (S.sessionId) API.updateSession(S.sessionId, { submittedToTeacher: true, submittedAt: new Date().toISOString() }, true);
+    API.captureProgress();
     const saved = await API.whenSaved(S.sessionId, 20000);
     if (!saved) {
       btn.disabled = false;
@@ -2309,18 +2322,20 @@
     wrap.classList.add('submitted');
     wrap.innerHTML = `
       <div class="top show"><div class="professor-art" data-expression="acknowledging"></div>
-        <div class="say">${esc(M.lines.submitted)}</div></div>
+        <div class="say">${esc(API.isExperience ? '체험을 마쳤어요. 플레이 기록은 저장하지 않았어요.' : M.lines.submitted)}</div></div>
       <div class="btns two show"><button type="button" class="ghost" id="exitBtn">나가기</button><button type="button" id="againBtn">다시하기</button></div>`;
     $('#againBtn').addEventListener('click', () => location.reload());
     $('#exitBtn').addEventListener('click', () => { location.href = '../../index.html'; });
     typeOut(prepType(wrap.querySelector('.say')), 60);
   }
-  function finish(type, text, r) {
+  function finish(type, text, r, restoring = false) {
+    S.resumePoint = 'complete';
+    S.resumeResult = {type,text,result:{elements:r.elements,highlights:r.highlights,ask:r.ask,path:r.path}};
     S.phase = 'complete';
     const offset = $('#answer').value.indexOf(text);
     const hasCard = RUBRIC.cardSpans(S.answerOrigins || [], offset, text.length).length > 0;
     const own = S.ownMode && !hasCard && type === 'full';
-    updateSession(Object.assign({ clearType: type, finalAnswer: text, finalJudgment: r.elements, path: r.path || '', ownReward: own, endedAt: new Date().toISOString() }, judgmentRecord(r)), true);
+    if(!restoring) updateSession(Object.assign({ clearType: type, finalAnswer: text, finalJudgment: r.elements, path: r.path || '', ownReward: own, endedAt: new Date().toISOString() }, judgmentRecord(r)), true);
     API.flush();
     const { finalHTML, praise, pops } = aiFeedback(text, r);
     // 게임 중 교수의 nextQuestion과 결과 페이지의 안내 문체를 분리한다.
@@ -2340,7 +2355,7 @@
       E6: '다음엔 실험 결과와 설명이 서로 맞는지 확인해 보세요.'
     };
     const missLine = type === 'partial' ? (resultNextSteps[r.ask] || '다음엔 숫자가 무슨 뜻인지까지 설명해 보세요.') : '';
-    logAttempt({stage:'compose',questId:'resultFeedback',feedbackText:[type === 'full' ? M.lines.clearFull : M.lines.clearPartial,...praise,...pops,missLine].filter(Boolean),feedbackSource:'result'});
+    if(!restoring) logAttempt({stage:'compose',questId:'resultFeedback',feedbackText:[type === 'full' ? M.lines.clearFull : M.lines.clearPartial,...praise,...pops,missLine].filter(Boolean),feedbackSource:'result'});
     const first = S.firstAnswer || '(없음)';
     $('#clearScreen .wrap').innerHTML = `
       <div class="top rv"><div class="professor-art" data-expression="${type === 'full' ? 'acknowledging' : 'skeptical'}"></div>
@@ -2357,8 +2372,9 @@
         <div class="btns"><button type="button" id="submitBtn" disabled><span class="label">선생님께 제출하기</span><span class="lock"></span></button></div>
       </div>`;
     $('#submitBtn').addEventListener('click', submitToTeacher);
+    if(API.isExperience) $('#submitBtn .label').textContent='체험 마치기';
     setNote('');
-    try { sessionStorage.removeItem(finalDraftKey()); } catch (err) { /* 저장소를 못 쓰는 브라우저 */ }
+    try { if(!API.isExperience) sessionStorage.removeItem(finalDraftKey()); } catch (err) { /* 저장소를 못 쓰는 브라우저 */ }
     const open = () => { $('#clearScreen').hidden = false; $('#clearScreen').scrollTop = 0; revealResult(pops); };
     // 완전 클리어면 마지막 콧대가 꺾이는 것을 보여 준 뒤 결과를 띄운다
     if (type === 'full') {
@@ -2373,32 +2389,118 @@
     else open();
   }
 
+  // 이어 하기는 동작/애니메이션 중간이 아니라 마지막 활동 지점에서 복원한다.
+  // 상태·원문·카드 삽입 출처는 저장하되 DOM, 타이머, 기체 좌표, 함수는 저장하지 않는다.
+  const RESUME_FIELDS = ['done','firstAnswer','firstTag','evidence','claimPick','evAsked','evNudged','errCount','concl','link','linkBoard','notePages','noteView','linkTries','inserted','ownMode','ownEver','hint','hintReason','submits','predicted','nudged','firstSubmitText','tutorial','boardOpen','nose'];
+  function progressSnapshot() {
+    if(!S.started || !S.resumePoint || S.restoring || S.acquiring) return null;
+    const state={}; RESUME_FIELDS.forEach(k=>{if(S[k]!==undefined)state[k]=S[k];});
+    state.tray=S.tray.slice();state.scopeBonded={...S.scope.bonded};
+    state.cardBacks=Object.fromEntries(Object.entries(S.cards).filter(([,c])=>c.back||c.mis).map(([id,c])=>[id,{back:c.back||'',mis:c.mis||''}]));
+    state.claimId=S.claim?.id || null;
+    if(S.resumePoint==='complete') state.result=S.resumeResult;
+    const draft={reply: !$('#reply').hidden ? ($('#replyText')?.value || '') : ''};
+    if(S.resumePoint==='compose'||S.resumePoint==='complete') Object.assign(draft,{text:$('#answer')?.value || '',origins:S.answerOrigins||[],ownMode:S.ownMode});
+    return {schema:'student-resume-v1',missionId:M.id,point:S.resumePoint,state,draft};
+  }
+  function canResume(previous) {
+    const p=previous?.checkpoint;
+    return !!(p && p.schema==='student-resume-v1' && p.missionId===M.id && p.state && Array.isArray(p.state.tray)
+      && ['explore','first','claim','scope','link','combine','compose','complete'].includes(p.point)
+      && (p.point!=='complete' || p.state.result?.result?.highlights));
+  }
+  async function restoreProgress(previous) {
+    if(!canResume(previous))throw new Error('이 기록은 이어 할 수 없어요. 새로 하기를 선택해 주세요.');
+    const cp=previous.checkpoint, saved=cp.state;
+    S.restoring=true;
+    S.classCode=previous.classCode; S.studentNo=previous.studentNo; S.sessionId=previous.sessionId;
+    RESUME_FIELDS.forEach(k=>{if(saved[k]!==undefined)S[k]=saved[k];});
+    S.cards=JSON.parse(JSON.stringify(M.cards));
+    if(saved.scopeBonded)for(const k of ['closed','open'])S.scope.bonded[k]=Math.max(0,Math.min(5,Number(saved.scopeBonded[k])||0));
+    Object.entries(saved.cardBacks||{}).forEach(([id,c])=>{if(S.cards[id]){S.cards[id].back=String(c.back||'');S.cards[id].mis=String(c.mis||'');}});
+    S.claim=M.claimOptions.find(o=>o.id===saved.claimId)||null;
+    if(S.claim) S.cards.claim={kind:'claim',title:'내 주장',text:'강철솜이 공기 중의 산소와 결합했다.',sentence:S.claim.text};
+    S.tray=saved.tray.filter(id=>!!S.cards[id]);
+    S.resumePoint=cp.point; S.started=true;
+    API.resumeSession({sessionId:S.sessionId,classCode:S.classCode,studentNo:S.studentNo,missionId:M.id});
+    API.watchDrafts(()=>({stage:S.stage}));API.watchProgress(progressSnapshot);
+    $('#who').textContent=`${S.classCode} · ${S.studentNo}번 · 이어 하기`;
+    $('#startScreen').hidden=true;
+    buildBench();renderTray();
+    const passed=M.links.filter(l=>S.cards[l.data]?.back).length;
+    setNose(cp.point==='complete'?0:['scope','link','combine','compose'].includes(cp.point)?4-passed:(saved.nose??2));fit();
+    if(S.done.burnA){$('#numA').textContent='2.5 g';$('#tagA').textContent='2.0 → 2.5 g';}
+    if(S.done.burnB){$('#numB').textContent='150.0 g';$('#tagB').textContent='150.0 → 150.0 g';}
+    if(S.done.burnB)S.boardOpen=true;
+    // 완료한 단서는 획득 연출 중에 종료했더라도 사라지지 않게 한다.
+    if(S.done.burnA&&!S.tray.includes('cA'))addCard('cA');
+    if(S.done.burnB&&!S.tray.includes('cB'))addCard('cB');
+    const draft=cp.draft||{};
+    if(cp.point==='explore'){
+      setStage('explore');renderSmallBoard();
+      glow(S.done.burnB?$('#board'):S.done.burnA?$('#clipB'):$('#flameA'),S.done.burnB?'board':S.done.burnA?'deviceB':'deviceA');
+      setNote(S.done.burnB?'칠판을 눌러 내 생각 쓰기':S.done.burnA?'집게를 빨간 단자에 물리기':'불꽃 막대를 강철솜에 대기','topLeft');
+    }else if(cp.point==='first'){
+      S.stage='explore';S.boardOpen=true;renderSmallBoard();await openClaimFlow(draft.reply||'');
+    }else if(cp.point==='claim'){
+      setStage('claim'); const evidence=(saved.evidence||[null,null]).slice();
+      openClaimBoard();S.evidence=evidence;S.evAsked=!!saved.evAsked;
+      if(S.claimPick){$('.claim-opt[data-id="'+S.claimPick+'"]')?.classList.add('on');$('#evRow').hidden=false;}
+      renderEvidence();
+    }else if(cp.point==='scope'||cp.point==='link'){
+      setStage('rebuttal');S.linkBoard=true;$('#noseMeter').hidden=false;renderSmallBoard();
+      const i=Number.isInteger(S.link)&&S.link>=0&&S.link<3?S.link:0;S.link=i;
+      if(cp.point==='link'&&S.tray.includes(M.links[i].data)){
+        enterArena();renderGap(i,'write');setNote('카드 뒷면에 이 숫자의 뜻 쓰기','aboveProf');
+        await say(M.lines.writeAsk);linkReply(i,draft.reply||'');
+      }else{
+        S.scope.locked=false;$('#microscope').classList.add('unlocked');glow($('#microscope'),'scope');setNote('현미경 눌러 열기','topLeft');
+      }
+    }else{
+      setStage('defense');S.linkBoard=true;$('#noseMeter').hidden=false;renderSmallBoard();
+      if(cp.point==='combine')await startCombine();
+      else{
+        await startCompose(draft);
+        if(cp.point==='complete') {S.resumeResult=saved.result;finish(saved.result.type,saved.result.text,saved.result.result,true);}
+      }
+    }
+    S.restoring=false;API.captureProgress();
+  }
+
   /* ───────── 시작 ───────── */
   function setupStart() {
     $('#missionTitle').textContent = `${M.label} · ${M.title}`;
     $('#startTag').textContent = M.label;
     $('#startTitle').textContent = M.title;
-    window.SciwClassEntry.bindStart((classCode,studentNo)=>start(classCode,studentNo));
+    window.SciwClassEntry.bindStart((classCode,studentNo,choice)=>start(classCode,studentNo,choice), {
+      findSession:(c,n)=>API.findSession(c,n,M.id), canResume:canResume
+    });
   }
   // 튜토리얼은 미션 고르기 화면에서 따로 열린다(js/tutorial02.js가 남긴다). 같은 탭의 다음 학생에게 넘어가지 않게 읽으면 지운다.
   function takeTutorialStatus() {
+    if(API.isExperience)return;
     try {
       const status = sessionStorage.getItem('sciw_tutorial');
       sessionStorage.removeItem('sciw_tutorial');
       if (status) S.tutorial = status;
     } catch (e) { /* 저장소를 못 쓰면 none으로 남는다 */ }
   }
-  async function start(classCode, studentNo) {
-    if(!window.SciwClassEntry.valid(classCode))return;
+  async function start(classCode, studentNo, choice = {}) {
+    if(choice.mode === 'experience') API.setExperienceMode();
+    else if(!window.SciwClassEntry.valid(classCode))return;
+    if(choice.previous) return restoreProgress(choice.previous);
+    if(!API.isExperience) { try{sessionStorage.removeItem(`sciw_m02_final_${classCode}_${studentNo}`);}catch(_){} }
     S.classCode = classCode; S.studentNo = studentNo;
     S.sessionId = API.uid('s');
     takeTutorialStatus();
     API.startSession({ sessionId: S.sessionId, missionId: M.id, classCode, studentNo, startedAt: new Date().toISOString(), stage: 'explore', tutorial: S.tutorial, missionVersion: 'm02-1.2', eventSchemaVersion: 'm02-events-v2', hintSchemaVersion: 'm02-note-pages-v1', rubricVersion: RUBRIC.VERSION, hintLevel: 0 });
     API.watchDrafts(() => ({stage:S.stage}));
     API.flush();
-    $('#who').textContent = `${classCode} · ${studentNo}번`;
+    $('#who').textContent = API.isExperience ? '체험·심사 모드' : `${classCode} · ${studentNo}번`;
     $('#startScreen').hidden = true;
     S.started = true;
+    S.resumePoint = 'explore';
+    API.watchProgress(progressSnapshot);
     buildBench();
     renderSmallBoard();
     renderTray();

@@ -477,6 +477,7 @@
 
   // ───────────────────────── 기록 ─────────────────────────
   function logAttempt(o) {
+    if(S.restoring)return;
     const n = (S.attemptNo[o.questId] = (S.attemptNo[o.questId] || 0) + 1);
     const t = now();
     const attempt = {
@@ -635,6 +636,7 @@
 
   // ───────────────────────── 2. 주장·근거 ─────────────────────────
   async function startClaim() {
+    S.resumePoint='claim';
     setStage('claim');
     setNote('주장 하나와 근거 두 장을 골라 제출하자');
     if (!await banner('주장 하나와 근거 두 장을 골라 제출하자')) return;
@@ -738,6 +740,7 @@
 
   // ───────────────────────── 3. 교수 반박 ─────────────────────────
   async function startRebuttal() {
+    S.resumePoint='quest';
     S.busy = true; updateDo();
     setStage('rebuttal');
     focus([], { dim: true, keep: ['prof', 'board'] });
@@ -834,6 +837,7 @@
   }
 
   async function startQuest(i, skipIntro) {
+    S.resumePoint='quest';
     const quest = M.quests[i];
     S.questIdx = i;
     S.q = {
@@ -1368,6 +1372,7 @@
 
   // ── W3: 두 결론을 칠판에 올려 범위 좁히기 ──
   async function startCombine() {
+    S.resumePoint='combine';
     const cb = M.combine;
     S.q = { quest: cb, combine: true, errors: {}, hintLevel: 0, lastInput: now(), done: false };
     S.attemptClock = now();
@@ -1422,6 +1427,7 @@
 
   // ───────────────────────── 4. 최종 변론 ─────────────────────────
   async function startDefense() {
+    S.resumePoint='compose';
     S.busy = true; updateDo();
     setStage('defense');
     S.q = null;
@@ -1603,6 +1609,7 @@
 
   // ───────────────────────── 클리어 ─────────────────────────
   async function finish(type, text, r) {
+    S.resumePoint='complete';S.resumeResult={type,text,result:r};
     S.busy = true; updateDo();
     setNose(0);
     await sleep(700);
@@ -1710,6 +1717,62 @@
     $('#again').onclick = () => location.reload();
   }
 
+  // 같은 서버 세션의 복원용 상태. 관찰 애니메이션은 해당 활동의 시작에서 재개한다.
+  const RESUME_FIELDS=['nose','lineIdx','attemptNo','questIdx','claim','placed','defenseText','insertedCardIds','defenseTries','firstAnswer','defenseMode','defenseQuestion'];
+  function progressSnapshot(){
+    if(!S.session || !S.resumePoint || S.restoring)return null;
+    const state={};RESUME_FIELDS.forEach(k=>{if(S[k]!==undefined)state[k]=S[k];});
+    state.cards=S.cards.map(c=>c.id);
+    state.session={...S.session,stageTimes:currentStageTimes()};
+    delete state.session.checkpoint;delete state.session.attempts;
+    let point=S.resumePoint;
+    if(point==='quest' && S.q){
+      state.quest={draft:S.q.draft||{},errors:S.q.errors||{},hintLevel:S.q.hintLevel||0,question:S.q.question||''};
+      if(S.q.done){state.questIdx=S.questIdx+1;state.quest=null;if(state.questIdx>=M.quests.length)point='combine';}
+    }
+    if(point==='complete')state.result=S.resumeResult;
+    return {schema:'student-resume-v1',missionId:M.id,point,state};
+  }
+  function canResume(previous){const p=previous?.checkpoint;return !!(p&&p.schema==='student-resume-v1'&&p.missionId===M.id&&p.state?.session&&Array.isArray(p.state.cards)&&['explore','claim','quest','combine','compose','complete'].includes(p.point)&&(p.point!=='complete'||p.state.result?.result?.elements));}
+  async function restoreProgress(previous){
+    if(!canResume(previous))throw new Error('이 기록은 이어 할 수 없어요. 새로 하기를 선택해 주세요.');
+    S.restoring=true;
+    const cp=previous.checkpoint, saved=cp.state;
+    RESUME_FIELDS.forEach(k=>{if(saved[k]!==undefined)S[k]=saved[k];});
+    S.session={...saved.session,sessionId:previous.sessionId,classCode:previous.classCode,studentNo:previous.studentNo,missionId:M.id};
+    S.cards=[];
+    for(const id of saved.cards){
+      const clue=M.clues.find(c=>c.id===id),model=M.models[id],concl=M.combine.cards.find(c=>c.id===id);
+      if(clue)S.cards.push({id,type:'clue',kind:clue.kind,text:clue.text});
+      else if(model)S.cards.push({id,type:'model',text:model.text});
+      else if(concl)S.cards.push({id,type:'concl',text:concl.text});
+    }
+    S.resumePoint=cp.point;S.stageStart=now();
+    API.resumeSession(S.session);API.watchDrafts(()=>({stage:S.stage,questionId:S.q?.quest?.id||''}));API.watchProgress(progressSnapshot);
+    $('#startScreen').hidden=true;$('#who').textContent=`${previous.classCode} · ${previous.studentNo}번 · 이어 하기`;
+    buildScene();setNose(saved.nose??2);renderTray();
+    if(cp.point==='explore'){
+      setStage('explore');S.exploreStep=exploreStep();setNote(M.explore.notes[S.exploreStep]);refreshFocus();
+    }else if(cp.point==='claim'){
+      setStage('claim');setNote('주장 하나와 근거 두 장을 골라 제출하자');openClaimSheet();
+    }else if(cp.point==='quest'){
+      setStage('rebuttal');$('#prof').classList.add('stand');$('#spot').classList.add('on');$('#noseMeter').classList.add('show');
+      $('#microscope').classList.remove('locked');$('#microscope').setAttribute('aria-disabled','false');
+      const idx=Number.isInteger(S.questIdx)&&S.questIdx>=0&&S.questIdx<M.quests.length?S.questIdx:0;
+      S.questIdx=idx;const quest=M.quests[idx],q=saved.quest||{};
+      S.q={quest,errors:q.errors||{},hintLevel:q.hintLevel||0,lastInput:now(),done:false,needModel:!!quest.model&&!hasCard(quest.model),microscopeGlow:false,sliderGlow:false,draft:q.draft||{},question:q.question||quest.intro[quest.intro.length-1]};
+      setNote(quest.note);S.busy=false;refreshFocus();if(!S.q.needModel)openAnswerSheet();
+    }else if(cp.point==='combine'){
+      setStage('rebuttal');await startCombine();
+      for(const id of (saved.placed||[])){if(M.combine.cards.some(c=>c.id===id))await placeOnBoard(id);}
+    }else if(cp.point==='compose'){
+      const text=saved.defenseText||'',mode=saved.defenseMode||'cards';await startDefense();S.defenseText=text;setDefenseMode(mode);openDefenseSheet();
+    }else if(cp.point==='complete'){
+      S.resumeResult=saved.result;setStage(null);showClear(saved.result.type,saved.result.text,saved.result.result);
+    }
+    S.restoring=false;API.captureProgress();
+  }
+
   // ───────────────────────── 시작 ─────────────────────────
   function setupStart() {
     $('#startTag').textContent = `서술 실험실 · ${M.label}`;
@@ -1717,13 +1780,15 @@
     $('#modeNote').textContent = API.isLocal
       ? '연구 기록은 이 기기에 저장돼요.'
       : '기록은 선생님 화면으로 전송됩니다.';
-    window.SciwClassEntry.bindStart((classCode,studentNo)=>start(classCode,studentNo));
+    window.SciwClassEntry.bindStart((classCode,studentNo,choice)=>start(classCode,studentNo,choice), {findSession:(c,n)=>API.findSession(c,n,M.id),canResume});
   }
 
-  function start(classCode, studentNo) {
-    if(!window.SciwClassEntry.valid(classCode))return;
+  async function start(classCode, studentNo, choice = {}) {
+    if(choice.mode==='experience')API.setExperienceMode();
+    else if(!window.SciwClassEntry.valid(classCode))return;
+    if(choice.previous)return restoreProgress(choice.previous);
     $('#startScreen').hidden = true;
-    $('#who').textContent = `${classCode} · ${studentNo}번`;
+    $('#who').textContent = API.isExperience ? '체험·심사 모드' : `${classCode} · ${studentNo}번`;
     S.session = {
       sessionId: API.uid('s'),
       classCode, studentNo, missionId: M.id,
@@ -1733,6 +1798,7 @@
       firstError: '', errorCounts: {}, hintTotal: 0, hintMax: {}, defenseTries: 0, judgedBy: ''
     };
     API.startSession(S.session);
+    S.resumePoint='explore';API.watchProgress(progressSnapshot);
     API.watchDrafts(() => ({stage:S.stage,questionId:S.q?.quest?.id || ''}));
     API.flush();
     buildScene();
