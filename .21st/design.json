@@ -75,7 +75,7 @@
       "Class and student heatmaps show explicit final judgment counts; unknown, zero and different rubric versions must remain separate",
       "Rubric 1.2 note pages 0/1/2 differ from old hint levels; removed sorting is not failure",
       "Keep intro and student game identity; replace teacher page with a compact dashboard using only restrained lab theme accents",
-      "Keep the selected game across class navigation. A class opens on one teaching focus; student records and assessment evidence are separate views",
+      "Keep the selected game across class navigation. Teaching prep combines a focus, side-by-side answers and a searchable answer list; the Student Records tab shows the rubric matrix",
       "Desktop key metrics, evidence table and summary rail fit viewport; larger data use table pagination and search, not whole-page scrolling"
     ],
     "avoid": [

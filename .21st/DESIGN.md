@@ -2,7 +2,7 @@
 
 The latest user direction (2026-11-03) keeps the laboratory theme as a restrained forest-green accent and identity only. Replace large chalkboards, paper note cards, decorative scenery and repeated stacked sections with a viewport-sized dashboard: class sidebar, persistent game tabs, four compact metrics, one evidence matrix and a contextual summary rail. Use Pretendard for data and headings; Gaegu only in the product mark.
 
-Teacher starts at a list of classes with submission progress; the class heatmap is one tab away. Selecting a class opens a single teaching focus and a route to compare saved student answers. Student records and rubric evidence each have their own view. The game tabs preserve the current task and class. Keep manual AI generation and explicit class and mission boundaries.
+Teacher starts at a list of classes with submission progress; the class heatmap is one tab away. Selecting a class opens the teaching focus, side-by-side saved answers and the searchable student answer list, in that order. The Student Records tab contains the rubric matrix and per-element evidence. The game tabs preserve the current task and class. Keep manual AI generation and explicit class and mission boundaries.
 
 Fit the class focus and participation summary into ordinary laptop screens. Keep search and pagination in the student and matrix views and show whole-scope totals independent of their filters. Mobile and detailed records or reports may scroll. Preserve keyboard navigation, printable reports, loading and error states, reduced motion and the live Sheet source.
 

@@ -112,13 +112,17 @@ test('selected missing element drives candidates and a missing original shows an
  assert.match(empty,/후보가 없습니다/);assert.doesNotMatch(empty.split('class="dashboard-analysis-grid"')[0],/data-session=/);
 });
 
-test('class list, teaching focus, student records and rubric evidence appear on their own views',()=>{
+test('teaching prep shows focus, examples and answer previews; student records shows the rubric',()=>{
  const data=M.analyze(db,'3-2','latest',{missionId:'m02'}),state={portfolio,data,selectedClass,mission:'m02',source:'sheet'};
  const classes=D.screen({portfolio,mission:'m02',view:'overview'});
  assert.match(classes,/어느 반을 살펴볼까요/);assert.doesNotMatch(classes,/id="matrixViewport"/);
  const focus=D.screen({...state,view:'overview'});
- assert.match(focus,/이번 수업에서 함께 확인할 점/);assert.match(focus,/학생 글 비교하기/);assert.doesNotMatch(focus,/id="matrixViewport"/);
- const records=D.screen({...state,view:'students'});
- assert.match(records,/학생별 진행과 답안/);assert.match(records,/data-student="1"/);assert.doesNotMatch(records,/data-ai-generate/);
- assert.match(D.screen({...state,view:'analysis'}),/id="matrixViewport"/);
+ assert.match(focus,/이번 수업에서 함께 확인할 점/);
+ assert.match(focus,/학생 글 비교하기/);
+ assert.match(focus,/수업에서 함께 읽을 학생 답안[\s\S]*학생별 진행과 답안/);
+ assert.match(focus,/<small>제출 답안<\/small><span>답안<\/span>/);
+ assert.doesNotMatch(focus,/id="matrixViewport"|id="task-students"/);
+ const records=D.screen({...state,view:'analysis'});
+ assert.match(records,/id="task-analysis"[^>]*>학생 기록<\/button>/);
+ assert.match(records,/id="matrixViewport"/);
 });

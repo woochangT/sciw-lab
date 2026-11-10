@@ -72,12 +72,13 @@ body.dashboard-app{background:#f3f5f2;font:15px/1.5 Pretendard,system-ui,sans-se
 
 .teacher-login{min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,#e2ebde,#f4f5ef 74%);color:var(--deep)}.teacher-login>section{width:min(100%,395px);padding:32px;background:#fff;border:1px solid #d5dfd3;border-radius:12px;box-shadow:0 12px 32px #213a2714}.teacher-login-brand{display:flex;align-items:center;gap:8px;font-weight:750;font-size:14px;margin-bottom:19px}.teacher-login-brand img{width:28px;height:28px}.teacher-login h1{font-size:29px;margin:0 0 6px}.teacher-login section>p{color:var(--soft)}.teacher-login form{display:grid;gap:7px;margin:22px 0 15px}.teacher-login label{font-size:14px;font-weight:650}.teacher-login input{min-height:43px;border:1px solid #acbcae;border-radius:6px;padding:9px 11px;background:white;color:var(--ink);font:inherit;width:100%}.teacher-login-message,.teacher-login [role=status]{min-height:1.15em;color:#943a29;font-size:14px}.teacher-login-back{font-size:14px;color:var(--soft)}.teacher-login-back:hover{text-decoration:underline}
 
-/* Keep teaching, individual records and rubric analysis on separate views. */
+/* Keep teaching material above the class answers and move the rubric to the records tab. */
 .dashboard-app #content:has(.dashboard-task-screen){overflow-y:auto;scrollbar-width:thin}
 .dashboard-task-screen,
 .dashboard-task-screen:has(.lesson-priority){display:flex;flex-direction:column;gap:0;height:auto;min-height:100%;padding-bottom:20px;overflow:visible}
 .dashboard-task-screen .dashboard-gamebar{min-height:58px;flex-shrink:0}
-.dashboard-tasks{display:flex;flex-wrap:wrap;gap:7px;border-bottom:1px solid #dfe5db;margin-bottom:20px}
+.dashboard-task-header{position:sticky;top:0;z-index:3;background:#f3f5f2;margin-bottom:16px}
+.dashboard-tasks{display:flex;flex-wrap:wrap;gap:7px;border-bottom:1px solid #dfe5db}
 .dashboard-tasks button{appearance:none;border:0;border-bottom:3px solid transparent;border-radius:6px 6px 0 0;background:transparent;color:#455a4d;padding:11px 16px 10px;font:inherit;font-weight:700;cursor:pointer}
 .dashboard-tasks button[aria-current=page]{background:#e8efe8;border-bottom-color:#37634e;color:#204535}
 .dashboard-tasks button:hover,.class-picker-list button:hover{background:#eef4ed}
@@ -93,28 +94,39 @@ body.dashboard-app{background:#f3f5f2;font:15px/1.5 Pretendard,system-ui,sans-se
 .class-picker-list span b{margin-right:5px;color:#234437;font-size:16px}
 .class-picker-list i{font-style:normal;font-weight:800}
 .class-picker progress,.lesson-participation progress{width:100%;height:7px;accent-color:#527b5d}
-.lesson-home{display:grid;grid-template-columns:minmax(0,1fr) minmax(170px,24%);align-items:stretch;gap:24px;background:#fff;border:1px solid #d9e5d7;border-radius:12px;padding:clamp(20px,3.5vw,40px)}
-.focus-kicker{margin:0 0 12px;color:#38644d;font-size:14px;font-weight:800}
+.lesson-prep{display:grid;gap:16px}
+.lesson-home{display:grid;grid-template-columns:minmax(0,1fr) minmax(160px,22%);align-items:stretch;gap:24px;background:#fff;border:1px solid #d9e5d7;border-radius:12px;padding:clamp(16px,2vw,26px)}
+.lesson-home .focus-kicker{margin:0 0 7px;color:#38644d;font-size:14px;font-weight:800}
 .lesson-home h2{margin:0;color:#1c3a2c;font-size:clamp(24px,3vw,38px);line-height:1.25;word-break:keep-all;overflow-wrap:anywhere}
-.lesson-home h2 .term-info{margin-left:9px;vertical-align:middle}
-.focus-evidence,.focus-detail{margin:12px 0 0;color:#455a4c;line-height:1.65;max-width:66ch}
+.lesson-home .focus-evidence,.lesson-home .focus-detail{margin:8px 0 0;color:#455a4c;line-height:1.55;max-width:75ch}
+.focus-evidence{font-size:14px}
+.lesson-home .lesson-question{margin:10px 0 0;padding:8px 11px;border-left:3px solid #a8bba8;color:#365342;background:#f2f6f0;font-size:14px;line-height:1.55}
+.lesson-question b{margin-right:6px}
 .focus-freshness{margin:12px 0;color:#586552;font-size:14px;line-height:1.5}
-.focus-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:22px}
+.focus-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:15px}
 .focus-actions .dashboard-generate{width:auto;margin:0;padding:10px 15px}
 .focus-actions .focus-secondary{background:#edf3ed;color:#264a39}
 .lesson-participation{display:grid;align-content:center;justify-items:center;gap:12px;padding:18px;border-radius:10px;background:#eef4ec;color:#224334;text-align:center}
-.lesson-participation img{width:76px;height:72px;object-fit:contain}
+.lesson-participation img{width:58px;height:54px;object-fit:contain}
 .lesson-participation strong{display:block;font-size:29px;line-height:1.1}
 .lesson-participation small{font-size:17px}
 .lesson-participation span{display:block;margin-top:5px;color:#506356;font-size:13px}
+.focus-examples,.student-records{scroll-margin-top:120px}
 .focus-example-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.focus-example-grid article{padding:16px;border:1px solid #dfe7dc;border-radius:9px;background:#f8faf7}
+.focus-example-grid article{display:flex;flex-direction:column;padding:14px 16px;border:1px solid #dfe7dc;border-radius:9px;background:#f8faf7}
 .focus-example-grid article>p{margin:0;color:#406550;font-size:13px;font-weight:800}
 .focus-example-grid h3{margin:8px 0;color:#223e31}
-.focus-example-grid blockquote{margin:0 0 12px;max-height:240px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;color:#35493d;line-height:1.65}
+.focus-example-grid blockquote{margin:0 0 12px;max-height:180px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;color:#35493d;line-height:1.65}
+.focus-example-grid mark{padding:0 2px;border-radius:2px;color:inherit;background:#e0ecce}
+.focus-example-grid .dashboard-link{align-self:flex-start;margin-top:auto}
+.focus-examples>.focus-freshness{margin-bottom:0}
 .focus-empty{padding:16px;color:#526357}
 .student-records ul{margin:0;padding:0;list-style:none}
-.student-records li{display:grid;grid-template-columns:70px minmax(110px,1fr) minmax(100px,.65fr) auto;align-items:center;gap:10px;min-height:45px;border-top:1px solid #e4ebe1;padding:7px 6px;color:#364e40;font-size:14px}
+.student-records li{display:grid;grid-template-columns:64px minmax(118px,.55fr) minmax(0,1.5fr) auto;align-items:center;gap:10px;min-height:52px;border-top:1px solid #e4ebe1;padding:7px 6px;color:#364e40;font-size:14px}
+.student-record-status,.student-answer-preview{min-width:0;display:grid;gap:3px}
+.student-record-status .judgment-status{justify-self:start}
+.student-answer-preview>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.student-answer-preview small{color:#526952;font-size:12px;font-weight:700}
 .student-records input{width:124px;border:1px solid #d5ddd4;border-radius:6px;padding:6px 8px;font:inherit}
 .dashboard-analysis-screen .analysis-details{margin:0 0 12px;background:#fff;border:1px solid #dce4d9;border-radius:8px;padding:10px 12px}
 .analysis-details>summary{color:#294b39;font-weight:700;cursor:pointer}
@@ -125,4 +137,4 @@ body.dashboard-app{background:#f3f5f2;font:15px/1.5 Pretendard,system-ui,sans-se
 .live-milestone{margin:0;padding:9px 14px;border-radius:8px;background:#224638;color:#fff;font-size:14px;font-weight:700;box-shadow:0 3px 12px #17342824}
 .live-milestone.completed{background:#3a6650}
 @media(max-width:750px){.class-picker,.student-records,.focus-examples{padding:15px}.student-records header{align-items:flex-start;flex-direction:column}.lesson-home{gap:12px}.class-picker-list button{grid-template-columns:minmax(90px,1fr) minmax(115px,1fr) auto}.class-picker-list progress{display:none}}
-@media(max-width:520px){.lesson-home,.focus-example-grid{grid-template-columns:1fr}.lesson-participation{grid-template-columns:auto minmax(0,1fr);align-items:center;justify-items:start;text-align:left}.lesson-participation img{width:45px;height:45px}.student-records li{grid-template-columns:auto minmax(80px,1fr) auto}.student-records li .judgment-status,.student-records li>span:empty{display:none}.live-milestones{right:10px;top:10px}.live-milestone:not(:last-child){display:none}}
+@media(max-width:520px){.lesson-home,.focus-example-grid{grid-template-columns:1fr}.lesson-participation{grid-template-columns:auto minmax(0,1fr);align-items:center;justify-items:start;text-align:left}.lesson-participation img{width:45px;height:45px}.student-records li{grid-template-columns:auto minmax(0,1fr) auto;row-gap:5px}.student-answer-preview{grid-column:2/-1;grid-row:2}.student-records li .judgment-status{display:none}.live-milestones{right:10px;top:10px}.live-milestone:not(:last-child){display:none}}

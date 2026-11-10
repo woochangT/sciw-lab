@@ -65,8 +65,8 @@
   return `<section class="play-comparison" aria-labelledby="comparisonTitle"><header><h2 id="comparisonTitle">처음 판·최근 판의 판정 변화</h2><p id="comparisonHelp">같은 반·같은 학생의 첫 판과 최근 판을 연결했습니다. 선택한 판정 기준과 관련 버전이 같고, 양쪽에 해당 요소 판정이 있는 학생만 비교합니다. 관찰된 자동 판정 결과의 변화이며 성취도나 학습 효과의 검증이 아닙니다.</p></header><div class="comparison-scroll"><table aria-describedby="comparisonHelp"><thead><tr><th scope="col">설명 요소</th><th scope="col">첫 판 인정${info('첫 판 인정','같은 반·학생의 가장 이른 플레이에서 해당 설명 요소가 인정된 학생 수입니다. 비교 가능한 학생만 셉니다.')}</th><th scope="col">최근 판 인정${info('최근 판 인정','같은 반·학생의 가장 최근 플레이에서 해당 설명 요소가 인정된 학생 수입니다. 비교 가능한 학생만 셉니다.')}</th><th scope="col">변화${info('변화','비교 가능한 학생의 최근 판 인정 인원에서 첫 판 인정 인원을 뺀 값입니다. 관찰된 자동 판정 결과의 변화입니다.')}</th><th scope="col">비교 인원${info('비교 인원','같은 반·학생의 첫 판과 최근 판에 해당 요소 판정이 모두 있고 판정 기준·버전이 호환되는 학생 수입니다.')}</th><th scope="col">제외 이유${info('제외 이유','1회 참여, 양쪽 판정 부족, 버전 미기록, 기준·버전 불일치로 비교에서 제외된 학생 수입니다.')}</th></tr></thead><tbody>${result.cells.map(c=>`<tr><th scope="row">${esc(c.label)}</th><td>${c.comparable?`${c.firstMet}/${c.comparable}명`:'—'}</td><td>${c.comparable?`${c.latestMet}/${c.comparable}명`:'—'}</td><td class="${c.comparable?'comparison-delta':''}">${c.comparable?`${c.delta>0?'+':''}${c.delta}명`:'비교 불가'}</td><td>${c.comparable}명</td><td class="comparison-excluded">${excluded(c.excluded)}</td></tr>`).join('')}</tbody></table></div><p class="comparison-note">1회 참여는 처음·최근 판에 중복 반영하지 않습니다. 변화 0명은 비교 가능한 기록에서 인정 인원이 같은 경우입니다. —는 비교할 기록이 없다는 뜻입니다.</p></section>`;
  }
  function tasks(state){
-  const options=state.selectedClass?[['overview','수업 준비'],['students','학생 기록'],['analysis','판정 근거']]:[['overview','학급 목록'],['analysis','학급별 성취도']];
-  return `<nav class="dashboard-tasks" aria-label="대시보드 보기">${options.map(([id,label])=>`<button type="button" id="task-${id}" data-task="${id}" aria-current="${state.view===id||id==='overview'&&state.view==='evidence'?'page':'false'}">${label}</button>`).join('')}</nav>`;
+  const options=state.selectedClass?[['overview','수업 준비'],['analysis','학생 기록']]:[['overview','학급 목록'],['analysis','학급별 성취도']];
+  return `<nav class="dashboard-tasks" aria-label="대시보드 보기">${options.map(([id,label])=>`<button type="button" id="task-${id}" data-task="${id}" aria-current="${state.view===id?'page':'false'}">${label}</button>`).join('')}</nav>`;
  }
  function classPicker(v,state){
   return `<section class="class-picker" aria-labelledby="classPickerTitle">
@@ -78,16 +78,18 @@
  }
  function lessonHome(v,state,priority){
   const {focus,candidates}=priority,report=state.report?.analysis?.result;
-  const title=report?.headline||(focus?labelFor(state.mission,focus.key):v.total?'학생 글이 모이면 함께 볼 설명을 찾을 수 있어요.':'이 게임의 플레이 기록을 기다리고 있어요.');
-  const evidence=focus?`<p class="focus-evidence">이 항목이 판정된 ${focus.assessed}개 글 중 ${focus.revise}개에서 설명을 확인하지 못했어요.${focus.assessed<5?' 소수의 글에서 나온 결과예요.':''}</p>`:'';
+  const title=report?.headline||(focus?labelFor(state.mission,focus.key):state.loading?'학급 기록을 불러오는 중입니다.':v.written?'저장된 학생 답안부터 살펴보세요.':'아직 제출된 답안이 없어요.');
+  const detail=report?.teachingFocus||(focus?I.descriptions[state.mission][focus.key]:'아래에서 학생별 진행과 저장된 답안을 확인할 수 있어요.');
+  const question=Array.isArray(report?.questions)?report.questions.find(item=>typeof item?.question==='string'&&item.question.trim())?.question:'';
   return `<section class="lesson-home" aria-labelledby="lessonHomeTitle">
    <div class="lesson-home-copy"><p class="focus-kicker">${report?'저장된 수업 요약':'이번 수업에서 함께 확인할 점'}</p>
-   <h2 id="lessonHomeTitle">${esc(title)}${!report&&focus?elementInfo(state.mission,focus.key):''}</h2>
-   ${report?`<p class="focus-detail">${esc(report.teachingFocus)}</p>`:evidence}
-   ${!focus&&!report?'<p class="focus-detail">학생 기록에서 현재 진행 상황과 저장된 답안을 볼 수 있어요.</p>':''}
+   <h2 id="lessonHomeTitle">${esc(title)}</h2>
+   <p class="focus-detail">${esc(detail)}</p>
+   ${!report&&focus?`<p class="focus-evidence">이 항목을 판정한 글 <b>${focus.assessed}개 중 ${focus.revise}개</b>에서 설명을 확인하지 못했어요.${focus.assessed<5?' 소수의 글에서 나온 결과예요.':''}</p>`:''}
+   ${question?`<p class="lesson-question"><b>수업에서 물어볼 질문</b> ${esc(question)}</p>`:''}
    ${state.reportStale?'<p class="focus-freshness">요약을 만든 뒤 새 기록이 들어왔어요.</p>':''}
    ${state.aiError?`<p class="dashboard-ai-error" role="alert">${esc(state.aiError)}</p>`:''}
-   <div class="focus-actions">${candidates.length?'<button class="button" data-task="evidence">학생 글 비교하기 →</button>':''}${report?'<button class="button secondary" data-open-report>상세 리포트와 수업 자료</button>':''}
+   <div class="focus-actions">${candidates.length?'<button class="button" data-show-answers>학생 글 비교하기 ↓</button>':''}${report?'<button class="button secondary" data-open-report>상세 리포트와 수업 자료</button>':''}
    ${state.available||state.busy?`<button class="dashboard-generate ${candidates.length||report?'focus-secondary':''}" data-ai-generate ${state.busy?'disabled':''}>${state.busy?'수업 요약 생성 중…':report?'요약 재생성':'수업 요약 만들기'}</button>`:''}</div></div>
    <div class="lesson-participation"><img src="${games[state.mission].asset}" alt=""><div><strong>${v.written}<small> / ${v.total}명</small></strong><span>최종 답안 / 참여</span><progress value="${v.written}" max="${v.total||1}" aria-label="학급 최종 답안 작성 인원"></progress></div></div>
   </section>`;
@@ -96,29 +98,41 @@
   const first=priority.candidates[0],focus=priority.focus;
   const alternative=first&&v.all.find(({s,e})=>M.number(s)!==first.studentNo&&e.key===v.current&&I.element(e.judgment,focus.key)==='met'&&I.finalSubmission(state.data,s).target)?.s;
   const examples=first?[{...first,label:'설명을 함께 점검할 글'},alternative?{studentNo:M.number(alternative),sessionId:alternative.sessionId,element:focus.key,label:'같은 요소가 드러난 글'}:priority.candidates[1]&&{...priority.candidates[1],label:'같은 요소를 함께 살펴볼 다른 글'}].filter(Boolean):[];
-  return `<section class="focus-examples" aria-labelledby="comparisonHeading"><header><div><h2 id="comparisonHeading">학생 글 비교</h2><p>${focus?esc(labelFor(state.mission,focus.key))+'이 글에 어떻게 드러나는지 살펴보세요.':'아직 비교할 글이 없습니다.'}</p></div><button class="dashboard-link" data-task="overview">← 수업 준비</button></header>
+  return `<section class="focus-examples" aria-labelledby="comparisonHeading"><header><div><h2 id="comparisonHeading" tabindex="-1">수업에서 함께 읽을 학생 답안</h2><p>${examples.length?`같은 판정 기준으로 살펴본 최종 답안이에요. <b>${esc(labelFor(state.mission,focus.key))}</b> 항목을 중심으로 읽어 보세요.`:'같은 판정 기준으로 비교할 수 있는 답안이 아직 없어요. 아래 목록에서 학생별 답안을 열어 볼 수 있어요.'}</p></div></header>
    <div class="focus-example-grid">${examples.map(example=>{
-    const s=v.all.find(row=>row.s.sessionId===example.sessionId).s,target=I.finalSubmission(state.data,s).target;
-    return `<article><p>${esc(example.label)}</p><h3>${esc(example.studentNo)}번 학생의 최종 답안</h3><blockquote>${esc(target?.input||s.finalAnswer||'기록 없음')}</blockquote><button class="dashboard-link" data-student="${esc(example.studentNo)}" data-session="${esc(example.sessionId)}" data-element="${esc(example.element)}">원문과 판정 근거 보기 ↗</button></article>`;
+    const {s,e}=v.all.find(row=>row.s.sessionId===example.sessionId);
+    const input=String(I.finalSubmission(state.data,s).target?.input||s.finalAnswer||'');
+    const elements=example.element==='W3/WB'?['W3','WB']:[example.element];
+    const quote=elements.map(key=>e.analysis.checks?.[key]?.quote).find(value=>typeof value==='string'&&value.trim()&&input.includes(value));
+    const position=quote?input.indexOf(quote):-1;
+    const excerpt=position<0?esc(input):esc(input.slice(0,position))+'<mark>'+esc(quote)+'</mark>'+esc(input.slice(position+quote.length));
+    return `<article><p>${esc(example.label)}</p><h3>${esc(example.studentNo)}번 학생의 최종 답안</h3><blockquote>${excerpt}</blockquote><button class="dashboard-link" data-student="${esc(example.studentNo)}" data-session="${esc(example.sessionId)}" data-element="${esc(example.element)}">원문과 판정 근거 보기 ↗</button></article>`;
    }).join('')}${examples.length===1?'<p class="focus-empty">같은 판정 기준으로 비교할 두 번째 글이 아직 없습니다.</p>':''}</div>
-   ${examples.length?'<p class="focus-freshness">저장된 글에서 확인한 내용이에요. 학생이 이해했는지는 수업 질문으로 다시 확인해 보세요.</p>':''}
-   ${state.report?'<button class="button secondary" data-open-report>수업 질문과 자료 보기 →</button>':''}</section>`;
+   ${examples.length?'<p class="focus-freshness">학생 글에 어떤 설명이 드러나는지 함께 읽고, 그 이유를 물어보세요.</p>':''}</section>`;
  }
  function studentRecords(v,state){
   const p=v.pagination;
   return `<section class="student-records" aria-labelledby="studentRecordsTitle"><header><div><h2 id="studentRecordsTitle">학생별 진행과 답안</h2><p>${v.total}명 참여 · ${v.written}명 최종 답안 · ${v.pending}명 작성 중</p></div><div class="matrix-toolbar"><input id="recordSearch" type="search" value="${esc(state.query)}" placeholder="출석번호 검색" aria-label="출석번호 검색"><select id="recordFilter" aria-label="작성 상태"><option value="all">전체 기록</option><option value="written" ${state.filter==='written'?'selected':''}>답안 작성</option><option value="pending" ${state.filter==='pending'?'selected':''}>작성 전</option></select><select id="playMode" aria-label="기록 기준"><option value="latest">최근 판</option><option value="first" ${state.mode==='first'?'selected':''}>처음 한 판</option></select></div></header>
-   <ul>${p.rows.map(({s,e})=>`<li><strong>${esc(M.number(s))}번</strong><span>${e.written?'최종 답안 작성':esc(state.status?.(s)||'작성 전')}</span>${e.written?statusBadge(state.data,s):'<span></span>'}<button class="dashboard-link" data-student="${esc(M.number(s))}" data-session="${esc(s.sessionId)}">기록 보기 ↗</button></li>`).join('')||'<li class="focus-empty">표시할 학생 기록이 없습니다.</li>'}</ul>
+   <ul>${p.rows.map(({s,e})=>{
+    const answer=e.written?I.finalSubmission(state.data,s).target?.input:s.draftAnswer||s.firstAnswer;
+    const label=e.written?'제출 답안':s.draftAnswer?'작성 중인 답안':'처음 생각';
+    const preview=String(answer||'').replace(/\s+/g,' ').trim();
+    return `<li><strong>${esc(M.number(s))}번</strong><span class="student-record-status">${e.written?'최종 답안 작성':esc(state.status?.(s)||'작성 전')}${e.written?statusBadge(state.data,s):''}</span>
+      <span class="student-answer-preview">${preview?`<small>${label}</small><span>${esc(preview.slice(0,160))}${preview.length>160?'…':''}</span>`:'저장된 답안 없음'}</span>
+      <button class="dashboard-link" data-student="${esc(M.number(s))}" data-session="${esc(s.sessionId)}" aria-label="${esc(M.number(s))}번 학생 기록 보기">기록 보기 ↗</button></li>`;
+   }).join('')||'<li class="focus-empty">표시할 학생 기록이 없습니다.</li>'}</ul>
    <div class="matrix-pagination"><span>${p.start}–${p.end} / ${p.total}명</span><div><button id="matrixPrev" data-page="${p.index-1}" ${p.index===0?'disabled':''} aria-label="이전 페이지">←</button><span>${p.index+1} / ${p.pages}</span><button id="matrixNext" data-page="${p.index+1}" ${p.index+1>=p.pages?'disabled':''} aria-label="다음 페이지">→</button></div></div></section>`;
  }
  function screen(state){
-  const v=model(state),view=state.view||'analysis',student=state.selectedClass,priority=student&&['overview','evidence'].includes(view)?I.lessonPriority(state.data,state.data?.reps||[],state.mission,v.current,state.focusElement):null;
+  const v=model(state),view=state.view||'analysis',student=state.selectedClass;
   let body;
   if(view==='analysis')body=`${metrics(v,student,state.loading)}${student?`<details class="analysis-details"><summary>수업에서 살펴볼 요소와 처음·최근 판 비교</summary>${lessonPriority(v,state)}${playComparison(v,state)}</details>`:''}<div class="dashboard-analysis-grid">${matrix(v,state)}${insights(v,state)}</div>`;
   else if(!student)body=classPicker(v,state);
-  else if(view==='students')body=studentRecords(v,state);
-  else if(view==='evidence')body=answerComparison(state,v,priority);
-  else body=lessonHome(v,state,priority);
-  return `<div class="dashboard-screen dashboard-task-screen ${view==='analysis'?'dashboard-analysis-screen':''}" id="dashboardResults" role="tabpanel" aria-labelledby="game-${state.mission}">${gameTabs(state.mission)}${tasks({...state,view})}${body}</div>`;
+  else{
+   const priority=I.lessonPriority(state.data,state.data?.reps||[],state.mission,v.current,state.focusElement);
+   body=`<div class="lesson-prep">${lessonHome(v,state,priority)}${answerComparison(state,v,priority)}${studentRecords(v,state)}</div>`;
+  }
+  return `<div class="dashboard-screen dashboard-task-screen ${view==='analysis'?'dashboard-analysis-screen':''}" id="dashboardResults" role="tabpanel" aria-labelledby="game-${state.mission}"><div class="dashboard-task-header">${gameTabs(state.mission)}${tasks({...state,view})}</div>${body}</div>`;
  }
  root.TeacherDashboardUI={games,pageRows,model,sidebar,gameTabs,screen};
 })(typeof window==='undefined'?globalThis:window);
