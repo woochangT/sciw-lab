@@ -250,3 +250,23 @@ test('private dashboard data and rejudgment require the server secret; student w
  const snapshot=m.post({action:'teacherDashboardData',proxySecret});
  assert.equal(snapshot.ok,true);assert.equal(snapshot.records.m01[1][1],session.sessionId);assert.equal(snapshot.records.m02.length,1);
 });
+
+test('student reentry finds only the newest session for the exact class, number and mission',()=>{
+ const m=make();
+ const start=(id,c,n,mission,date)=>({action:'startSession',session:{sessionId:id,classCode:c,studentNo:n,missionId:mission,startedAt:date}});
+ for(const op of [start('old','3-2','7','m02','2026-11-01T00:00:00Z'),start('new','3-2','7','m02','2026-11-02T00:00:00Z'),start('other-class','3-3','7','m02','2026-11-03T00:00:00Z'),start('other-number','3-2','8','m02','2026-11-03T00:00:00Z'),start('other-mission','3-2','7','m01','2026-11-03T00:00:00Z')])assert.equal(m.post(op).ok,true);
+ const checkpoint={schema:'student-resume-v1',missionId:'m02',point:'link',state:{tray:['cA','cB'],link:1},draft:{reply:'합성 초안'}};
+ assert.equal(m.post({action:'updateSession',sessionId:'new',fields:{checkpoint,checkpointSavedAt:'2026-11-02T00:10:00Z'}}).ok,true);
+ const r=m.post({action:'findStudentSession',classCode:'3-2',studentNo:'7',missionId:'m02'});
+ assert.equal(r.ok,true);assert.equal(r.schema,'student-resume-v1');assert.equal(r.session.sessionId,'new');assert.deepEqual(r.session.checkpoint,checkpoint);
+ assert.equal(r.session.attempts,undefined);assert.equal(r.sessions,undefined);
+ assert.equal(m.post({action:'findStudentSession',classCode:'3-2',studentNo:'9',missionId:'m02'}).session,null);
+ assert.equal(m.sheets['강철솜'].rows.length,5); // 새 판이 이전 판을 덮어쓰지 않는다.
+});
+test('legacy reentry remains available for starting anew and invalid or cross-mission checkpoints are rejected',()=>{
+ const m=make();assert.equal(m.post({action:'startSession',session:{sessionId:'legacy-resume',missionId:'m02',classCode:'1-1',studentNo:'1'}}).ok,true);
+ const r=m.post({action:'findStudentSession',classCode:'1-1',studentNo:'1',missionId:'m02'});assert.equal(r.ok,true);assert.equal(r.session.checkpoint,null);
+ assert.equal(m.post({action:'updateSession',sessionId:'legacy-resume',fields:{checkpoint:{schema:'student-resume-v1',missionId:'m01',point:'explore',state:{}}}}).ok,false);
+ assert.equal(m.post({action:'findStudentSession',classCode:'1-100',studentNo:'1',missionId:'m02'}).ok,false);
+ assert.equal(m.post({action:'findStudentSession',classCode:'1-1',studentNo:'0',missionId:'m02'}).ok,false);
+});

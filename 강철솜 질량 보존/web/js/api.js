@@ -8,9 +8,10 @@
   const cfg = window.SCIW_CONFIG || {};
   const URL_ = (cfg.API_URL || '').trim();
   const JUDGE_URL = (cfg.JUDGE_API_URL || '').trim();
-  const sync = window.SciwRecordSync.create({url: URL_, queueKey: 'sciw_queue_m02_v1', verified: Boolean(cfg.M02_SERVER_VERIFIED)});
+  const sync = window.SciwRecordSync.create({url: URL_, queueKey: 'sciw_queue_m02_v1', verified: Boolean(cfg.M02_SERVER_VERIFIED), defer: true});
   const API = {
     ...sync,
+    get isExperience(){return sync.isExperience;},
 
     // AI 장애를 오답/null로 바꾸지 않는다. 기록 주소에는 판정 요청을 보내지 않는다.
     async judge(payload, timeoutMs = cfg.LLM_TIMEOUT_MS || 65000) {
