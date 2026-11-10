@@ -13,6 +13,7 @@
     "html_handling": "none",
     "not_found_handling": "none"
   },
+  "ratelimits": [{"name":"TEACHER_LOGIN_LIMIT","namespace_id":"51719","simple":{"limit":8,"period":60}}],
   "observability": {
     "enabled": true,
     "logs": { "enabled": true, "invocation_logs": false, "head_sampling_rate": 1 },

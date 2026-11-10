@@ -57,7 +57,16 @@ function doPost(e) {
       authorizeTeacher_(body);
       return json_(Object.assign({ok:true}, getMissionClassData_(body.classCode, body.missionId)));
     }
-    if (body.action === 'rejudge') return json_(rejudgeFinal_(body));
+    if (body.action === 'teacherDashboardData') {
+      authorizeDashboardProxy_(body);
+      const records = {};
+      Object.keys(MISSION_SHEETS).forEach(mission => {records[mission] = [ALL_RECORD_HEADERS].concat(missionRows_(mission).rows);});
+      return json_({ok:true,records:records});
+    }
+    if (body.action === 'rejudge') {
+      authorizeDashboardProxy_(body);
+      return json_(rejudgeFinal_(body));
+    }
     if (body.action === 'judge') return json_({ok:true,result:judge_(body)});
     // Input-only teaching suggestions: never reads a class or exposes stored records.
     if (body.action === 'analyzeClass') return json_({ok:true,analysis:analyzeClass_(body)});
@@ -69,6 +78,15 @@ function doPost(e) {
     }
     return json_({ok:true,applied:ops.length});
   } catch (err) { return json_({ok:false,error:String(err && err.message || err)}); }
+}
+// Shared only by the Worker and this script; the dashboard password is never sent here.
+function authorizeDashboardProxy_(body) {
+  const expected=PropertiesService.getScriptProperties().getProperty('TEACHER_PROXY_SECRET'),actual=body.proxySecret;
+  if (!expected || expected.length < 32 || typeof actual !== 'string' || actual.length < 32 || actual.length > 256) throw new Error('교사 서버 인증 실패');
+  const want=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,expected), got=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,actual);
+  let diff=0;
+  for (let i=0;i<want.length;i++) diff|=want[i]^got[i];
+  if (diff) throw new Error('교사 서버 인증 실패');
 }
 // 별도 키를 정적 웹 파일에 넣지 않는다. 강한 비밀값과 반·미션 매핑을 운영자가 Script Properties에 설정해야 한다.
 function authorizeTeacher_(body) {

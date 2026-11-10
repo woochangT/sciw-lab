@@ -17,18 +17,27 @@ test('class game views reuse the same matrix layout and preserve original scoped
  }
  assert.equal(JSON.stringify(db),before);
 });
-test('ambiguous criterion headers have accurate help while obvious headers and stored fields stay intact',()=>{
- const data=M.analyze(db,'3-2','latest',{missionId:'m02'}),html=D.screen({portfolio,data,selectedClass,mission:'m02',source:'demo'});
- assert.match(html,/<th scope="col" title="열린 실험 자료 \(D-A\)">A 질량 증가<button[^>]*data-info-text="[^"]*최종 답안에서 식별/);
- assert.match(html,/실험을 관찰했는지의 기록은 아닙니다/);
- assert.match(html,/<th scope="col" title="닫힌 실험 자료 \(D-B\)">B 전체 질량<button/);
- assert.match(html,/<th scope="col">AI 판정<button/);
- assert.match(html,/<th scope="col">출석번호<\/th>/);
- assert.doesNotMatch(html,/<th scope="col">출석번호<button/);
- assert.match(html,/id="recordFilter"/);assert.match(html,/id="playMode"/);assert.match(html,/status-/);
- assert.deepEqual(I.definitions.m02[1],['D-A','열린 실험 자료']);
- const comparison=html.match(/<div class="comparison-scroll">([\s\S]*?)<\/table>/)?.[1]||'';
- assert.match(comparison,/첫 판 인정<button/);assert.match(comparison,/비교 인원<button/);assert.match(comparison,/제외 이유<button/);
+test('every heatmap header and the priority list use the same rubric labels and meaningful help',()=>{
+ const changed={...db,sessions:db.sessions.map(s=>s.sessionId==='a'?{...s,finalJudgment:{C:true,'D-B':false}}:s)};
+ for(const mission of ['m01','m02']){
+  const data=M.analyze(changed,'3-2','latest',{missionId:mission});
+  for(const selected of [selectedClass,null]){
+   const html=D.screen({portfolio,data,selectedClass:selected,mission,source:'demo'});
+   const header=html.split('class="dashboard-matrix"')[1].match(/<thead>(.*?)<\/thead>/)[1];
+   const columns=header.match(/<th scope="col"[^>]*>.*?<\/th>/g);
+   assert.equal(columns.length,I.definitions[mission].length+(selected?4:2));
+   for(const col of columns)assert.match(col,/data-info-text="[^"]+"/);
+   if(mission==='m02'&&selected){
+    const priority=html.split('class="lesson-priority"')[1].split('</article>')[0];
+    assert.match(priority,/<b>B 전체 질량<\/b>/);
+    assert.match(priority,/data-info-text="[^"]*150.0 g[^"]*" aria-label="B 전체 질량 설명"/);
+    assert.match(header,/<th scope="col" title="B 전체 질량 \(D-B\)">B 전체 질량<button[^>]*aria-label="B 전체 질량 설명"/);
+    assert.doesNotMatch(html,/닫힌 실험 자료/);
+    const comparison=html.match(/<div class="comparison-scroll">([\s\S]*?)<\/table>/)?.[1]||'';
+    assert.match(comparison,/첫 판 인정<button/);assert.match(comparison,/비교 인원<button/);assert.match(comparison,/제외 이유<button/);
+   }
+  }
+ }
 });
 test('pagination clamps stale page indexes and search changes visible rows rather than analysis denominators',()=>{
  const rows=Array.from({length:32},(_,i)=>i+1);assert.deepEqual(D.pageRows(rows,99,10),{rows:[31,32],index:3,pages:4,total:32,start:31,end:32});assert.equal(D.pageRows([],5,10).index,0);

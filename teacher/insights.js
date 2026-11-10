@@ -2,8 +2,27 @@
  'use strict';
  const M=root.TeacherModel,S=root.TeacherScope;
  const definitions={
-  m01:[['C','농도 결론'],['D','실험 자료'],['W1','질량과 물 이동'],['W2a','물 이동 방향'],['W2b','안팎 농도 비교'],['W3/WB','농도 범위 연결']],
-  m02:[['C','자신의 결론'],['D-A','열린 실험 자료'],['D-B','닫힌 실험 자료'],['W1a','질량 보존 적용'],['W1b','산소 특정 이유'],['W2a','전체 질량 보존'],['W2b','증가분의 의미']]
+  m01:[['C','농도 결론'],['D','실험 자료'],['W1','질량·물 이동'],['W2a','이동 방향'],['W2b','농도 비교'],['W3/WB','농도 범위']],
+  m02:[['C','자신의 결론'],['D-A','A 질량 증가'],['D-B','B 전체 질량'],['W1a','질량 보존'],['W1b','산소 특정 이유'],['W2a','전체 질량'],['W2b','증가분 의미']]
+ };
+ const descriptions={
+  m01:{
+   C:'감자 세포 안의 농도가 5%와 10% 사이라고 결론 내렸는지 확인합니다.',
+   D:'최종 답안에 5% 설탕물에서 감자 질량이 늘고 10%에서 줄었다는 실험 결과를 제시했는지 확인합니다.',
+   W1:'감자 질량이 늘거나 줄어든 이유를 감자 안으로 들어오거나 밖으로 빠져나간 물과 연결했는지 확인합니다.',
+   W2a:'5% 설탕물에서 물이 감자 안으로 들어왔다는 관찰을 바탕으로 감자 안이 5%보다 진하다고 설명했는지 확인합니다.',
+   W2b:'10% 설탕물에서 물이 감자 밖으로 나왔다는 관찰을 바탕으로 감자 안이 10%보다 묽다고 설명했는지 확인합니다.',
+   'W3/WB':'5%보다 진하고 10%보다 묽다는 두 결과를 합치거나, 질량 변화가 0인 농도가 두 값 사이라는 점을 근거로 범위를 설명했는지 확인합니다.'
+  },
+  m02:{
+   C:'실험 A에서 공기 중 산소가 철에 결합해 강철솜이 더 무거워졌다고 결론 내렸는지 확인합니다.',
+   'D-A':'열린 실험 A의 강철솜 질량이 2.0 g에서 2.5 g으로 늘었거나, 증가분이 0.5 g임을 최종 답안에 썼는지 확인합니다.',
+   'D-B':'닫힌 실험 B의 플라스크 전체 질량이 실험 전후 모두 150.0 g이었다는 측정값을 최종 답안에 썼는지 확인합니다.',
+   W1a:'질량이 저절로 생기지 않으므로 실험 A에서 질량이 늘려면 바깥 물질이 더해져야 한다고 설명했는지 확인합니다.',
+   W1b:'연소에 산소가 필요하다는 원리나 산소가 선택적으로 줄어든 관찰을 근거로, 더해진 물질을 산소로 특정했는지 확인합니다.',
+   W2a:'실험 B의 산소가 철에 결합해도 닫힌 플라스크 밖으로 드나든 물질이 없어서, 전체 질량이 그대로인 이유를 설명했는지 확인합니다.',
+   W2b:'실험 A에서 늘어난 질량이 바깥에서 들어와 철에 결합한 산소의 질량이라고 설명했는지 확인합니다.'
+  }
  };
  const known=v=>v===true||v===false||['true','false','TRUE','FALSE'].includes(v);
  const statusLabels={completed:'판정 완료',pending:'판정 대기',failed:'판정 실패',unavailable:'판정 불가',missing:'판정 기록 없음'};
@@ -138,5 +157,5 @@
    return [m,criteria(d,d.sessions)];
   }))};
  }
- root.TeacherInsights={definitions,evaluation,judgmentStatus,finalSubmission,activeRejudgment,element,criteria,aggregate,recommendCandidates,lessonPriority,comparePlays,game,overview};
+ root.TeacherInsights={definitions,descriptions,evaluation,judgmentStatus,finalSubmission,activeRejudgment,element,criteria,aggregate,recommendCandidates,lessonPriority,comparePlays,game,overview};
 })(typeof window==='undefined'?globalThis:window);

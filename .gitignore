@@ -9,3 +9,6 @@ __pycache__/
 .RData
 node_modules/
 .wrangler/
+
+.dev.vars
+.dev.vars.*

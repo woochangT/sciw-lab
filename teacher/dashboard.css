@@ -67,3 +67,7 @@ body.dashboard-app{background:#f3f5f2;font:15px/1.5 Pretendard,system-ui,sans-se
 #rejudgeButton:disabled{opacity:.7;cursor:wait}
 .rejudge-control #rejudgeStatus:empty{display:none}
 .dashboard-matrix .rubric-code{display:block;font-size:.76em;font-weight:500;color:#526952}
+
+.lesson-priority li:has(>.priority-element){display:flex;align-items:center;gap:2px}.lesson-priority .priority-element{flex:1;min-width:0}.lesson-priority .term-info{flex:none;width:25px;height:25px;margin:0}.dashboard-matrix th .term-info{min-width:18px}
+
+.teacher-login{min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,#e2ebde,#f4f5ef 74%);color:var(--deep)}.teacher-login>section{width:min(100%,395px);padding:32px;background:#fff;border:1px solid #d5dfd3;border-radius:12px;box-shadow:0 12px 32px #213a2714}.teacher-login-brand{display:flex;align-items:center;gap:8px;font-weight:750;font-size:14px;margin-bottom:19px}.teacher-login-brand img{width:28px;height:28px}.teacher-login h1{font-size:29px;margin:0 0 6px}.teacher-login section>p{color:var(--soft)}.teacher-login form{display:grid;gap:7px;margin:22px 0 15px}.teacher-login label{font-size:14px;font-weight:650}.teacher-login input{min-height:43px;border:1px solid #acbcae;border-radius:6px;padding:9px 11px;background:white;color:var(--ink);font:inherit;width:100%}.teacher-login-message,.teacher-login [role=status]{min-height:1.15em;color:#943a29;font-size:14px}.teacher-login-back{font-size:14px;color:var(--soft)}.teacher-login-back:hover{text-decoration:underline}

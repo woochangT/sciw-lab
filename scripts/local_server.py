@@ -9,6 +9,8 @@ import csv
 import datetime as dt
 import io
 import json
+import os
+import secrets
 import re
 import subprocess
 import threading
@@ -80,7 +82,8 @@ def parse_records(text, mission_id='m02'):
     return {'sessions':sessions, 'attempts':attempts, 'invalidRows':invalid}
 
 class SheetReader:
-    def __init__(self):
+    def __init__(self, proxy_secret=None):
+        self.proxy_secret = proxy_secret
         self.lock = threading.Lock()
         self.cached = None
         self.loaded_at = 0
@@ -89,19 +92,34 @@ class SheetReader:
             if not refresh and self.cached and time.monotonic()-self.loaded_at < 12:
                 return self.cached
             data={'sessions':[], 'attempts':[], 'invalidRows':0}
-            for mission_id, mission in MISSIONS.items():
-                query = urllib.parse.urlencode({'tqx':'out:csv','headers':'1','gid':mission['gid'],'range':'A:T'})
-                request = urllib.request.Request(f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?{query}', headers={'User-Agent':'SciwLab-LocalPreview/2.0'})
+            if self.proxy_secret:
+                request=urllib.request.Request(SCRIPT_URL,data=json.dumps({'action':'teacherDashboardData','proxySecret':self.proxy_secret}).encode(),headers={'Content-Type':'text/plain;charset=utf-8'})
                 try:
-                    with urllib.request.urlopen(request, timeout=20) as response:
-                        if 'text/csv' not in response.headers.get('Content-Type',''):
-                            raise ValueError('시트 접근 권한을 확인해 주세요.')
-                        text=response.read(8_000_001)
-                        if len(text)>8_000_000:raise ValueError('기록이 너무 많습니다.')
-                    part=parse_records(text.decode('utf-8-sig'),mission_id)
-                    data['sessions'].extend(part['sessions']);data['attempts'].extend(part['attempts']);data['invalidRows']+=part['invalidRows']
-                except (OSError,ValueError) as exc:
-                    raise ValueError(mission['name']+' 시트에서 기록을 읽지 못했습니다. 연결 또는 공유 상태를 확인해 주세요.') from exc
+                    with urllib.request.urlopen(request,timeout=20) as response:
+                        raw=response.read(16_000_001)
+                    if len(raw)>16_000_000:raise ValueError()
+                    snapshot=json.loads(raw)
+                    if not snapshot.get('ok'):raise ValueError()
+                    for mission in MISSIONS:
+                        output=io.StringIO();csv.writer(output).writerows(snapshot['records'][mission]);part=parse_records(output.getvalue(),mission)
+                        for key in ('sessions','attempts'):data[key].extend(part[key])
+                        data['invalidRows']+=part['invalidRows']
+                except (OSError,ValueError,KeyError,TypeError) as exc:
+                    raise ValueError('시트 기록을 읽지 못했습니다. 교사 서버 설정을 확인해 주세요.') from exc
+            else:
+                for mission_id, mission in MISSIONS.items():
+                    query = urllib.parse.urlencode({'tqx':'out:csv','headers':'1','gid':mission['gid'],'range':'A:T'})
+                    request = urllib.request.Request(f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?{query}', headers={'User-Agent':'SciwLab-LocalPreview/2.0'})
+                    try:
+                        with urllib.request.urlopen(request, timeout=20) as response:
+                            if 'text/csv' not in response.headers.get('Content-Type',''):
+                                raise ValueError('시트 접근 권한을 확인해 주세요.')
+                            text=response.read(8_000_001)
+                            if len(text)>8_000_000:raise ValueError('기록이 너무 많습니다.')
+                        part=parse_records(text.decode('utf-8-sig'),mission_id)
+                        data['sessions'].extend(part['sessions']);data['attempts'].extend(part['attempts']);data['invalidRows']+=part['invalidRows']
+                    except (OSError,ValueError) as exc:
+                        raise ValueError(mission['name']+' 시트에서 기록을 읽지 못했습니다. 연결 또는 공유 상태를 확인해 주세요.') from exc
             data['fetchedAt'] = dt.datetime.now(dt.timezone.utc).isoformat()
             data['sheetUrl'] = SHEET_URL
             self.cached = data
@@ -147,9 +165,25 @@ def class_scope(data, name, class_key, include, mission):
     ids={s.get('sessionId') for s in sessions}
     return {**data,'sessions':sessions,'attempts':[a for a in data['attempts'] if a.get('sessionId') in ids and a.get('missionId',mission)==mission and ('classCode' not in a or str(a['classCode']) in codes)], 'classCodes':codes,'classKey':class_key or (class_identity(name)['classKey'] if name else ''),'classLabel':group['label'] if group else name,'missionId':mission,'isTest':include,'sheetUrl':f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit#gid={MISSIONS[mission]["gid"]}'}
 
+class LocalTeacherAuth:
+    def __init__(self,password):
+        self.password=password.encode() if password else b''
+        self.sessions={}
+        self.lock=threading.Lock()
+    def login(self,password):
+        if not self.password or not isinstance(password,str) or not secrets.compare_digest(password.encode(),self.password):
+            return None
+        token=secrets.token_urlsafe(32)
+        with self.lock:
+            now=time.monotonic(); self.sessions={k:v for k,v in self.sessions.items() if v>now}; self.sessions[token]=now+8*3600
+        return token
+    def valid(self,header):
+        return header.startswith('Bearer ') and self.sessions.get(header[7:],0)>time.monotonic()
+
 class Handler(SimpleHTTPRequestHandler):
-    def __init__(self, *args, reader, **kwargs):
+    def __init__(self, *args, reader, auth, **kwargs):
         self.reader=reader
+        self.auth=auth
         super().__init__(*args,directory=str(ROOT),**kwargs)
     def local_request(self):
         host = self.headers.get('Host','')
@@ -170,9 +204,11 @@ class Handler(SimpleHTTPRequestHandler):
         if not self.local_request() or self.headers.get('Origin') != 'http://'+self.headers.get('Host',''):
             self.json({'ok':False,'error':'로컬 수업 화면에서 요청해 주세요.'},403)
             return
-        if self.path not in ('/api/sheet/analysis', '/api/sheet/rejudge'):
+        if self.path not in ('/api/sheet/login','/api/sheet/analysis', '/api/sheet/rejudge'):
             self.json({'ok':False,'error':'지원하지 않는 요청'},404)
             return
+        if self.path!='/api/sheet/login' and not self.auth.valid(self.headers.get('Authorization','')):
+            self.json({'ok':False,'error':'교사 암호를 입력해 주세요.'},401);return
         try:
             size=int(self.headers.get('Content-Length','0'))
             if size<1 or size>1024 or self.headers.get('Content-Type','').split(';')[0]!='application/json':
@@ -180,10 +216,15 @@ class Handler(SimpleHTTPRequestHandler):
             body=json.loads(self.rfile.read(size))
             if not isinstance(body,dict):
                 raise ValueError('잘못된 분석 요청입니다.')
+            if self.path == '/api/sheet/login':
+                token=self.auth.login(body.get('password'))
+                if token:self.json({'ok':True,'token':token})
+                else:self.json({'ok':False,'error':'암호가 맞지 않습니다.' if self.auth.password else '로컬 교사 암호를 설정해 주세요.'},401 if self.auth.password else 503)
+                return
             if self.path == '/api/sheet/rejudge':
                 fields=('classCode','missionId','sessionId','attemptId','requestId')
                 payload={key:body.get(key) for key in fields}
-                request=urllib.request.Request(SCRIPT_URL,data=json.dumps({'action':'rejudge',**payload}).encode(),headers={'Content-Type':'text/plain;charset=utf-8'})
+                request=urllib.request.Request(SCRIPT_URL,data=json.dumps({'action':'rejudge','proxySecret':getattr(self.reader,'proxy_secret',None),**payload}).encode(),headers={'Content-Type':'text/plain;charset=utf-8'})
                 with urllib.request.urlopen(request,timeout=145) as response:
                     raw=response.read(60001)
                 if len(raw)>60000:
@@ -231,9 +272,13 @@ class Handler(SimpleHTTPRequestHandler):
             return
         parsed=urllib.parse.urlsplit(self.path)
         if parsed.path.startswith('/api/'):
-            if parsed.path not in ('/api/sheet/classes','/api/sheet/class'):
+            if parsed.path not in ('/api/sheet/session','/api/sheet/classes','/api/sheet/class'):
                 self.json({'ok':False,'error':'지원하지 않는 조회'},404)
                 return
+            if not self.auth.valid(self.headers.get('Authorization','')):
+                self.json({'ok':False,'error':'교사 암호를 입력해 주세요.'},401);return
+            if parsed.path=='/api/sheet/session':
+                self.json({'ok':True});return
             query=urllib.parse.parse_qs(parsed.query)
             try:
                 data=self.reader.read(query.get('refresh')==['1'])
@@ -269,7 +314,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--port',type=int,default=8765)
     args=parser.parse_args()
-    server=ThreadingHTTPServer(('127.0.0.1',args.port),partial(Handler,reader=SheetReader()))
+    server=ThreadingHTTPServer(('127.0.0.1',args.port),partial(Handler,reader=SheetReader(os.environ.get('TEACHER_PROXY_SECRET')),auth=LocalTeacherAuth(os.environ.get('TEACHER_PASSWORD'))))
     print(f'Sciw Lab + sheet connection: http://127.0.0.1:{args.port}',flush=True)
     server.serve_forever()
 
