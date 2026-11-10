@@ -2,7 +2,7 @@
  'use strict';
  const M=root.TeacherModel,I=root.TeacherInsights,U=root.TeacherOverviewUI;
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const games={m01:{name:'감자 삼투',topic:'농도 차이와 물의 이동',asset:'intro/potato-silhouette.webp'},m02:{name:'강철솜 질량 보존',topic:'두 설명 경로 중 하나로 통과 · 항목별 참고 결과',asset:'intro/steel-wool-silhouette.webp'}};
+ const games={m01:{name:'감자 삼투',asset:'intro/potato-silhouette.webp'},m02:{name:'강철솜 질량 보존',asset:'intro/steel-wool-silhouette.webp'}};
  const labelFor=(mission,id)=>I.definitions[mission].find(([key])=>key===id)?.[1]||id;
  const elementInfo=(mission,id)=>info(labelFor(mission,id),I.descriptions[mission][id]);
  function info(label,description){return `<button type="button" class="term-info" data-info-text="${esc(description)}" aria-label="${esc(label)} 설명" aria-expanded="false" aria-haspopup="dialog">ⓘ</button>`}
@@ -27,7 +27,7 @@
   const rows=(portfolio?.classes||[]).filter(c=>c.isTest===tests&&(!grade||String(c.grade)===grade));
   return `<button class="scope-all ${!selectedClass?'active':''}" data-all-classes ${!selectedClass?'aria-current="page"':''}><span>▦</span> 전체 학급 <small>${rows.length}</small></button><div class="sidebar-section-title"><b>담당 학급</b><label><span class="sr-only">학년 필터</span><select id="overviewGrade"><option value="">모든 학년</option>${['1','2','3'].map(g=>`<option value="${g}" ${grade===g?'selected':''}>${g}학년</option>`).join('')}</select></label></div><div class="sidebar-class-list">${rows.map(c=>`<button class="scope-class ${selectedClass?.classKey===c.classKey&&selectedClass?.isTest===c.isTest?'active':''}" data-class-key="${esc(c.classKey)}" data-class-test="${c.isTest}" ${selectedClass?.classKey===c.classKey&&selectedClass?.isTest===c.isTest?'aria-current="page"':''}><span>${esc(c.label)}</span><small>${c.games[mission].participants}명</small></button>`).join('')||'<p class="sidebar-empty">아직 기록된 반이 없습니다.</p>'}</div><label class="sidebar-tests"><input id="overviewTests" type="checkbox" ${tests?'checked':''}>테스트 기록</label>`;
  }
- function gameTabs(mission){return `<div class="dashboard-gamebar"><div class="game-tabs" role="tablist" aria-label="게임 선택">${Object.entries(games).map(([id,g])=>`<button role="tab" data-switch-game="${id}" id="game-${id}" aria-selected="${id===mission}" aria-controls="dashboardResults" tabindex="${id===mission?0:-1}"><img src="${g.asset}" alt="">${g.name}</button>`).join('')}</div><span class="game-topic">${games[mission].topic}</span></div>`}
+ function gameTabs(mission){return `<div class="dashboard-gamebar"><div class="game-tabs" role="tablist" aria-label="게임 선택">${Object.entries(games).map(([id,g])=>`<button role="tab" data-switch-game="${id}" id="game-${id}" aria-selected="${id===mission}" aria-controls="dashboardResults" tabindex="${id===mission?0:-1}"><img src="${g.asset}" alt="">${g.name}</button>`).join('')}</div></div>`}
  function metrics(v,selectedClass,loading=false){
   const items=[
    [selectedClass?'참여 학생':'참여 학생 합계',v.total,'플레이 시작 기준'],
@@ -68,13 +68,13 @@
     </button>`).join('')||`<p class="focus-empty">${state.loading?'학급 기록을 불러오는 중입니다.':state.error?'시트 연결을 확인해 주세요.':'아직 기록된 학급이 없습니다.'} ${!state.loading&&state.source==='sheet'?'<button class="dashboard-link" data-demo>예시 수업 열기</button>':''}</p>`}</div></section>`;
  }
  function lessonHome(v,state,priority){
-  const {focus,missing}=priority,report=state.report?.analysis?.result,mission=state.mission;
-  const title=focus?'다음 수업에서 함께 물어볼 질문':state.loading?'학급 기록을 불러오는 중입니다.':v.written?'저장된 학생 답안부터 살펴보세요.':'아직 제출된 답안이 없어요.';
+  const {missing}=priority,report=state.report?.analysis?.result,mission=state.mission;
+  const empty=state.loading?'학급 기록을 불러오는 중입니다.':state.error?'학급 기록을 불러오지 못했어요.':v.written?'지금 확인된 보완 질문이 없어요. 아래에서 학생별 답안을 살펴보세요.':'아직 제출된 답안이 없어요.';
   const displayedQuestions=new Set(missing.map(item=>I.teachingQuestions[mission][item.key]));
   const question=Array.isArray(report?.questions)?report.questions.find(item=>typeof item?.question==='string'&&item.question.trim()&&!displayedQuestions.has(item.question.trim()))?.question:'';
   return `<section class="lesson-home" aria-labelledby="lessonHomeTitle">
-   <div class="lesson-home-copy"><header class="lesson-home-heading">
-    <h2 id="lessonHomeTitle">${esc(title)}</h2>
+   <header class="lesson-home-heading">
+    <h2 class="dashboard-section-title" id="lessonHomeTitle">다음 수업에서 함께 물어볼 질문</h2>
    </header>
    ${missing.length?`
     <div class="weakness-grid">${missing.map((group,index)=>`<article class="weakness-card">
@@ -82,12 +82,7 @@
      <h3>${esc(I.teachingQuestions[mission][group.key])}</h3>
      <p class="weakness-description">${esc(I.descriptions[mission][group.key])}</p>
      <div class="weakness-roster"><b>해당 학생:</b><ul class="weakness-students" aria-label="해당 학생">${group.students.map(({studentNo})=>`<li><a href="#student-answer-${studentNo}" data-analysis-student="${studentNo}" aria-label="${studentNo}번 학생 답안 분석">${studentNo}번</a></li>`).join('')}</ul></div>
-     <button type="button" class="dashboard-link" data-compare-element="${esc(group.key)}" aria-label="${esc(I.teachingQuestions[mission][group.key])} 답안 비교" aria-pressed="${focus?.key===group.key}">답안 비교 ↓</button>
-    </article>`).join('')}</div>`:''}
-   ${report?.teachingFocus?`<p class="lesson-question"><b>수업 참고</b> ${esc(report.teachingFocus)}</p>`:''}
-   ${question?`<p class="lesson-question"><b>추가로 물어볼 질문</b> ${esc(question)}</p>`:''}
-   ${state.reportStale?'<p class="focus-freshness">새 답안이 들어왔어요. 학급 재분석으로 갱신할 수 있어요.</p>':''}
-   </div>
+    </article>`).join('')}</div>`:`<p class="weakness-card lesson-empty">${esc(empty)}</p>`}
    <div class="lesson-participation">
     <div class="lesson-participation-summary"><img src="${games[state.mission].asset}" alt=""><div><strong>${v.written}<small> / ${v.total}명</small></strong><span>최종 답안 / 참여</span></div></div>
     <progress value="${v.written}" max="${v.total||1}" aria-label="학급 최종 답안 작성 인원"></progress>
@@ -95,27 +90,28 @@
     ${state.aiError?`<p class="dashboard-ai-error" role="alert">${esc(state.aiError)}</p>`:''}
     ${state.source==='sheet'&&!state.loading&&!state.error&&!report&&!v.written?'<button class="dashboard-link" data-demo>예시 수업 열기</button>':''}
    </div>
+   ${report?.teachingFocus||question||state.reportStale?`<div class="lesson-notes">
+    ${report?.teachingFocus?`<p class="lesson-question"><b>수업 참고</b> ${esc(report.teachingFocus)}</p>`:''}
+    ${question?`<p class="lesson-question"><b>추가로 물어볼 질문</b> ${esc(question)}</p>`:''}
+    ${state.reportStale?'<p class="focus-freshness">새 답안이 들어왔어요. 학급 재분석으로 갱신할 수 있어요.</p>':''}
+   </div>`:''}
   </section>`;
  }
- function answerComparison(state,v,priority){
-  const first=priority.candidates[0],focus=priority.focus;
-  const alternative=first&&v.all.find(({s,e})=>M.number(s)!==first.studentNo&&e.key===v.current&&I.element(e.judgment,focus.key)==='met'&&I.finalSubmission(state.data,s).target)?.s;
-  const examples=first?[{...first,label:'설명을 함께 점검할 글'},alternative?{studentNo:M.number(alternative),sessionId:alternative.sessionId,element:focus.key,label:'같은 요소가 드러난 글'}:priority.candidates[1]&&{...priority.candidates[1],label:'같은 요소를 함께 살펴볼 다른 글'}].filter(Boolean):[];
-  return `<section class="focus-examples" aria-labelledby="comparisonHeading"><header><div><h2 id="comparisonHeading" tabindex="-1">수업에서 함께 읽을 학생 답안</h2><p>${focus?esc(I.teachingQuestions[state.mission][focus.key]):'같은 판정 기준으로 비교할 수 있는 답안이 아직 없어요.'}</p></div></header>
-   <div class="focus-example-grid">${examples.map(example=>{
-    const {s,e}=v.all.find(row=>row.s.sessionId===example.sessionId);
-    const input=String(I.finalSubmission(state.data,s).target?.input||s.finalAnswer||'');
-    const elements=example.element==='W3/WB'?['W3','WB']:[example.element];
-    const quote=elements.map(key=>e.analysis?.checks?.[key]?.quote).find(value=>typeof value==='string'&&value.trim()&&input.includes(value));
-    const position=quote?input.indexOf(quote):-1;
-    const excerpt=position<0?esc(input):esc(input.slice(0,position))+'<mark>'+esc(quote)+'</mark>'+esc(input.slice(position+quote.length));
-    return `<article><p>${esc(example.label)}</p><h3>${esc(example.studentNo)}번 학생의 최종 답안</h3><blockquote>${excerpt}</blockquote><button class="dashboard-link" data-student="${esc(example.studentNo)}" data-session="${esc(example.sessionId)}" data-element="${esc(example.element)}">원문과 판정 근거 보기 ↗</button></article>`;
-   }).join('')}${examples.length===1?'<p class="focus-empty">같은 판정 기준으로 비교할 두 번째 글이 아직 없습니다.</p>':''}</div>
-   ${examples.length?'':'<p class="focus-freshness">아래 목록에서 학생별로 저장된 답안을 열어 볼 수 있어요.</p>'}</section>`;
+ function lessonAnswer(state,v,priority){
+  const example=priority.candidates[0];
+  if(!example)return '';
+  const {s,e}=v.all.find(row=>row.s.sessionId===example.sessionId);
+  const input=String(I.finalSubmission(state.data,s).target?.input||s.finalAnswer||'');
+  const elements=example.element==='W3/WB'?['W3','WB']:[example.element];
+  const quote=elements.map(key=>e.analysis?.checks?.[key]?.quote).find(value=>typeof value==='string'&&value.trim()&&input.includes(value));
+  const position=quote?input.indexOf(quote):-1;
+  const excerpt=position<0?esc(input):esc(input.slice(0,position))+'<mark>'+esc(quote)+'</mark>'+esc(input.slice(position+quote.length));
+  return `<section class="focus-examples" aria-labelledby="lessonAnswerTitle"><header><h2 class="dashboard-section-title" id="lessonAnswerTitle">수업에 활용할 답안</h2></header>
+   <article class="lesson-answer"><h3>${esc(example.studentNo)}번 학생의 최종 답안</h3><blockquote>${excerpt}</blockquote><button class="dashboard-link" data-student="${esc(example.studentNo)}" data-session="${esc(example.sessionId)}" data-element="${esc(example.element)}">답안과 판정 근거 보기 ↗</button></article></section>`;
  }
  function studentRecords(v,state){
   const p=v.pagination;
-  return `<section class="student-records" aria-labelledby="studentRecordsTitle"><header><div><h2 id="studentRecordsTitle">학생별 진행과 답안</h2><p>${v.total}명 참여 · ${v.written}명 최종 답안 · ${v.pending}명 작성 중</p></div><div class="matrix-toolbar"><input id="recordSearch" type="search" value="${esc(state.query)}" placeholder="출석번호 검색" aria-label="출석번호 검색"><select id="recordFilter" aria-label="작성 상태"><option value="all">전체 기록</option><option value="written" ${state.filter==='written'?'selected':''}>답안 작성</option><option value="pending" ${state.filter==='pending'?'selected':''}>작성 전</option></select><select id="playMode" aria-label="기록 기준"><option value="latest">최근 판</option><option value="first" ${state.mode==='first'?'selected':''}>처음 한 판</option></select></div></header>
+  return `<section class="student-records" aria-labelledby="studentRecordsTitle"><header><div><h2 class="dashboard-section-title" id="studentRecordsTitle">학생별 답안</h2><p>${v.total}명 참여 · ${v.written}명 최종 답안 · ${v.pending}명 작성 중</p></div><div class="matrix-toolbar"><input id="recordSearch" type="search" value="${esc(state.query)}" placeholder="출석번호 검색" aria-label="출석번호 검색"><select id="recordFilter" aria-label="작성 상태"><option value="all">전체 기록</option><option value="written" ${state.filter==='written'?'selected':''}>답안 작성</option><option value="pending" ${state.filter==='pending'?'selected':''}>작성 전</option></select><select id="playMode" aria-label="기록 기준"><option value="latest">최근 판</option><option value="first" ${state.mode==='first'?'selected':''}>처음 한 판</option></select></div></header>
    <ul>${p.rows.map(({s,e})=>{
     const answer=e.written?I.finalSubmission(state.data,s).target?.input:s.draftAnswer||s.firstAnswer;
     const label=e.written?'제출 답안':s.draftAnswer?'작성 중인 답안':'처음 생각';
@@ -130,7 +126,7 @@
   const steps=I.progressSteps[state.mission],p=v.pagination;
   const labels={met:'인정',revise:'보완',alternate:'대체 설명으로 충족',unknown:'미판정'};
   return `<section class="student-records progress-panel" aria-labelledby="studentProgressTitle">
-   <header><h2 id="studentProgressTitle">학생별 게임 진행</h2>
+   <header><h2 class="dashboard-section-title" id="studentProgressTitle">게임 진행 현황</h2>
     <div class="matrix-toolbar"><input id="recordSearch" type="search" value="${esc(state.query)}" placeholder="출석번호 검색" aria-label="출석번호 검색">
     <select id="playMode" aria-label="기록 기준"><option value="latest">최근 판</option><option value="first" ${state.mode==='first'?'selected':''}>처음 한 판</option></select></div></header>
    <div class="progress-scroll" tabindex="0" role="region" aria-label="게임 단계별 진행 표"><table class="progress-table">
@@ -160,8 +156,8 @@
   else if(!student)body=classPicker(v,state);
   else if(view==='progress')body=metrics(v,true,state.loading)+progressTable(v,state);
   else{
-   const priority=I.lessonPriority(state.data,state.data?.reps||[],state.mission,v.current,state.focusElement,v.all);
-   body=`<div class="lesson-prep">${lessonHome(v,state,priority)}${answerComparison(state,v,priority)}${studentRecords(v,state)}</div>`;
+   const priority=I.lessonPriority(state.data,state.data?.reps||[],state.mission,v.current,'',v.all);
+   body=`<div class="lesson-prep">${lessonHome(v,state,priority)}${lessonAnswer(state,v,priority)}${studentRecords(v,state)}</div>`;
   }
   return `<div class="dashboard-screen dashboard-task-screen ${view==='analysis'?'dashboard-analysis-screen':''}" id="dashboardResults" role="tabpanel" aria-labelledby="game-${state.mission}"><div class="dashboard-task-header">${gameTabs(state.mission)}${tasks({...state,view})}</div>${body}</div>`;
  }

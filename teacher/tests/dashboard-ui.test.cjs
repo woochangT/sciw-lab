@@ -101,7 +101,7 @@ test('answer candidates favor matching saved quotes and reasons, deduplicate stu
  assert.equal(R.criterion(data,data.reps.find(s=>s.sessionId==='both'),'C').includes('합성 답안 산소'),true);
  assert.equal(R.criterion(data,data.reps.find(s=>s.sessionId==='both'),'C').includes('저장된 판정 이유'),true);
 });
-test('selected missing element drives candidates and a missing original shows an empty state',()=>{
+test('teaching prep features one saved answer and omits the section without an original',()=>{
  const source={sessions:[
   session('c','3-2','1','m02',{finalAnswer:'합성 결론',finalJudgment:{C:false,W1a:true},rubricVersion:'m02-docx-1.2.0'}),
   session('w','3-2','2','m02',{finalAnswer:'합성 근거',finalJudgment:{C:true,W1a:false},rubricVersion:'m02-docx-1.2.0'}),
@@ -109,11 +109,13 @@ test('selected missing element drives candidates and a missing original shows an
  ],attempts:[]};
  const data=M.analyze(source,'3-2','latest',{missionId:'m02'}),p=I.overview(source),key='m02-docx-1.2.0';
  assert.deepEqual(I.lessonPriority(data,data.reps,'m02',key,'W1a').candidates.map(c=>c.sessionId),['w']);
- const html=D.screen({portfolio:p,data,selectedClass:p.classes[0],mission:'m02',criterion:key,focusElement:'W1a',view:'overview',source:'demo'}),comparison=html.split('class="focus-examples"')[1].split('</section>')[0];
- assert.match(html,/data-compare-element="W1a"[^>]*aria-pressed="true"/);assert.match(comparison,/data-session="w" data-element="W1a"/);
- assert.match(comparison,/합성 근거/);assert.match(comparison,/같은 요소가 드러난 글/);
+ const html=D.screen({portfolio:p,data,selectedClass:p.classes[0],mission:'m02',criterion:key,view:'overview',source:'demo'}),example=html.split('class="focus-examples"')[1].split('</section>')[0];
+ assert.equal((example.match(/<article/g)||[]).length,1);
+ assert.match(example,/data-session="[cw]" data-element="(C|W1a)"/);
+ assert.match(example,/합성 (결론|근거)/);
+ assert.doesNotMatch(html,/data-compare-element|답안 비교|두 설명 경로 중 하나로 통과/);
  const onlyEmpty={sessions:[source.sessions[2]],attempts:[]},emptyData=M.analyze(onlyEmpty,'3-2','latest',{missionId:'m02'}),empty=D.screen({portfolio:I.overview(onlyEmpty),data:emptyData,selectedClass:I.overview(onlyEmpty).classes[0],mission:'m02',criterion:key,view:'overview',source:'demo'});
- assert.match(empty,/아래 목록에서 학생별로 저장된 답안을/);assert.doesNotMatch(empty.split('class="student-records"')[0],/data-session=/);
+ assert.doesNotMatch(empty,/id="lessonAnswerTitle"/);
 });
 
 test('teaching prep shows focus, examples and answer previews; student records shows the rubric',()=>{
@@ -122,8 +124,7 @@ test('teaching prep shows focus, examples and answer previews; student records s
  assert.match(classes,/어느 반을 살펴볼까요/);assert.doesNotMatch(classes,/id="matrixViewport"/);
  const focus=D.screen({...state,view:'overview'});
  assert.match(focus,/다음 수업에서 함께 물어볼 질문/);
- assert.match(focus,/답안 비교/);
- assert.match(focus,/수업에서 함께 읽을 학생 답안[\s\S]*학생별 진행과 답안/);
+ assert.match(focus,/수업에 활용할 답안[\s\S]*학생별 답안/);
  assert.match(focus,/<small>제출 답안<\/small><span>답안<\/span>/);
  assert.doesNotMatch(focus,/id="matrixViewport"/);
  const records=D.screen({...state,view:'progress'});
