@@ -26,7 +26,7 @@ function sheet(name){
   };
 }
 const book={getUrl:()=> 'local-file',getSheetByName:name=>db[name]?sheet(name):null,insertSheet(name){db[name]=[];dirty=true;return sheet(name);}};
-const sandbox=vm.createContext({console,Logger:{log(){}},SpreadsheetApp:{openById:()=>book},ContentService:{MimeType:{JSON:'application/json'},createTextOutput:text=>({setMimeType:()=>text})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},PropertiesService:{getScriptProperties:()=>({getProperty:()=>null})}});
+const sandbox=vm.createContext({console,Logger:{log(){}},SpreadsheetApp:{openById:()=>book,flush(){}},ContentService:{MimeType:{JSON:'application/json'},createTextOutput:text=>({setMimeType:()=>text})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},PropertiesService:{getScriptProperties:()=>({getProperty:()=>null})}});
 vm.runInContext(fs.readFileSync(path.join(ROOT,'apps-script/Code.gs'),'utf8'),sandbox,{filename:'apps-script/Code.gs'});
 sandbox.setup();persist();
 function json(res,status,value){res.writeHead(status,{'Content-Type':'application/json;charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(value));}
