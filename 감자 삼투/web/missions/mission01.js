@@ -1,3 +1,4 @@
+(function (window) {
 /*
  * 미션 설정 파일 — 미션 01 「감자 속은 얼마나 진할까?」
  * 장면 물건, 단서, 퀘스트, 교수 대사, 판정 체크 항목은 모두 여기에 있다.
@@ -329,3 +330,4 @@ window.SCIW_MISSIONS.m01 = {
     WB: '안팎 농도가 같으면 질량 변화가 0이고, 질량 변화의 부호가 바뀌는 구간에 그 농도가 있다고 설명했는가'
   }
 };
+})(typeof window==='undefined'?globalThis:window);

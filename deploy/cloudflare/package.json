@@ -5,8 +5,10 @@
   "scripts": {
     "build": "node build.mjs",
     "test": "node --test worker.test.mjs",
-    "dev": "npm run build && wrangler dev",
-    "deploy": "npm run build && wrangler deploy"
+    "dev": "npm run build && wrangler d1 migrations apply DB --local && wrangler dev --var SCIW_LOCAL:yes",
+    "deploy": "node check-deployment.mjs && npm run build && wrangler deploy"
   },
-  "devDependencies": { "wrangler": "4.156.1" }
+  "devDependencies": {
+    "wrangler": "4.156.1"
+  }
 }

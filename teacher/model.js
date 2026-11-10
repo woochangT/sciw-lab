@@ -12,7 +12,8 @@
   function select(db,classCode,missionId,lessonId){const sessions=(Array.isArray(db.sessions)?db.sessions:Object.values(db.sessions||{})).filter(s=>String(s.classCode)===classCode&&String(s.missionId||'m01')===missionId&&(lessonId===undefined||String(s.lessonId||'')===lessonId));const ids=new Set(sessions.map(s=>s.sessionId));return {sessions,attempts:(db.attempts||[]).filter(a=>ids.has(a.sessionId))}}
   function judgmentMethod(s){if(['openai','llm','anthropic'].includes(s.judgedBy))return 'AI 평가';if(s.judgedBy==='keyword'||/^keyword(?:-|$)/.test(s.judgeVersion||''))return '단어 규칙';return '미기록'}
   function element(s,key){const j=obj(s.finalJudgment),q=obj(s.questPassed),keys=key==='W3/WB'?['W3','WB']:[key];if(keys.some(k=>yes(j[k])))return '기록됨';if(keys.some(k=>Object.hasOwn(j,k)))return '자동 판정 미인정';return keys.some(k=>yes(q[k]))?'퀘스트 기록':'미관찰'}
-  function attemptsFor(data,id){return data.attempts.filter(a=>a.sessionId===id).sort((a,b)=>(Number(a.eventOrder)>0&&Number(b.eventOrder)>0 ? Number(a.eventOrder)-Number(b.eventOrder) : time(a.clientOccurredAt||a.createdAt)-time(b.clientOccurredAt||b.createdAt))||String(a.attemptId).localeCompare(String(b.attemptId)))}
+  function compareAttempts(a,b){return (Number(a.eventOrder)>0&&Number(b.eventOrder)>0 ? Number(a.eventOrder)-Number(b.eventOrder) : time(a.clientOccurredAt||a.createdAt)-time(b.clientOccurredAt||b.createdAt))||String(a.attemptId).localeCompare(String(b.attemptId))}
+  function attemptsFor(data,id){return data.attemptIndex?(data.attemptIndex.get(id)||[]).slice():data.attempts.filter(a=>a.sessionId===id).sort(compareAttempts)}
   function submissions(data,s){return attemptsFor(data,s.sessionId).filter(a=>a.stage==='compose'&&a.questId==='final'||a.eventCode==='m02.compose.final.submit'||a.stage==='defense'&&a.questId==='FINAL').sort((a,b)=>Number(a.submissionNo)>0&&Number(b.submissionNo)>0?Number(a.submissionNo)-Number(b.submissionNo):0)}
   function legacyHint(data,s){const events=attemptsFor(data,s.sessionId);if(s.hintViewedAt||events.some(a=>a.questId==='hintView'||a.hintExposure==='opened'))return '열람';if(events.some(a=>a.hintExposure==='visible'))return '표시됨';if(s.hintOpenedAt||events.some(a=>a.hintExposure==='unlocked'))return '해제됨';if(events.some(a=>a.hintExposure==='locked'))return '잠김';return '미기록'}
   function noteUsage(data,s){
@@ -32,7 +33,10 @@
     const missionId=options.missionId||'m02',codes=options.classCodes||[classCode],allSessions=Array.isArray(db.sessions)?db.sessions:Object.values(db.sessions||{}),scopedSessions=allSessions.filter(s=>codes.includes(String(s.classCode))&&String(s.missionId||'m01')===missionId),scopeIds=new Set(scopedSessions.map(s=>s.sessionId)),scoped={sessions:scopedSessions,attempts:(db.attempts||[]).filter(a=>scopeIds.has(a.sessionId)&&(!a.missionId||a.missionId===missionId)&&(!a.classCode||codes.includes(String(a.classCode))))}, unique=new Map();scoped.sessions.forEach(s=>{if(!test(s)||(options.includeTests&&!/^QA_/i.test(String(s.classCode||''))&&!/^qa_/i.test(String(s.sessionId||''))))unique.set(s.sessionId,s)});
     const review=[...unique.values()].filter(s=>!number(s)), sessions=[...unique.values()].filter(s=>number(s));
     const ids=new Set(sessions.map(s=>s.sessionId)), attempts=[...new Map(scoped.attempts.filter(a=>ids.has(a.sessionId)).map(a=>[a.attemptId,a])).values()];
-    const data={sessions,attempts},groups=new Map();ordered(sessions).forEach(s=>{const key=number(s);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(s)});
+    const attemptIndex=new Map();
+    for(const event of attempts){if(!attemptIndex.has(event.sessionId))attemptIndex.set(event.sessionId,[]);attemptIndex.get(event.sessionId).push(event)}
+    for(const group of attemptIndex.values())group.sort(compareAttempts);
+    const data={sessions,attempts,attemptIndex},groups=new Map();ordered(sessions).forEach(s=>{const key=number(s);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(s)});
     let reps=[];groups.forEach(ss=>reps.push(...(mode==='all'?ss:[mode==='latest'?ss[ss.length-1]:ss[0]])));
     const range=options.period==='today'?new Date().setHours(0,0,0,0):0;
     reps=reps.filter(s=>(!range||time(s.startedAt)>=range)&&(!options.version||options.version==='all'||s.missionVersion===options.version));

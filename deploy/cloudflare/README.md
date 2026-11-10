@@ -1,5 +1,7 @@
 # 고정 공개 미리보기
 
+현재 작업 브랜치의 D1 로컬 실행과 전환 절차는 [D1 전환과 팀 테스트](D1.md)를 참고한다. 아래 내용은 기존 Apps Script 기반 공개 배포의 기록이다.
+
 - 전체: https://sciw-lab-preview.yoodison.workers.dev/
 - 교사: https://sciw-lab-preview.yoodison.workers.dev/teacher.html
 - 상태: https://sciw-lab-preview.yoodison.workers.dev/api/health

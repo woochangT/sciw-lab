@@ -40,7 +40,13 @@
    }catch{lock('접속을 확인하지 못했습니다. 다시 시도해 주세요.')}
    finally{submit.disabled=false}
   }
-  return {fetch:authorizedFetch,start,active:()=>active};
+  function progress(params){
+   if(!active||!token||!root.WebSocket)return null;
+   const url=new URL(base+'/live?'+new URLSearchParams(params),location.href);
+   url.protocol=url.protocol==='https:'?'wss:':'ws:';
+   return new WebSocket(url,['sciw-progress',token]);
+  }
+  return {fetch:authorizedFetch,start,progress,active:()=>active};
  }
  root.TeacherAuth={attach};
 })(window);

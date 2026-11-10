@@ -142,7 +142,8 @@
   return {students:pairs.length,cells};
  }
  function game(data,codes,mission,includeTests=false){
-  const d=M.analyze(data,'','latest',{classCodes:codes,missionId:mission,includeTests}),rows=d.recent;
+  const scoped={...data,sessions:data.sessions.filter(s=>M.test(s)===includeTests)};
+  const d=M.analyze(scoped,'','latest',{classCodes:codes,missionId:mission,includeTests}),rows=d.recent;
   const prepared=rows.map(s=>({s,e:evaluation(d,s)})),written=prepared.filter(x=>x.e.written).length,keys=criteria(d,rows,prepared);
   const notes={none:0,one:0,two:0,unknown:0,legacy:0};
   for(const s of rows){const n=M.noteUsage(d,s);notes[n.kind==='legacy'?'legacy':n.pages===0?'none':n.pages===1?'one':n.pages===2?'two':'unknown']++}

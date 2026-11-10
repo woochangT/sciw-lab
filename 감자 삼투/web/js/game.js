@@ -636,7 +636,7 @@
 
   // ───────────────────────── 2. 주장·근거 ─────────────────────────
   async function startClaim() {
-    S.resumePoint='claim';
+    setProgress('claim');
     setStage('claim');
     setNote('주장 하나와 근거 두 장을 골라 제출하자');
     if (!await banner('주장 하나와 근거 두 장을 골라 제출하자')) return;
@@ -740,7 +740,7 @@
 
   // ───────────────────────── 3. 교수 반박 ─────────────────────────
   async function startRebuttal() {
-    S.resumePoint='quest';
+    setProgress('quest');
     S.busy = true; updateDo();
     setStage('rebuttal');
     focus([], { dim: true, keep: ['prof', 'board'] });
@@ -837,7 +837,7 @@
   }
 
   async function startQuest(i, skipIntro) {
-    S.resumePoint='quest';
+    setProgress('quest');
     const quest = M.quests[i];
     S.questIdx = i;
     S.q = {
@@ -1372,7 +1372,7 @@
 
   // ── W3: 두 결론을 칠판에 올려 범위 좁히기 ──
   async function startCombine() {
-    S.resumePoint='combine';
+    setProgress('combine');
     const cb = M.combine;
     S.q = { quest: cb, combine: true, errors: {}, hintLevel: 0, lastInput: now(), done: false };
     S.attemptClock = now();
@@ -1427,7 +1427,7 @@
 
   // ───────────────────────── 4. 최종 변론 ─────────────────────────
   async function startDefense() {
-    S.resumePoint='compose';
+    setProgress('compose');
     S.busy = true; updateDo();
     setStage('defense');
     S.q = null;
@@ -1609,7 +1609,7 @@
 
   // ───────────────────────── 클리어 ─────────────────────────
   async function finish(type, text, r) {
-    S.resumePoint='complete';S.resumeResult={type,text,result:r};
+    setProgress('complete');S.resumeResult={type,text,result:r};
     S.busy = true; updateDo();
     setNose(0);
     await sleep(700);
@@ -1719,6 +1719,10 @@
 
   // 같은 서버 세션의 복원용 상태. 관찰 애니메이션은 해당 활동의 시작에서 재개한다.
   const RESUME_FIELDS=['nose','lineIdx','attemptNo','questIdx','claim','placed','defenseText','insertedCardIds','defenseTries','firstAnswer','defenseMode','defenseQuestion'];
+  function setProgress(point){
+    S.resumePoint=point;
+    queueMicrotask(()=>API.captureProgress());
+  }
   function progressSnapshot(){
     if(!S.session || !S.resumePoint || S.restoring)return null;
     const state={};RESUME_FIELDS.forEach(k=>{if(S[k]!==undefined)state[k]=S[k];});

@@ -1,6 +1,6 @@
 > **현재 공개 주소:** https://sciw-lab-preview.yoodison.workers.dev/ · [교사 화면](https://sciw-lab-preview.yoodison.workers.dev/teacher.html). Mac이나 임시 터널에 의존하지 않으며 입장코드·8시간 자동 만료가 없습니다. [배포 안내](deploy/cloudflare/README.md).
 >
-> **현재 실행:** 저장소 루트에서 `python3 scripts/local_server.py --port 8765` 실행 후 [미션 선택](http://127.0.0.1:8765/) / [교사 기록장](http://127.0.0.1:8765/teacher.html)을 엽니다. 교사 화면을 보려면 서버 실행 전에 개발용 `TEACHER_PASSWORD` 환경 변수를 설정하세요. Node.js가 필요합니다.
+> **로컬 실행:** `cd deploy/cloudflare && npm ci && npm run dev`로 Worker와 로컬 D1을 실행합니다. 터미널에 표시된 주소에서 두 게임과 `/teacher.html`을 열 수 있습니다. 로컬 교사 암호는 `teacher-local`입니다. 자세한 내용은 [D1 전환과 팀 테스트](deploy/cloudflare/D1.md)를 참고하세요.
 >
 > 미션 03(코를 막은 주스)·04(먼저 올라간 다리)는 아이디어용이라 시작 화면까지만 있습니다.
 >

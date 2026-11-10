@@ -1,5 +1,5 @@
 /*
- * 백엔드(Apps Script) 클라이언트
+ * 학생 기록 API 클라이언트
  * - 쓰기(세션 시작·갱신, 시도 기록)는 큐에 쌓았다가 묶어서 보낸다. 실패하면 localStorage에 남겨 두고 다시 보낸다.
  * - 요청은 Content-Type: text/plain 으로 보내 CORS 사전 요청(preflight)을 피한다.
  * - API_URL이 비어 있으면 같은 데이터 형태로 localStorage에 저장한다(로컬 모드).
@@ -18,7 +18,7 @@
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), timeoutMs);
       try {
-        const res = await fetch(URL_, {
+        const res = await fetch(URL_ + '/judge', {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(Object.assign({ action: 'judge' }, payload)),

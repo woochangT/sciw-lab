@@ -6,7 +6,7 @@
  * - 질량 변화도 %로 쓰므로, '질량'·부호 뒤에 오거나 '늘·줄' 앞에 오는 %는 농도 언급으로 세지 않는다.
  * - LLM 판정 결과가 오면 game.js에서 이 결과와 합친다.
  */
-(function () {
+(function (window) {
   const DOT = '·';
 
   function makeRe(src) { return new RegExp(src); }
@@ -270,4 +270,4 @@
   }
 
   window.SCIW_JUDGE = { normalize, analyze, judgeQuestText, judgeDefense };
-})();
+})(typeof window==='undefined'?globalThis:window);

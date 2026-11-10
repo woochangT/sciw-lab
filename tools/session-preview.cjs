@@ -50,7 +50,7 @@ http.createServer(async(req,res)=>{
     if(!file.startsWith(ROOT+path.sep)||!type||!fs.existsSync(file)||!fs.statSync(file).isFile())return json(res,404,{ok:false});
     let content=fs.readFileSync(file);
     if(route.endsWith('/web/js/config.js')){
-      content=Buffer.from(content.toString().replace(/\bAPI_URL:\s*'[^']*'/,"API_URL: '/api/records'"));
+      content=Buffer.from(content.toString().replace(/\bAPI_URL:[^\n]+/,"API_URL: '/api/records',"));
     }
     res.writeHead(200,{'Content-Type':type+'; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(req.method==='HEAD'?undefined:content);
   }catch(error){json(res,500,{ok:false,error:'로컬 요청을 처리하지 못했습니다'});}

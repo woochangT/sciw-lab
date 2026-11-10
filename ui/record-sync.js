@@ -1,7 +1,7 @@
 /* Durable, acknowledged session writes shared by both games. Existing queue keys are retained. */
 (function (root) {
   'use strict';
-  const uid = prefix => prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  const uid = prefix => prefix + '_' + (root.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
   const clone = value => JSON.parse(JSON.stringify(value));
   const sessionId = op => op.sessionId || op.session?.sessionId || op.attempt?.sessionId;
   const key = op => op.syncId || JSON.stringify(op);
@@ -13,6 +13,12 @@
     const blockedKey = queueKey + '_blocked';
     const read = (name, fallback) => { try { return JSON.parse(localStorage.getItem(name)) ?? fallback; } catch (_) { return fallback; } };
     const write = (name, value) => { try { localStorage.setItem(name, JSON.stringify(value)); return true; } catch (_) { return false; } };
+    const ownerKey='sciw_resume_device_v1';
+    let resumeKey=read(ownerKey,'');
+    function owner(){
+      if(!resumeKey){resumeKey=read(ownerKey,'')||root.crypto?.randomUUID?.()||'';if(resumeKey)write(ownerKey,resumeKey);}
+      return resumeKey;
+    }
     let queue = read(queueKey, []), blocked = read(blockedKey, []), running = null, timer, backoff = 1000, unpersisted = [];
     const acknowledged = new Set();
     let mode = defer ? 'idle' : 'student', getProgress = null, progressKey = '', progressTimer, progressInterval;
@@ -88,11 +94,11 @@
       if (!write('sciw_localdb_v1',db)) throw new Error('로컬 저장 실패');
     }
     async function post(ops, keepalive) {
-      const body = JSON.stringify({action:'batch',ops}), controller = new AbortController();
+      const body = JSON.stringify({action:'batch',ops,resumeKey:owner()}), controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 45000);
       try {
         // Requests already in flight must also survive pagehide; that flag cannot be changed later.
-        const response = await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body,redirect:'follow',signal:controller.signal,keepalive:bytes({action:'batch',ops}) <= 60000});
+        const response = await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body,redirect:'follow',signal:controller.signal,keepalive:bytes({action:'batch',ops,resumeKey:owner()}) <= 60000});
         if (!response.ok) throw Object.assign(new Error(response.status === 413 ? '요청 크기 한도' : 'HTTP ' + response.status),{rejected:response.status === 413});
         const result = await response.json();
         if (!result.ok) throw Object.assign(new Error(result.error || '서버 저장 오류'),{rejected:true});
@@ -182,7 +188,7 @@
       }
       const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
       try{
-        const response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'findStudentSession',classCode,studentNo,missionId}),signal:controller.signal});
+        const response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'findStudentSession',classCode,studentNo,missionId,resumeKey:owner()}),signal:controller.signal});
         const body=await response.json();
         if(!response.ok || !body.ok || body.schema!=='student-resume-v1'){
           const unsupported=!body.schema && (!body.error || /지원하지 않는 기록 작업/.test(body.error));

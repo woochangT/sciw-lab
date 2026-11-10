@@ -1083,7 +1083,7 @@
   async function openClaimFlow(restoredText = '') {
     if(typeof restoredText !== 'string')restoredText='';
     if (S.stage !== 'explore' || !S.boardOpen) return;
-    S.resumePoint = 'first';
+    setProgress('first');
     setStage('claim');
     $('#board').onclick = null;
     glow(null);
@@ -1107,7 +1107,7 @@
   }
 
   function openClaimBoard() {
-    S.resumePoint = 'claim';
+    setProgress('claim');
     const b = $('#board');
     b.className = 'board big';
     b.innerHTML = `
@@ -1183,7 +1183,7 @@
 
   /* ───────── 3. 드러내기 ───────── */
   async function startRebuttal() {
-    S.resumePoint = 'scope';
+    setProgress('scope');
     setStage('rebuttal');
     setNote(''); // 콧대가 솟고 꼬투리가 적히는 동안에는 학생이 할 일이 없다
     renderSmallBoard();
@@ -1763,7 +1763,7 @@
   }
   // 다음 꼬투리로: 카드가 있으면 뒤집어 보이고, 실험실로 돌아와 현미경으로 보낸다
   async function nextGap(i) {
-    S.resumePoint = 'scope';
+    setProgress('scope');
     setNote(''); // 카드를 뒤집고 실험실로 돌아오는 동안에는 숨긴다
     if (S.tray.includes(M.links[i].data)) await openGap(i);
     exitArena();
@@ -1787,7 +1787,7 @@
   }
 
   async function askLink(i) {
-    S.resumePoint = 'link';
+    setProgress('link');
     const L = M.links[i];
     S.lensOn = null;
     if (!S.cards[L.data].mis) await openGap(i); // 현미경에서 앞면을 얻은 카드는 이제 뒤집는다
@@ -1832,7 +1832,7 @@
   async function passLink(i) {
     setNote(''); // 콧대가 꺾이는 장면 동안에는 숨긴다
     S.link = i < M.links.length - 1 ? i + 1 : null;
-    S.resumePoint = S.link === null ? 'combine' : 'scope';
+    setProgress(S.link === null ? 'combine' : 'scope');
     S.lensOn = null;
     renderGap(i, 'done');
     renderTray();
@@ -1848,7 +1848,7 @@
 
   /* ───────── 합치기: 세 줄이 다 이어지면 학생의 설명대로 두 실험을 장면으로 확인해 준다 ───────── */
   async function startCombine() {
-    S.resumePoint = 'combine';
+    setProgress('combine');
     S.linkBoard = false;
     $('#stage').classList.remove('spot');
     const b = $('#board');
@@ -1931,7 +1931,7 @@
     return `<div class="card k-${c.kind} look-${c.look || 'slate'} shelf-card ${L ? 'has-back' : ''}" data-card="${id}" tabindex="0"><span>${esc(L ? L.chip.join(' ') : c.text)}</span>${L ? `<button type="button" class="curl-btn" data-back="${id}" aria-label="뒷면 보기"><i class="curl-label">뒷면</i><i class="curl-flap">${ART.cardCorner()}</i></button>` : ''}</div>`;
   }
   async function startCompose(restored = null) {
-    S.resumePoint = 'compose';
+    setProgress('compose');
     setStage('defense');
     S.phase = 'compose';
     S.composeStart = now();
@@ -2329,7 +2329,7 @@
     typeOut(prepType(wrap.querySelector('.say')), 60);
   }
   function finish(type, text, r, restoring = false) {
-    S.resumePoint = 'complete';
+    setProgress('complete');
     S.resumeResult = {type,text,result:{elements:r.elements,highlights:r.highlights,ask:r.ask,path:r.path}};
     S.phase = 'complete';
     const offset = $('#answer').value.indexOf(text);
@@ -2392,6 +2392,10 @@
   // 이어 하기는 동작/애니메이션 중간이 아니라 마지막 활동 지점에서 복원한다.
   // 상태·원문·카드 삽입 출처는 저장하되 DOM, 타이머, 기체 좌표, 함수는 저장하지 않는다.
   const RESUME_FIELDS = ['done','firstAnswer','firstTag','evidence','claimPick','evAsked','evNudged','errCount','concl','link','linkBoard','notePages','noteView','linkTries','inserted','ownMode','ownEver','hint','hintReason','submits','predicted','nudged','firstSubmitText','tutorial','boardOpen','nose'];
+  function setProgress(point){
+    S.resumePoint=point;
+    queueMicrotask(()=>API.captureProgress());
+  }
   function progressSnapshot() {
     if(!S.started || !S.resumePoint || S.restoring || S.acquiring) return null;
     const state={}; RESUME_FIELDS.forEach(k=>{if(S[k]!==undefined)state[k]=S[k];});

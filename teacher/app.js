@@ -10,6 +10,7 @@ const stageLabels={explore:'실험하고 있어요',claim:'처음 생각을 쓰�
 const games={m01:{name:'감자 삼투',title:'감자 속은 얼마나 진할까?',topic:'농도 차이와 물의 이동',asset:'intro/potato-silhouette.webp'},m02:{name:'강철솜 질량 보존',title:'태웠는데, 왜 더 무거워졌을까?',topic:'산소와의 결합, 측정 범위와 질량 보존',asset:'intro/steel-wool-silhouette.webp'}};
 const elements=()=>missionId()==='m01'?{C:'감자 안의 농도 결론',D:'실험에서 관찰한 질량 변화',W1:'질량 변화와 물의 이동',W2a:'물이 이동하는 방향',W2b:'안팎 농도 비교',W3:'농도 범위의 근거',WB:'질량 변화가 0인 조건'}:{C:'자신의 결론','D-A':'열린 실험의 측정값','D-B':'닫힌 실험의 측정값',W1a:'질량은 새로 생기지 않음',W1b:'산소와 철의 결합',W2a:'전체 질량이 같은 이유',W2b:'늘어난 질량의 의미'};
 let db={sessions:[],attempts:[]},sourceDB=db,data=M.analyze(db,''),classes=[],chosenClass=null,chosenMission='',phase='class',view='overview',filter='all',mode='latest',aiMode='latest',isTest=false,loading=false,request=0,controller,previousFocus,selected=null,lastSuccess=null,loadError='',invalidRows=0;
+let liveSocket=null,liveKey='',liveReady=false,liveDirty=false,liveTimer,liveReconnect;
 let classGameData={},portfolioData=null,overviewGrade='',overviewMission='',overviewCriterion='',overviewTests=false,detailCriterion='',focusElement='';
 let dashPage=0,dashSize=8,dashQuery='',dashObserver=null,dashFrame=null;
 const recordCache=new Map(), confirmedRejudgments=new Map(), rejudgeJobs=new Set();
@@ -125,6 +126,7 @@ function render(){
  const focused=document.activeElement,id=focused?.id,gameFocus=focused?.dataset?.switchGame,caret=id==='recordSearch'?focused.selectionStart:null;
  sourceNotice();$('#dashboardNav').hidden=true;$('#changeScope').hidden=true;$('#backToClass').hidden=true;$('#scopeBadge').hidden=true;
  const game=phase==='class'?(overviewMission||'m01'):missionId();
+ syncLive();
  $('#dashboardTitle').textContent=chosenClass?classLabel():'전체 학급';$('#boardDescription').textContent=chosenClass?'학생별 답안과 설명 요소를 한눈에 확인하세요.':'각 반의 참여와 답안, 설명 요소를 비교하세요.';
  $('#classNav').innerHTML=D.sidebar({portfolio:portfolioData,selectedClass:chosenClass,mission:game,grade:overviewGrade,tests:overviewTests});
  $('#content').classList.toggle('report-content',view==='report');
@@ -149,17 +151,54 @@ $$('[data-view]').forEach(b=>b.onclick=()=>switchView(b.dataset.view));$('#stude
 function resetScope(){closeDetail();dashPage=0;dashQuery='';loading=true;classGameData={};portfolioData=null;overviewGrade='';overviewMission='';overviewCriterion='';overviewTests=false;detailCriterion='';focusElement='';chosenClass=null;chosenMission='';phase='class';view='overview';classes=[];lastSuccess=null;loadError='';invalidRows=0;isTest=false;db={sessions:[],attempts:[]};data=M.analyze(db,'');render()}
 function demoData(){const raw=window.TeacherDemo,db={sessions:[],attempts:[]};for(const [code,count] of [['2-3',24],['1-2',6],['1-10',4]]){const ids=new Set(raw.sessions.filter(s=>Number(s.studentNo)<=count).map(s=>s.sessionId)),prefix=code+':';db.sessions.push(...raw.sessions.filter(s=>ids.has(s.sessionId)).map(s=>({...s,classCode:code,sessionId:prefix+s.sessionId})));db.attempts.push(...raw.attempts.filter(a=>ids.has(a.sessionId)).map(a=>({...a,classCode:code,sessionId:prefix+a.sessionId,attemptId:prefix+a.attemptId})))}return db}
 const getJSON=(url,signal)=>window.TeacherConnection.getJSON(url,signal,auth.fetch);
-async function load(force=false){if(!auth.active())return;const ticket=++request;controller?.abort();controller=new AbortController();const signal=controller.signal;loading=true;loadError='';$('#refresh').disabled=true;$('#connectionState').textContent=source()==='sheet'?'Google 시트 확인 중…':source()==='demo'?'가상의 예시 수업':'브라우저 기록';const timer=setTimeout(()=>controller?.signal===signal&&controller.abort(),50000);try{let catalogValue;if(source()==='sheet'){catalogValue=await getJSON(apiBase+'/classes'+(force?'?refresh=1':''),signal)}else{sourceDB=source()==='demo'?demoData():JSON.parse(localStorage.getItem('sciw_localdb_v1')||'{"sessions":[],"attempts":[]}');sourceDB.sessions=Array.isArray(sourceDB.sessions)?sourceDB.sessions:Object.values(sourceDB.sessions||{});catalogValue={classes:S.catalog(sourceDB),overview:I.overview(sourceDB),fetchedAt:new Date().toISOString(),invalidRows:0,sheetUrl:cfg.SHEET_URL}}
+async function load(force=false,scopedOnly=false){if(!auth.active())return;const ticket=++request;controller?.abort();controller=new AbortController();const signal=controller.signal;loading=true;loadError='';$('#refresh').disabled=true;$('#connectionState').textContent=source()==='sheet'?'서버 기록 확인 중…':source()==='demo'?'가상의 예시 수업':'브라우저 기록';const timer=setTimeout(()=>controller?.signal===signal&&controller.abort(),50000);try{let catalogValue;if(source()==='sheet'){catalogValue=scopedOnly&&phase==='dashboard'&&chosenClass?{classes,overview:portfolioData,fetchedAt:lastSuccess,invalidRows,storage:'d1'}:await getJSON(apiBase+'/classes'+(force?'?refresh=1':''),signal)}else{sourceDB=source()==='demo'?demoData():JSON.parse(localStorage.getItem('sciw_localdb_v1')||'{"sessions":[],"attempts":[]}');sourceDB.sessions=Array.isArray(sourceDB.sessions)?sourceDB.sessions:Object.values(sourceDB.sessions||{});catalogValue={classes:S.catalog(sourceDB),overview:I.overview(sourceDB),fetchedAt:new Date().toISOString(),invalidRows:0,sheetUrl:cfg.SHEET_URL}}
  if(ticket!==request)return;classes=catalogValue.classes;portfolioData=catalogValue.overview||null;if(!overviewMission)overviewMission=Object.keys(games).find(id=>portfolioData?.classes.some(c=>!c.isTest&&c.games[id].participants))||'m02';invalidRows=catalogValue.invalidRows||0;
  if(chosenClass){const next=classes.find(c=>c.classKey===chosenClass.classKey&&c.isTest===isTest);if(next)chosenClass=next;else{chosenClass=null;chosenMission='';phase='class';db={sessions:[],attempts:[]}}}
  if(phase==='class-home'&&chosenClass){const params={classKey:chosenClass.classKey,includeTests:isTest?'1':'0'};let entries;if(source()==='sheet'){entries=await Promise.all(Object.keys(games).map(async id=>[id,await getJSON(apiBase+'/class?'+new URLSearchParams({...params,missionId:id}),signal)]))}else{entries=Object.keys(games).map(id=>{const selected=M.analyze(sourceDB,classCode(),'all',{missionId:id,classCodes:chosenClass.classCodes,includeTests:isTest});return [id,{...selected,classCodes:chosenClass.classCodes}]})}if(ticket!==request)return;classGameData=Object.fromEntries(entries)}
- if(phase==='dashboard'&&chosenClass&&chosenMission){if(source()==='sheet'){const nextDB=await getJSON(apiBase+'/class?'+new URLSearchParams({classKey:chosenClass.classKey,missionId:missionId(),includeTests:isTest?'1':'0'}),signal);if(ticket!==request)return;db=reflectRejudgments(nextDB);recordCache.set(cacheKey(),db)}else{const selected=M.analyze(sourceDB,classCode(),'all',{missionId:missionId(),classCodes:chosenClass.classCodes,includeTests:isTest});db={...selected,classCodes:chosenClass.classCodes,sheetUrl:cfg.SHEET_URL,fetchedAt:catalogValue.fetchedAt}}if(ticket!==request)return;$('#sheetLink').href=db.sheetUrl||catalogValue.sheetUrl}
+ if(phase==='dashboard'&&chosenClass&&chosenMission){if(source()==='sheet'){const nextDB=await getJSON(apiBase+'/class?'+new URLSearchParams({classKey:chosenClass.classKey,missionId:missionId(),includeTests:isTest?'1':'0'}),signal);if(ticket!==request)return;db=reflectRejudgments(nextDB);recordCache.set(cacheKey(),db);if(scopedOnly&&portfolioData?.classes)portfolioData={...portfolioData,classes:portfolioData.classes.map(c=>c.classKey===chosenClass.classKey&&c.isTest===isTest?{...c,games:{...c.games,[missionId()]:I.game(db,chosenClass.classCodes,missionId(),isTest)}}:c)}}else{const selected=M.analyze(sourceDB,classCode(),'all',{missionId:missionId(),classCodes:chosenClass.classCodes,includeTests:isTest});db={...selected,classCodes:chosenClass.classCodes,sheetUrl:cfg.SHEET_URL,fetchedAt:catalogValue.fetchedAt}}if(ticket!==request)return;$('#sheetLink').href=db.sheetUrl||catalogValue.sheetUrl}
  else $('#sheetLink').href=catalogValue.sheetUrl||cfg.SHEET_URL;
- lastSuccess=db.fetchedAt&&phase==='dashboard'?db.fetchedAt:catalogValue.fetchedAt;loading=false;analyze();$('#connectionState').textContent=source()==='sheet'?'✓ Google 시트 연결됨':source()==='demo'?'가상의 예시 수업':'브라우저 기록';$('#status').textContent=date(lastSuccess)+' 갱신';
- }catch(error){if(ticket!==request)return;loading=false;loadError=error.name==='AbortError'?'응답이 늦어요. 잠시 후 시트 기록 새로고침을 눌러 주세요.':error.message;$('#connectionState').textContent='시트 연결 확인 필요';$('#status').textContent=loadError;render()}finally{clearTimeout(timer);if(ticket===request){loading=false;$('#refresh').disabled=false}}}
+ $('#sheetLink').hidden=catalogValue.storage==='d1';
+ lastSuccess=db.fetchedAt&&phase==='dashboard'?db.fetchedAt:catalogValue.fetchedAt;loading=false;analyze();$('#connectionState').textContent=source()==='sheet'?(catalogValue.storage==='d1'?'✓ 기록 서버 연결됨':'✓ Google 시트 연결됨'):source()==='demo'?'가상의 예시 수업':'브라우저 기록';$('#status').textContent=date(lastSuccess)+' 갱신';
+ }catch(error){if(ticket!==request)return;loading=false;loadError=error.name==='AbortError'?'응답이 늦어요. 잠시 후 시트 기록 새로고침을 눌러 주세요.':error.message;$('#connectionState').textContent='서버 연결 확인 필요';$('#status').textContent=loadError;render()}finally{clearTimeout(timer);if(ticket===request){loading=false;$('#refresh').disabled=false}}}
 $('#backToClass').onclick=returnToPortfolio;$('#changeScope').onclick=returnToPortfolio;$('#refresh').onclick=()=>{closeDetail();load(true)};$('#source').onchange=()=>{recordCache.clear();resetScope();load()};
 $('#classNav').addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;if('allClasses'in button.dataset){returnToPortfolio();return}const d=button.dataset;if(d.classKey){const next=classes.find(c=>c.classKey===d.classKey&&c.isTest===(d.classTest==='true'));if(next)enterClassDashboard(next)}});
 
-const auth=window.TeacherAuth.attach({base:apiBase,open:()=>{loading=true;render();load()},close:()=>{request++;controller?.abort();sourceDB={sessions:[],attempts:[]};recordCache.clear();confirmedRejudgments.clear();reports.clear();popovers.close();$('#detail').replaceChildren();resetScope()}});
-auth.start();setInterval(()=>{if(auth.active()&&!loading&&!document.hidden&&!$('#studentDialog').open&&$('#teacherTermPopover').hidden&&view!=='report'&&document.activeElement?.tagName!=='SELECT')load()},cfg.REFRESH_MS||20000);
+function liveAvailable(){return !loading&&!document.hidden&&!$('#studentDialog').open&&$('#teacherTermPopover').hidden&&view!=='report'&&document.activeElement?.tagName!=='SELECT'}
+function refreshLive(){
+ liveTimer=null;
+ if(!liveDirty||!auth.active()||source()!=='sheet')return;
+ if(!liveAvailable()){liveTimer=setTimeout(refreshLive,850);return;}
+ liveDirty=false;
+ load(false,phase==='dashboard');
+}
+function closeLive(){
+ liveKey='';liveReady=false;liveDirty=false;
+ clearTimeout(liveTimer);clearTimeout(liveReconnect);liveTimer=null;
+ const previous=liveSocket;liveSocket=null;previous?.close();
+ $('#liveState').textContent='';
+}
+function syncLive(){
+ if(!auth.active()||source()!=='sheet'){closeLive();return;}
+ const game=phase==='class'?overviewMission||'m01':missionId(),test=phase==='class'?overviewTests:isTest,key=game+':'+test;
+ if(liveKey===key)return;
+ closeLive();liveKey=key;
+ const socket=auth.progress({missionId:game,includeTests:test?'1':'0'});
+ if(!socket)return;
+ liveSocket=socket;
+ socket.onopen=()=>{if(liveSocket!==socket)return;liveReady=true;$('#liveState').textContent='● 실시간 연결';liveDirty=true;liveTimer=setTimeout(refreshLive,450);};
+ socket.onmessage=event=>{
+  if(liveSocket!==socket)return;
+  let notice;try{notice=JSON.parse(event.data)}catch{return;}
+  if(phase==='dashboard'&&notice.classKey!==chosenClass?.classKey)return;
+  liveDirty=true;if(!liveTimer)liveTimer=setTimeout(refreshLive,450);
+ };
+ socket.onclose=()=>{
+  if(liveSocket!==socket)return;
+  liveReady=false;$('#liveState').textContent='실시간 재연결 중';
+  liveReconnect=setTimeout(()=>{liveKey='';syncLive()},5000);
+ };
+}
+const auth=window.TeacherAuth.attach({base:apiBase,open:()=>{loading=true;render();load()},close:()=>{closeLive();request++;controller?.abort();sourceDB={sessions:[],attempts:[]};recordCache.clear();confirmedRejudgments.clear();reports.clear();popovers.close();$('#detail').replaceChildren();resetScope()}});
+auth.start();setInterval(()=>{if(auth.active()&&!liveReady&&liveAvailable())load()},cfg.REFRESH_MS||20000);
+setInterval(()=>{if(auth.active()&&liveReady&&liveAvailable())load(false,phase==='dashboard')},60000);
 })();

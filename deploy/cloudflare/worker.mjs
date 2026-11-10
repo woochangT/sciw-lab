@@ -1,3 +1,6 @@
+import {RecordError,saveRecords,findSession,readRecords} from './records.mjs';
+import {judgePotato,judgeSteel,teachingReport} from './evaluators.mjs';
+import {rejudge} from './rejudge.mjs';
 import {configured,hasSession,issueToken,passwordMatches} from './teacher-auth.mjs';
 import '../../teacher/model.js';
 import '../../teacher/scope.js';
@@ -11,7 +14,7 @@ const HEADERS=['recordType','recordId','sessionId','classCode','studentNo','miss
 const HISTORY_HEADERS=['history1','history2','history3','history4','history5','history6','history7','history8','처음 생각','최종 답안','단계별 대화'];
 const JSON_FIELDS=['stageTimes','clueCards','modelCards','questPassed','finalJudgment','errorCounts','hintMax','judgment','extra'];
 const PAGES_ORIGIN='https://woochangt.github.io';
-const API_PATHS=new Map([['/api/sheet/login','POST'],['/api/sheet/session','GET'],['/api/sheet/classes','GET'],['/api/sheet/class','GET'],['/api/sheet/analysis','POST'],['/api/sheet/rejudge','POST']]);
+const API_PATHS=new Map([['/api/student','POST'],['/api/student/judge','POST'],['/api/sheet/live','GET'],['/api/sheet/login','POST'],['/api/sheet/session','GET'],['/api/sheet/classes','GET'],['/api/sheet/class','GET'],['/api/sheet/analysis','POST'],['/api/sheet/rejudge','POST']]);
 const allowedOrigin=(origin,url)=>origin===url.origin||origin===PAGES_ORIGIN;
 const sheetUrl=m=>`https://docs.google.com/spreadsheets/d/${SHEET}/edit#gid=${MISSIONS[m].gid}`;
 class HttpError extends Error{constructor(status,message){super(message);this.status=status}}
@@ -65,7 +68,33 @@ function validScope(body){
   return {classKey,classCode,missionId,mode,includeTests,regenerate};
 }
 function json(value,status=200){return Response.json(value,{status,headers:{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow, noarchive'}})}
-function coreHandler(fetcher){return async(request,env)=>{
+function progressChannel(env,mission,isTest){return env.PROGRESS?.getByName(mission+(isTest?':test':':live'))}
+function announce(env,ctx,changes){
+ const unique=new Map(changes.map(change=>[JSON.stringify(change),change]));
+ const notice=Promise.allSettled([...unique.values()].map(async change=>progressChannel(env,change.missionId,change.isTest)?.publish(change)));
+ ctx?.waitUntil(notice);
+}
+async function student(request,env,ctx,fetcher,pathname){
+ if(!env.DB)throw new HttpError(503,'기록 DB를 설정해 주세요.');
+ let body;
+ try{body=JSON.parse(await boundedText(request,pathname.endsWith('/judge')?32000:150000))}
+ catch(error){if(error instanceof HttpError)throw error;return json({ok:false,error:'잘못된 요청 크기'},400)}
+ if(!body||typeof body!=='object'||Array.isArray(body))return json({ok:false,error:'잘못된 기록'},400);
+ if(pathname.endsWith('/judge')){
+  try{
+   if(!['judge','judgeM02'].includes(body.action))throw Error('INVALID_REQUEST');
+   const result=await (body.action==='judge'?judgePotato(body,env,fetcher):judgeSteel(body,env,fetcher));
+   return json({ok:true,result});
+  }catch(error){return json({ok:false,code:/^[A-Z_]{2,40}$/.test(error.message)?error.message:'EVALUATION_ERROR'},400)}
+ }
+ try{
+  if(body.action==='findStudentSession')return json({ok:true,schema:'student-resume-v1',session:await findSession(env.DB,body)});
+  const result=await saveRecords(env.DB,body);
+  announce(env,ctx,result.changed);
+  return json({ok:true,applied:result.applied});
+ }catch(error){if(error instanceof RecordError)return json({ok:false,error:error.message});throw error}
+}
+function coreHandler(fetcher){return async(request,env,ctx)=>{
   const url=new URL(request.url);
   try{
     if(url.pathname==='/api/health')return json({ok:true,service:'sciw-lab-hosted-preview',hosting:'cloudflare-workers'});
@@ -80,6 +109,7 @@ function coreHandler(fetcher){return async(request,env)=>{
     const method=API_PATHS.get(url.pathname);
     if(!method)throw new HttpError(404,'지원하지 않는 조회');
     if(request.method!==method)throw new HttpError(405,'지원하지 않는 요청');
+    if(url.pathname.startsWith('/api/student'))return await student(request,env,ctx,fetcher,url.pathname);
     if(!configured(env))throw new HttpError(503,'교사 암호 설정을 확인해 주세요.');
     if(url.pathname==='/api/sheet/login'){
       if(!allowedOrigin(origin,url))throw new HttpError(403,'같은 수업 화면에서 요청해 주세요.');
@@ -91,18 +121,32 @@ function coreHandler(fetcher){return async(request,env)=>{
       if(!await passwordMatches(env,credentials?.password))throw new HttpError(401,'암호가 맞지 않습니다.');
       return json({ok:true,token:await issueToken(env)});
     }
+    if(url.pathname==='/api/sheet/live'){
+      const [protocol,token]=String(request.headers.get('Sec-WebSocket-Protocol')||'').split(/,\s*/);
+      if(!allowedOrigin(origin,url)||request.headers.get('Upgrade')?.toLowerCase()!=='websocket'||protocol!=='sciw-progress')throw new HttpError(403,'실시간 연결을 확인해 주세요.');
+      const proof=new Request(url,{headers:{Authorization:'Bearer '+(token||'')}});
+      if(!await hasSession(proof,env))throw new HttpError(401,'교사 암호를 입력해 주세요.');
+      const mission=url.searchParams.get('missionId'),channel=Object.hasOwn(MISSIONS,mission)&&progressChannel(env,mission,url.searchParams.get('includeTests')==='1');
+      if(!channel)throw new HttpError(404,'실시간 연결을 사용할 수 없습니다.');
+      return channel.fetch(new Request(url,{headers:{Upgrade:'websocket','X-Sciw-Expiry':token.split('.')[0]}}));
+    }
     if(!await hasSession(request,env))throw new HttpError(401,'교사 암호를 입력해 주세요.');
     if(url.pathname==='/api/sheet/session')return json({ok:true});
     if(request.method==='GET'&&['/api/sheet/classes','/api/sheet/class'].includes(url.pathname)){
-      if(url.pathname.endsWith('/classes')){const d=await readSheet(fetcher,env.TEACHER_PROXY_SECRET);return json({ok:true,classes:catalog(d),overview:I.overview(d),fetchedAt:d.fetchedAt,sheetUrl:d.sheetUrl,invalidRows:d.invalidRows})}
+      if(url.pathname.endsWith('/classes')){const d=env.DB?await readRecords(env.DB):await readSheet(fetcher,env.TEACHER_PROXY_SECRET);return json({ok:true,classes:catalog(d),overview:I.overview(d),fetchedAt:d.fetchedAt,sheetUrl:d.sheetUrl,storage:d.storage,invalidRows:d.invalidRows})}
       const scope=validScope({classKey:url.searchParams.get('classKey')||'',classCode:url.searchParams.get('classCode')||'',missionId:url.searchParams.get('missionId')||'m02',includeTests:url.searchParams.get('includeTests')==='1'});
-      return json({ok:true,...scoped(await readSheet(fetcher,env.TEACHER_PROXY_SECRET),scope)});
+      return json({ok:true,...scoped(env.DB?await readRecords(env.DB,scope):await readSheet(fetcher,env.TEACHER_PROXY_SECRET),scope)});
     }
     if(!allowedOrigin(origin,url))throw new HttpError(403,'같은 수업 화면에서 요청해 주세요.');
     if(request.headers.get('Content-Type')?.split(';')[0]!=='application/json')throw new HttpError(400,'잘못된 분석 요청입니다.');
     let body;try{body=JSON.parse(await boundedText(request,1024))}catch(error){if(error instanceof HttpError)throw error;throw new HttpError(400,'잘못된 분석 요청입니다.')}
     if(!body||Array.isArray(body)||typeof body!=='object')throw new HttpError(400,'잘못된 분석 요청입니다.');
     if(url.pathname==='/api/sheet/rejudge'){
+      if(env.DB){
+        const result=await rejudge(body,env,fetcher);
+        if(result.ok)announce(env,ctx,[false,true].map(isTest=>({classKey:S.identity(body.classCode).classKey,missionId:body.missionId,isTest})));
+        return json(result,result.ok?200:['STALE_SUBMISSION','REJUDGE_BUSY','REJUDGE_NOT_NEEDED'].includes(result.code)?409:400);
+      }
       const {classCode,missionId,sessionId,attemptId,requestId}=body;
       const upstream=await fetcher(SCRIPT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify({action:'rejudge',classCode,missionId,sessionId,attemptId,requestId,proxySecret:env.TEACHER_PROXY_SECRET}),
@@ -113,9 +157,13 @@ function coreHandler(fetcher){return async(request,env)=>{
       const code=typeof result.code==='string'&&/^[A-Z_]{2,40}$/.test(result.code)?result.code:'REJUDGE_UNAVAILABLE';
       return json({ok:false,code},['STALE_SUBMISSION','REJUDGE_BUSY','REJUDGE_NOT_NEEDED'].includes(code)?409:400);
     }
-    const scope=validScope(body),data=scoped(await readSheet(fetcher,env.TEACHER_PROXY_SECRET),scope);
+    const scope=validScope(body),data=scoped(env.DB?await readRecords(env.DB,scope):await readSheet(fetcher,env.TEACHER_PROXY_SECRET),scope);
     const evidence=E.build(data,scope.classCode,scope.mode,{missionId:scope.missionId,includeTests:scope.includeTests,classCodes:data.classCodes});
     if(!evidence.participants)throw new HttpError(400,'분석할 참여 기록이 없습니다.');
+    if(env.DB){
+      const analysis=await teachingReport(evidence,scope.regenerate,env,fetcher).catch(error=>{throw new HttpError(502,error.message==='KEY_NOT_CONFIGURED'?'수업 요약 API 키를 설정해 주세요.':'수업 요약을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.')});
+      return json({ok:true,analysis,basis:evidence,fetchedAt:data.fetchedAt,classCode:scope.classCode,classKey:data.classKey,missionId:scope.missionId});
+    }
     const res=await fetcher(SCRIPT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'analyzeClass',evidence,regenerate:scope.regenerate}),redirect:'follow',signal:AbortSignal.timeout(120000)});
     if(!res.ok)throw new HttpError(502,'OpenAI 분석 서버에 연결하지 못했습니다.');
     let value;try{value=JSON.parse(await boundedText(res,150000))}catch{throw new HttpError(502,'분석 응답을 확인하지 못했습니다.')}
@@ -129,9 +177,9 @@ function coreHandler(fetcher){return async(request,env)=>{
 }}
 export function createHandler(fetcher){
   const handle=coreHandler(fetcher);
-  return async(request,env)=>{
+  return async(request,env,ctx)=>{
     const url=new URL(request.url),origin=request.headers.get('Origin');
-    if(!url.pathname.startsWith('/api/'))return handle(request,env);
+    if(!url.pathname.startsWith('/api/'))return handle(request,env,ctx);
     let response;
     if(request.method==='OPTIONS'){
       const method=API_PATHS.get(url.pathname),requestedHeaders=(request.headers.get('Access-Control-Request-Headers')||'').split(',').map(h=>h.trim().toLowerCase()).filter(Boolean);
@@ -140,7 +188,8 @@ export function createHandler(fetcher){
       }else{
         response=new Response(null,{status:204,headers:{'Access-Control-Allow-Methods':method,'Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Max-Age':'600','Cache-Control':'private, no-store'}});
       }
-    }else response=await handle(request,env);
+    }else response=await handle(request,env,ctx);
+    if(response.status===101)return response;
     const headers=new Headers(response.headers);
     headers.append('Vary','Origin');
     if(allowedOrigin(origin,url))headers.set('Access-Control-Allow-Origin',origin);
