@@ -61,17 +61,23 @@ h2 small{display:block;margin-top:14px;font-size:28px;font-weight:400;color:var(
 .tape{position:absolute;left:50%;top:-28px;width:190px;height:56px;transform:translateX(-50%) rotate(-4deg);background:rgba(214,226,190,.85)}
 
 /* 코난 */
-.quote{font-size:96px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.quote{font-size:96px;font-weight:700;letter-spacing:-.02em;line-height:1.2;word-break:keep-all}
 .quote.back{color:var(--ink-soft);font-weight:600;font-size:80px}
 .chain{display:flex;align-items:center;gap:28px;font-size:44px;font-weight:700}
 .chain .box{border:4px solid var(--ink);padding:18px 40px;background:var(--sheet)}
 .chain .link{flex:0 0 380px;position:relative;height:60px}
 .chain .link::before{content:"";position:absolute;left:0;right:0;top:50%;border-top:5px dashed var(--red)}
 .chain .link span{position:absolute;left:50%;top:-52px;transform:translateX(-50%);font-family:var(--hand);font-size:54px;font-weight:400;color:var(--red);white-space:nowrap}
+.conan{position:absolute;right:200px;bottom:110px;height:700px;width:auto}
 
 /* 답안지 */
 .sheet{background:var(--sheet);border:2px solid var(--rule);padding:44px 56px;font-family:var(--hand);font-size:66px;line-height:1.55;color:#22303a;box-shadow:0 2px 0 rgba(0,0,0,.04)}
-.gap{display:inline-block;width:150px;height:84px;vertical-align:middle;border:5px dashed var(--red);border-radius:50%;margin:0 10px}
+/* 비어 있는 연결 고리: 증거(초록)에서 주장(분홍)으로 가는 곡선 점선 화살표. 위치는 글자 자리를 재서 그린다. */
+.sheet{position:relative}
+.link-arrow{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.link-arrow path{fill:none;stroke:var(--red);stroke-width:6;stroke-linecap:round}
+.link-arrow .shaft{stroke-dasharray:4 16}
+.gap-note{position:absolute;left:224px;right:150px;top:600px;font-family:var(--hand);font-size:62px;line-height:1.2;color:var(--red);text-align:right}
 .legend{display:flex;gap:44px;font-size:24px;color:#3a4c55}
 .legend i{display:inline-block;width:52px;height:22px;margin-right:12px;vertical-align:-3px}
 
@@ -81,6 +87,7 @@ h2 small{display:block;margin-top:14px;font-size:28px;font-weight:400;color:var(
 .reqs li::before{content:"";position:absolute;left:0;top:14px;width:22px;height:22px;border:3px solid currentColor}
 .reqs li.key{color:var(--ink);font-weight:700}
 .reqs li.key::before{border-color:var(--red)}
+.reqs li.key::after{content:"";position:absolute;left:-8px;top:-20px;width:58px;height:58px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 42 42'%3E%3Cpath d='M5 22 L16 34 L38 4' fill='none' stroke='%23c0392b' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center/contain}
 .card{background:var(--sheet);border:2px solid var(--rule);padding:32px 38px}
 .card .k{font-family:var(--mono);font-size:19px;letter-spacing:.08em;color:var(--ink-soft)}
 .card .big{font-size:70px;font-weight:700;letter-spacing:-.02em;line-height:1.1;margin:14px 0 10px;font-variant-numeric:tabular-nums}
@@ -151,6 +158,39 @@ h2 small{display:block;margin-top:14px;font-size:28px;font-weight:400;color:var(
 .refs i{font-style:italic}
 .refs .u{font-family:var(--mono);font-size:18px;color:var(--ink-soft)}
 
+/* 부록 (질의응답용) */
+.apx .body{top:64px;bottom:78px;display:grid;grid-template-rows:auto 1fr auto;gap:24px;word-break:keep-all}
+.apx h2{font-size:50px}
+.apx h2 small{font-size:21px;line-height:1.5;margin-top:12px}
+.apx h2 small a{color:inherit}
+.apx-grid{display:grid;grid-template-columns:1fr 1.1fr 1.15fr;gap:30px;align-items:stretch}
+.apx-col{background:var(--sheet);border:2px solid var(--rule);padding:26px 30px;display:grid;gap:14px;align-content:start;font-size:23px;line-height:1.5;color:#2b3b44}
+.apx-col h3{margin:0;font-family:var(--mono);font-size:18px;font-weight:500;letter-spacing:.08em;color:var(--ink-soft)}
+.apx-col p{margin:0}
+.apx-col ul{margin:0;padding-left:1.1em;display:grid;gap:8px}
+.apx-col .pg{font-family:var(--mono);font-size:15px;color:#7a8b92;white-space:nowrap}
+.apx-col blockquote{margin:0;padding:12px 16px;border-left:5px solid var(--pen);background:#f3f5fb;font-size:22px;color:#2f3f63}
+.apx-col blockquote.student{font-family:var(--hand);font-size:31px;line-height:1.3;border-left-color:var(--ev)}
+.apx table{border-collapse:collapse;width:100%;font-size:23px;font-variant-numeric:tabular-nums}
+.apx th,.apx td{padding:8px 10px;border-bottom:1px solid var(--rule);text-align:left}
+.apx th{font-weight:600;color:var(--ink-soft);font-size:19px}
+.apx td.n,.apx th.n{text-align:right}
+.apx tr.hit td{background:linear-gradient(transparent 12%,rgba(245,220,85,.75) 12%,rgba(245,220,85,.75) 88%,transparent 88%);font-weight:700}
+.apx .bars{display:grid;gap:10px}
+.apx .bar{display:grid;grid-template-columns:var(--w,250px) 1fr 76px;align-items:center;gap:12px;font-size:21px}
+.apx .bar i{display:block;height:26px;background:#e7ece9}
+.apx .bar em{display:block;height:100%;background:#a9bcb5}
+.apx .bar.r em{background:var(--red)}
+.apx .bar b{text-align:right;font-variant-numeric:tabular-nums}
+.apx .levels{display:grid;gap:6px;font-size:21px}
+.apx .levels div{display:grid;grid-template-columns:62px 1fr;gap:10px;padding:5px 0;border-bottom:1px dashed var(--rule)}
+.apx .levels b{font-family:var(--mono);font-size:17px;font-weight:500;color:var(--ink-soft);padding-top:3px}
+.apx .levels .top{color:var(--ink);font-weight:600}
+.apx-foot{display:grid;grid-template-columns:1fr 1fr;gap:30px;font-size:21px;line-height:1.45}
+.apx-foot div{padding:12px 22px 0;border-top:4px solid var(--ink)}
+.apx-foot .so{border-top-color:var(--red)}
+.apx-foot b{display:block;font-family:var(--mono);font-size:17px;font-weight:500;letter-spacing:.08em;color:var(--ink-soft);margin-bottom:4px}
+
 /* 시연: 실제 게임이 창 전체를 덮는다 */
 .demo{position:fixed;inset:0;z-index:5;background:#102e2c;display:none}
 .demo.on{display:block}
@@ -187,21 +227,22 @@ body.hud #hud{opacity:1}
 
 <!-- 1 코난 -->
 <section class="slide" data-title="단서와 주장">
-  <div class="body" style="display:grid;align-content:center;gap:56px">
+  <div class="body" style="display:grid;align-content:center;gap:56px;right:640px">
     <div class="quote">“범인은 당신이야!”</div>
     <div class="quote back step">“그 단서만 가지고 왜 저를 의심하죠?”</div>
     <div class="chain step"><div class="box">단서</div><div class="link"><span>연결 고리</span></div><div class="box">주장</div></div>
   </div>
+  <img class="conan" src="img/conan.webp" alt="범인을 가리키는 코난">
 </section>
 
 <!-- 2 고등학생 답안 -->
 <section class="slide" data-title="고등학생 답안">
   <div class="body" style="display:grid;align-content:start;gap:44px">
     <h2>자료로 주장을 해야 하는 과학 글쓰기<small>2023 통합과학 서술형 · 고등학생 실제 답안</small></h2>
-    <div class="sheet">옥수수가 한가지 유전자형을 갖게되면서 <span class="mark-ev step" data-order="1">유전적 다양성이 줄어들게 되었다.</span><span class="gap step" data-order="3" aria-hidden="true"></span>그래서 환경변화가 왔을때 <span class="mark-cl step" data-order="2">옥수수는 적응하지 못하고 죽게되었다.</span></div>
-    <div class="legend"><span><i style="background:var(--ev)"></i>증거</span><span><i style="background:var(--cl)"></i>주장</span><span><i style="border:4px dashed var(--red);border-radius:50%"></i>비어 있는 연결 고리</span></div>
+    <div class="sheet">옥수수가 한가지 유전자형을 갖게되면서 <span class="mark-ev step" data-order="1" id="gapFrom">유전적 다양성이 줄어들게 되었다.</span><br>그래서 환경변화가 왔을때 <span class="mark-cl step" data-order="2" id="gapTo">옥수수는 적응하지 못하고 죽게되었다.</span><svg class="link-arrow step" data-order="3" aria-hidden="true"><path class="shaft" d=""/><path class="head" d=""/></svg></div>
+    <div class="legend" style="margin-top:170px"><span><i style="background:var(--ev)"></i>증거</span><span><i style="background:var(--cl)"></i>주장</span><span><svg width="58" height="26" viewBox="0 0 58 26" style="margin-right:12px;vertical-align:-6px;overflow:visible" aria-hidden="true"><path d="M3 20 Q29 -4 50 16" fill="none" stroke="var(--red)" stroke-width="4" stroke-linecap="round" stroke-dasharray="3 8"/><path d="M40 17 L51 17 L48 6" fill="none" stroke="var(--red)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>비어 있는 연결 고리</span></div>
   </div>
-  <div class="note step" data-order="4" style="left:18px;top:520px;width:140px;font-size:54px">왜<br>못 살지?</div>
+  <div class="gap-note step" data-order="4">유전적 다양성이 줄어들면 뭐가 어떻게 되길래<br>옥수수가 죽게 되는 거지?</div>
   <div class="src">출처: 2023년 「통합과학 서술형 답안 피드백 연구」 참여 중 다룬 실제 학생 답안 · 해당 연구실 교수님 사용 허가</div>
 </section>
 
@@ -343,6 +384,96 @@ body.hud #hud{opacity:1}
   </div>
 </section>
 
+<!-- 14 부록 A: 선행연구 ① 자세히 (질의응답용) -->
+<section class="slide apx" data-title="부록 A · Hoffenberg & Saxton">
+  <div class="body">
+    <h2><span class="meta" style="display:block;font-size:19px;margin-bottom:10px">부록 A · 4장 선행연구 ①</span>설명을 가르쳐도, 연결은 따로 요구해야 씁니다
+      <small>Hoffenberg, R., &amp; Saxton, E. (2015). Scientific explanations: A comparative case study of teacher practice and student performance. <i>Electronic Journal of Science Education, 19</i>(5). <a href="http://ejse.southwestern.edu">ejse.southwestern.edu</a></small></h2>
+    <div class="apx-grid">
+      <div class="apx-col">
+        <h3>무엇을 봤나</h3>
+        <ul>
+          <li>미국 오리건주 고등학교 두 학급의 탐구 단원 <span class="pg">p.6–7</span><br>· 조(가명): 10학년 화학, 반응 속도 탐구<br>· 소니아(가명): 12학년 IB 생물, 심혈관계 탐구</li>
+          <li>학급마다 탐구 보고서 8편을 무작위로 뽑아, 설명 부분을 주장·증거·추론 루브릭(각 0–4점)으로 채점 <span class="pg">p.7, 10</span></li>
+          <li>교사의 수업 포트폴리오(TIP)로 설명을 어떻게 가르쳤는지 함께 분석 <span class="pg">p.7–8</span></li>
+        </ul>
+        <p style="font-size:20px;color:var(--ink-soft)">4장의 막대(3·2·1)는 조 학급의 평균 점수입니다. 4장에서는 ‘추론’을 ‘연결’로 옮겼습니다.</p>
+      </div>
+      <div class="apx-col">
+        <h3>학급별 평균 점수 <span class="pg">Table 6 · p.11</span></h3>
+        <table>
+          <tr><th></th><th class="n">조 학급</th><th class="n">소니아 학급</th></tr>
+          <tr><td>주장</td><td class="n">3</td><td class="n">3</td></tr>
+          <tr><td>증거</td><td class="n">2</td><td class="n">4</td></tr>
+          <tr class="hit"><td>추론(연결)</td><td class="n">1</td><td class="n">3</td></tr>
+        </table>
+        <h3 style="margin-top:10px">조 학급, 증거를 주장에 잇는 방식 <span class="pg">Table 9 · p.13</span></h3>
+        <div class="bars">
+          <div class="bar r"><span>추론이 아예 없음</span><i><em style="width:50%"></em></i><b>50%</b></div>
+          <div class="bar"><span>“~ 때문인 것 같다” 수준</span><i><em style="width:25%"></em></i><b>25%</b></div>
+          <div class="bar"><span>정교하게 연결</span><i><em style="width:13%"></em></i><b>13%</b></div>
+          <div class="bar"><span>연결하는 말 없음</span><i><em style="width:13%"></em></i><b>13%</b></div>
+        </div>
+        <p style="font-size:20px">8명 중 4명은 논리적 추론도 과학 개념도 쓰지 않아 0점 <span class="pg">p.12</span></p>
+      </div>
+      <div class="apx-col">
+        <h3>왜 빠졌나</h3>
+        <p>조 교사는 설명을 ‘지식 주장(knowledge claim)’, 곧 <b>실험 증거에 기반한 일반화된 주장</b>으로 정의해 가르쳤습니다 <span class="pg">p.19</span>. 저자들은 이 정의가 주장과 증거를 한 덩어리로 묶고, <b>과학 이론으로 결과를 이해하는 추론을 빼놓았다</b>고 봅니다 <span class="pg">p.27</span>.</p>
+        <h3 style="margin-top:6px">조 학급 학생 답안 (발췌·번역) <span class="pg">p.22</span></h3>
+        <blockquote class="student">수집한 자료로 보아 가설이 옳았다. 열은 반응을 빠르게 한다. 70 °C에서 평균 17.64초, 40 °C에서 25.05초, 실온에서 116.80초. 그러므로 열은 반응 속도를 높인다.</blockquote>
+        <p style="font-size:21px">주장과 증거는 분명하지만, 왜 그런지(분자 운동론)는 한 줄도 없다는 것이 저자들의 평가입니다.</p>
+      </div>
+    </div>
+    <div class="apx-foot">
+      <div><b>해석할 때 주의</b>두 학급 사례 연구(학급당 8편)라 일반화에는 한계가 있고, 저자들도 예비 결과라고 밝힙니다 <span class="pg">p.27–28</span>.</div>
+      <div class="so"><b>서술 실험실에서는</b>‘연결’을 따로 요구하는 상대를 게임 안에 둡니다. 콧대 교수가 카드마다 “그래서 그게 왜?”를 묻습니다.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 15 부록 B: 선행연구 ② 자세히 (질의응답용) -->
+<section class="slide apx" data-title="부록 B · 이기영 외">
+  <div class="body">
+    <h2><span class="meta" style="display:block;font-size:19px;margin-bottom:10px">부록 B · 4장 선행연구 ②</span>중3 7,390명: ‘무엇’은 답하지만 ‘왜’는 쓰지 않았습니다
+      <small>이기영, 동효관, 최원호, 권경필, 이인호, 김용진 (2017). 국가수준 학업성취도 평가의 서답형 문항을 이용한 중학교 과학 8개 핵심 개념에 대한 학습발달과정 탐색. <i>과학교육연구지, 41</i>(3), 382–404. <a href="https://doi.org/10.21796/jse.2017.41.3.382">doi.org/10.21796/jse.2017.41.3.382</a></small></h2>
+    <div class="apx-grid">
+      <div class="apx-col">
+        <h3>무엇을 봤나</h3>
+        <ul>
+          <li>2015 국가수준 학업성취도 평가에 표집으로 참여한 중학교 3학년 7,390명의 과학 서답형 8문항 답안 <span class="pg">p.384</span></li>
+          <li>답안을 모두 입력해 문항마다 5수준으로 나눈 구인구성도를 만들고, Rasch 모델로 예비 학습발달과정을 작성 <span class="pg">p.385–387</span></li>
+        </ul>
+        <h3 style="margin-top:8px">8개 핵심 개념 평균 <span class="pg">p.392</span></h3>
+        <p><b style="font-size:46px;background:linear-gradient(transparent 58%,var(--hl) 58%,var(--hl) 92%,transparent 92%)">1.66</b> / 5수준 · 수준 2 이하의 낮은 단계</p>
+      </div>
+      <div class="apx-col">
+        <h3>문항 1 · 물결파의 굴절 <span class="pg">p.392</span></h3>
+        <div class="bars" style="--w:150px">
+          <div class="bar"><span>각의 크기 비교<br><small style="color:var(--ink-soft)">부등호 고르기</small></span><i><em style="width:88.5%"></em></i><b>88.5%</b></div>
+          <div class="bar r"><span>굴절하는 이유<br><small style="color:var(--ink-soft)">서술하기</small></span><i><em style="width:24.1%"></em></i><b>24.1%</b></div>
+        </div>
+        <p style="font-size:21px">응답 비율. 같은 문제 상황에서도 이유를 쓰는 칸에서 응답이 크게 줄었고, 전체 답안의 76%가 무의미한 답변 또는 무응답이었습니다.</p>
+        <p style="font-size:20px;color:var(--ink-soft)">반면 문항 2(자기장 속 도선이 받는 힘)는 무의미·무응답이 하위 문항별 약 16%·27%로 훨씬 적었습니다 <span class="pg">p.392–393</span>. 개념마다 차이가 큽니다.</p>
+      </div>
+      <div class="apx-col">
+        <h3>문항 4 · 강철솜의 연소 (우리 미션의 소재) <span class="pg">p.389, Table 4</span></h3>
+        <div class="levels">
+          <div class="top"><b>수준 5</b>철이 산소와 결합해 산화철이 되기 때문에 질량이 증가한다고 설명</div>
+          <div><b>수준 4</b>철이 공기와 결합해 질량이 증가한다고 설명</div>
+          <div><b>수준 3</b>어떤 물질과 결합해 증가했는지는 모름</div>
+          <div><b>수준 2</b>질량 증가는 알지만 원인을 화학 결합으로 설명하지 못함</div>
+          <div><b>수준 1</b>질량이 증가함을 모름</div>
+        </div>
+        <p style="font-size:21px">강철솜 미션은 수준 5에서 한 걸음 더 갑니다: <b>늘어난 0.5 g이 그 산소의 질량</b>이고, 닫힌 플라스크는 <b>드나든 물질이 없어</b> 그대로라는 연결까지.</p>
+      </div>
+    </div>
+    <div class="apx-foot">
+      <div><b>해석할 때 주의</b>성적에 반영되지 않는 시험이라 성실히 답하지 않은 무응답도 섞일 수 있고 <span class="pg">p.394</span>, 학습발달과정은 개별 학생을 종단 추적한 것이 아니라 가설적·추론적입니다 <span class="pg">p.400</span>.</div>
+      <div class="so"><b>저자 제언과 서술 실험실</b>다층 서답형은 ‘선택→설명’, ‘단답→설명’처럼 단계를 거쳐 심층적 사고를 이끌어야 한다 <span class="pg">p.401</span>. 게임도 카드를 고르고 → 뒷면에 그 뜻을 쓰는 순서로 짰습니다.</div>
+    </div>
+  </div>
+</section>
+
 </div></div>
 
 <!-- 시연 장면: 보여 줄 기능까지만 진행되고(게임은 ?demo=, 교사 화면은 tour-teacher.js), 끝나면 '다음 장' 표시가 뜬다 -->
@@ -368,7 +499,29 @@ body.hud #hud{opacity:1}
   function fit() {
     const s = Math.min(innerWidth / 1920, innerHeight / 1080);
     deck.style.transform = `translate(${-960 * s}px, ${-540 * s}px) scale(${s})`;
+    drawLinkArrows();
   }
+  // 3장: 증거(초록) 끝에서 주장(분홍) 끝으로 휘어 들어가는 점선 화살표. 글자가 놓인 자리를 재서 그린다.
+  function drawLinkArrows() {
+    document.querySelectorAll('.link-arrow').forEach((svg) => {
+      const sheet = svg.parentElement, from = sheet.querySelector('#gapFrom'), to = sheet.querySelector('#gapTo');
+      if (!from || !to) return;
+      const box = sheet.getBoundingClientRect(), k = box.width / sheet.offsetWidth || 1;
+      const last = (el) => { const r = el.getClientRects(); return r[r.length - 1]; };
+      const a = last(from), b = last(to);
+      if (!a || !b) return;
+      const p = (r, dx) => [(r.right - box.left) / k + dx, (r.top - box.top) / k + (r.height / k) * 0.62];
+      const [x1, y1] = p(a, 12), [x2, y2] = p(b, 16);
+      const bulge = Math.max(x1, x2) + 115;
+      const c1 = [bulge, y1 + 6], c2 = [bulge, y2 - 6];
+      svg.querySelector('.shaft').setAttribute('d', `M${x1} ${y1} C${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${x2} ${y2}`);
+      const ang = Math.atan2(y2 - c2[1], x2 - c2[0]), len = 26, spread = 0.5;
+      const w1 = [x2 - len * Math.cos(ang - spread), y2 - len * Math.sin(ang - spread)];
+      const w2 = [x2 - len * Math.cos(ang + spread), y2 - len * Math.sin(ang + spread)];
+      svg.querySelector('.head').setAttribute('d', `M${w1[0]} ${w1[1]} L${x2} ${y2} L${w2[0]} ${w2[1]}`);
+    });
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawLinkArrows);
   // 한 장 안의 .step은 data-order가 있으면 그 순서로, 없으면 문서 순서로 드러난다
   const steps = (el) => [...el.querySelectorAll('.step')].map((s, i) => [s, Number(s.dataset.order || i + 1)]).sort((a, b) => a[1] - b[1]).map(([s]) => s);
   const demoOf = (el) => el && el.dataset.demo ? document.getElementById('demo-' + el.dataset.demo) : null;
