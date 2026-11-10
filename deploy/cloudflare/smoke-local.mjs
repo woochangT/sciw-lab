@@ -34,6 +34,16 @@ try{
  await phase('동시 제출',person=>send(person,finalOps(person)));
  await phase('동일 요청 재전송',person=>send(person,finalOps(person)));
  const [first]=people;
+ const completion={action:'updateSession',sessionId:first.sessionId,syncId:'complete',fields:{clearType:'partial'}};
+ assert.equal((await send(first,[completion])).ok,true);
+ assert.equal((await send(first,[{...completion,syncId:'complete-retry'}])).ok,true);
+ const noticeClass=`g:3:r:${room.split('-')[1]}`;
+ const activity=()=>messages.filter(notice=>notice.classKey===noticeClass&&notice.kind);
+ const until=Date.now()+3000;
+ while(activity().length<16&&Date.now()<until)await new Promise(resolve=>setTimeout(resolve,30));
+ assert.equal(activity().filter(event=>event.kind==='entered').length,15);
+ assert.equal(activity().filter(event=>event.kind==='completed').length,1);
+ assert.equal(activity().find(event=>event.kind==='completed').studentNo,'1');
  const request={action:'findStudentSession',classCode:first.classCode,studentNo:first.studentNo,missionId:first.missionId};
  assert.equal((await student({...request,resumeKey:crypto.randomUUID()})).session,null);
  assert.equal((await student({...request,resumeKey:first.resumeKey})).session.checkpoint.point,'compose');

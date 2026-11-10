@@ -163,6 +163,19 @@ async function load(force=false,scopedOnly=false){if(!auth.active())return;const
 $('#backToClass').onclick=returnToPortfolio;$('#changeScope').onclick=returnToPortfolio;$('#refresh').onclick=()=>{closeDetail();load(true)};$('#source').onchange=()=>{recordCache.clear();resetScope();load()};
 $('#classNav').addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;if('allClasses'in button.dataset){returnToPortfolio();return}const d=button.dataset;if(d.classKey){const next=classes.find(c=>c.classKey===d.classKey&&c.isTest===(d.classTest==='true'));if(next)enterClassDashboard(next)}});
 
+function showMilestone(notice){
+ const names={entered:'입장',completed:'완료'},label=names[notice.kind];
+ if(!label||!/^\d{1,3}$/.test(notice.studentNo)||!/^\d-\d{1,2}$/.test(notice.classCode))return;
+ const area=$('#liveMilestones'),card=document.createElement('div'),tag=document.createElement('span'),student=document.createElement('b'),scope=document.createElement('small');
+ card.className='live-milestone '+notice.kind;
+ tag.textContent=label;
+ student.textContent=notice.studentNo+'번 '+label;
+ scope.textContent=S.identity(notice.classCode).label+' · '+(games[notice.missionId]?.name||'');
+ card.append(tag,student,scope);
+ while(area.children.length>=2)area.firstElementChild.remove();
+ area.append(card);
+ setTimeout(()=>card.remove(),5200);
+}
 function liveAvailable(){return !loading&&!document.hidden&&!$('#studentDialog').open&&$('#teacherTermPopover').hidden&&view!=='report'&&document.activeElement?.tagName!=='SELECT'}
 function refreshLive(){
  liveTimer=null;
@@ -176,6 +189,7 @@ function closeLive(){
  clearTimeout(liveTimer);clearTimeout(liveReconnect);liveTimer=null;
  const previous=liveSocket;liveSocket=null;previous?.close();
  $('#liveState').textContent='';
+ $('#liveMilestones').replaceChildren();
 }
 function syncLive(){
  if(!auth.active()||source()!=='sheet'){closeLive();return;}
@@ -190,6 +204,7 @@ function syncLive(){
   if(liveSocket!==socket)return;
   let notice;try{notice=JSON.parse(event.data)}catch{return;}
   if(phase==='dashboard'&&notice.classKey!==chosenClass?.classKey)return;
+  if(!document.hidden)showMilestone(notice);
   liveDirty=true;if(!liveTimer)liveTimer=setTimeout(refreshLive,450);
  };
  socket.onclose=()=>{

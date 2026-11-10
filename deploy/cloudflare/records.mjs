@@ -30,7 +30,9 @@ export async function saveRecords(db,body){
  requireRecord(ids.every(recordId),'세션 ID 오류');
  const found=await db.prepare(`SELECT id,mission,class_code,student_no,resume_key,is_test,progress FROM sessions WHERE id IN (${ids.map(()=>'?').join(',')})`).bind(...ids).all();
  const rows=new Map(found.results.map(row=>[row.id,row]));
- const statements=[],changed=new Map(),now=new Date().toISOString();
+ const statements=[],changed=new Map(),milestones=[],now=new Date().toISOString();
+ const scopeFor=row=>({classKey:S().identity(row.class_code).classKey,missionId:row.mission,isTest:Boolean(row.is_test)});
+ const milestone=(row,kind)=>milestones.push({statement:statements.length,event:{...scopeFor(row),kind,studentNo:row.student_no,classCode:row.class_code}});
  for(const op of ops){
   const kind=op.action,id=op.sessionId||op.session?.sessionId||op.attempt?.sessionId;
   const fields=kind==='startSession'?op.session:kind==='updateSession'?op.fields:op.attempt;
@@ -48,6 +50,7 @@ export async function saveRecords(db,body){
    }
    requireRecord(identity.mission===fields.missionId&&identity.class_code===fields.classCode&&identity.student_no===String(Number(fields.studentNo)),'세션 범위 충돌');
    requireRecord(identity.resume_key===body.resumeKey,'세션 범위 충돌');
+   milestone(identity,'entered');
    statements.push(db.prepare(`INSERT INTO sessions(id,mission,class_code,class_key,student_no,resume_key,is_test,started_at,updated_at,progress,payload)
     VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`).bind(id,identity.mission,identity.class_code,S().identity(identity.class_code).classKey,identity.student_no,body.resumeKey,identity.is_test,date(fields.startedAt,now),now,'explore',JSON.stringify(cleanFields(fields))));
   }
@@ -64,6 +67,11 @@ export async function saveRecords(db,body){
     statements.push(db.prepare(`UPDATE sessions SET checkpoint=?,checkpoint_at=?,progress=?,updated_at=?,revision=revision+1 WHERE ${fresh} AND (checkpoint_at IS NULL OR checkpoint_at<=?)`).bind(JSON.stringify(fields.checkpoint),checkpointAt,fields.checkpoint.point,now,...guard,checkpointAt));
    }
    const patch=cleanFields(fields),keys=Object.keys(patch);
+   if(['full','partial'].includes(patch.clearType)){
+    milestone(identity,'completed');
+    statements.push(db.prepare(`UPDATE sessions SET payload=json_set(payload,'$.clearType',?),progress='complete'
+      WHERE ${fresh} AND coalesce(json_extract(payload,'$.clearType'),'') NOT IN ('full','partial')`).bind(patch.clearType,...guard));
+   }
    if(keys.length){
     notify ||= !fields.draftOnly&&!fields.checkpointOnly;
     requireRecord(keys.length<=40,'기록이 잘못되었거나 너무 큽니다');
@@ -82,10 +90,11 @@ export async function saveRecords(db,body){
   }
   // A concurrent conflicting claim cannot acknowledge someone else's operation.
   statements.push(db.prepare(`INSERT INTO write_receipts(session_id,id) VALUES((SELECT id FROM sessions WHERE id=? AND resume_key=?),?) ON CONFLICT(session_id,id) DO NOTHING`).bind(id,body.resumeKey,receipt));
-  if(notify)changed.set(id,{classKey:S().identity(identity.class_code).classKey,missionId:identity.mission,isTest:Boolean(identity.is_test)});
+  if(notify)changed.set(id,scopeFor(identity));
  }
- await db.batch(statements);
- return {applied:ops.length,changed:[...changed.values()]};
+ const results=await db.batch(statements);
+ const committed=milestones.filter(({statement})=>results[statement]?.meta.changes>0).map(({event})=>event);
+ return {applied:ops.length,changed:[...changed.values(),...committed]};
 }
 export async function digest(value){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),b=>b.toString(16).padStart(2,'0')).join('')}
 export async function findSession(db,body){
@@ -106,7 +115,7 @@ export async function readRecords(db,scope=null){
   'finalEvaluationStatus',json_extract(s.payload,'$.finalEvaluationStatus'),'finalJudgment',json_extract(s.payload,'$.finalJudgment'),
   'teacherRejudgment',json_extract(s.payload,'$.teacherRejudgment'),'rubricVersion',json_extract(s.payload,'$.rubricVersion'),
   'judgeVersion',json_extract(s.payload,'$.judgeVersion'),'judgedBy',json_extract(s.payload,'$.judgedBy'),
-  'hintViewedAt',json_extract(s.payload,'$.hintViewedAt'),'hintOpenedAt',json_extract(s.payload,'$.hintOpenedAt'),
+  'clearType',json_extract(s.payload,'$.clearType'),'hintViewedAt',json_extract(s.payload,'$.hintViewedAt'),'hintOpenedAt',json_extract(s.payload,'$.hintOpenedAt'),
   'hintLevel',json_extract(s.payload,'$.hintLevel'),'hintSchemaVersion',json_extract(s.payload,'$.hintSchemaVersion')) AS payload`;
  const eventPayload=scope?'e.payload':`json_remove(e.payload,'$.analysis','$.evaluationInput','$.displayedPrompt','$.extra') AS payload`;
  const relevant=scope?'':` WHERE e.quest IN ${overviewQuests} AND (e.quest<>'studentInput' OR json_extract(e.payload,'$.evaluationStage')='final' OR json_extract(e.payload,'$.stage')='defense')`;
