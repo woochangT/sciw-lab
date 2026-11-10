@@ -5,3 +5,7 @@ if(!database?.database_id||database.database_id==='00000000-0000-4000-8000-00000
   console.error('Set the deployed D1 database ID before publishing. npm run dev uses a local database.');
   process.exitCode=1;
 }
+if(process.env.SCIW_D1_CUTOVER_READY!=='1'){
+  console.error('Complete the production data migration and runtime setup, then set SCIW_D1_CUTOVER_READY=1 in Workers Builds.');
+  process.exitCode=1;
+}

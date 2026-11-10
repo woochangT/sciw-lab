@@ -13,7 +13,7 @@
     "html_handling": "none",
     "not_found_handling": "none"
   },
-  "d1_databases": [{"binding":"DB","database_name":"sciw-records","database_id":"00000000-0000-4000-8000-000000000000"}],
+  "d1_databases": [{"binding":"DB","database_name":"sciw-records","database_id":"c99c8a86-720c-426e-9f54-c4746ad2b9d7"}],
   "durable_objects": {"bindings":[{"name":"PROGRESS","class_name":"ClassProgress"}]},
   "migrations": [{"tag":"v1","new_sqlite_classes":["ClassProgress"]}],
   "ratelimits": [{"name":"TEACHER_LOGIN_LIMIT","namespace_id":"51719","simple":{"limit":8,"period":60}}],
