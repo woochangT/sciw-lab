@@ -3,7 +3,7 @@
  const M=root.TeacherModel,S=root.TeacherScope;
  const definitions={
   m01:[['C','농도 결론'],['D','실험 자료'],['W1','질량·물 이동'],['W2a','이동 방향'],['W2b','농도 비교'],['W3/WB','농도 범위']],
-  m02:[['C','자신의 결론'],['D-A','A 질량 증가'],['D-B','B 전체 질량'],['W1a','질량 보존'],['W1b','산소 특정 이유'],['W2a','전체 질량'],['W2b','증가분 의미']]
+  m02:[['C','강철솜이 무거워진 이유'],['D-A','A 질량 증가'],['D-B','B 전체 질량'],['W1a','질량 보존'],['W1b','산소 특정 이유'],['W2a','전체 질량'],['W2b','증가분 의미']]
  };
  const descriptions={
   m01:{
@@ -23,6 +23,33 @@
    W2a:'실험 B의 산소가 철에 결합해도 닫힌 플라스크 밖으로 드나든 물질이 없어서, 전체 질량이 그대로인 이유를 설명했는지 확인합니다.',
    W2b:'실험 A에서 늘어난 질량이 바깥에서 들어와 철에 결합한 산소의 질량이라고 설명했는지 확인합니다.'
   }
+ };
+ const teachingQuestions={
+  m01:{
+   C:'감자 세포 안의 농도는 어느 두 값 사이일까요?',
+   D:'5%와 10% 설탕물에서 감자의 질량은 각각 어떻게 달라졌나요?',
+   W1:'감자의 질량이 변한 것을 물의 이동으로 어떻게 설명할까요?',
+   W2a:'5% 설탕물에서 물이 감자 안으로 들어온 까닭은 무엇일까요?',
+   W2b:'10% 설탕물에서 물이 감자 밖으로 나온 까닭은 무엇일까요?',
+   'W3/WB':'두 실험 결과를 합치면 감자 안의 농도 범위를 어떻게 좁힐 수 있을까요?'
+  },
+  m02:{
+   C:'강철솜을 태웠더니 왜 더 무거워졌을까요?',
+   'D-A':'열린 실험에서 강철솜의 질량이 늘었다는 근거는 무엇인가요?',
+   'D-B':'닫힌 플라스크 전체의 질량은 실험 전후에 어떻게 달라졌나요?',
+   W1a:'질량이 저절로 생기지 않는다면, 강철솜에 무엇이 더해졌을까요?',
+   W1b:'철에 더해진 물질이 산소라는 근거는 무엇인가요?',
+   W2a:'산소가 철에 붙었는데 닫힌 플라스크 전체 질량은 왜 그대로였을까요?',
+   W2b:'강철솜에서 늘어난 0.5 g은 어디에서 왔을까요?'
+  }
+ };
+ const progressSteps={
+  m01:[['explore','실험 탐색'],['claim','처음 생각'],['quest','교수와 토론'],['compose','최종 답안']],
+  m02:[['explore','실험 탐색'],['first','처음 생각'],['claim','주장·근거'],['scope','실험 범위'],['link','질량 설명'],['compose','최종 답안']]
+ };
+ const progressAliases={
+  m01:{first:'claim',rebuttal:'quest',combine:'quest',sort:'quest',defense:'compose',complete:'compose'},
+  m02:{rebuttal:'scope',combine:'link',sort:'link',defense:'compose',complete:'compose'}
  };
  const known=v=>v===true||v===false||['true','false','TRUE','FALSE'].includes(v);
  const statusLabels={completed:'판정 완료',pending:'판정 대기',failed:'판정 실패',unavailable:'판정 불가',missing:'판정 기록 없음'};
@@ -75,6 +102,33 @@
   if(values.every(known))return 'revise';
   return 'unknown';
  }
+ function alternateRouteElement(mission,judgment,key){
+  if(mission!=='m02'||element(judgment,key)==='met')return false;
+  const met=ids=>ids.every(id=>element(judgment,id)==='met');
+  return met(['C','D-A','W1b','W2b'])&&
+   (key==='W1a'&&met(['D-B','W2a'])||['D-B','W2a'].includes(key)&&met(['W1a']));
+ }
+ function studentElement(mission,judgment,key){
+  const state=element(judgment,key);
+  return state==='revise'&&alternateRouteElement(mission,judgment,key)?'alternate':state;
+ }
+ function studentProgress(data,s,e,mission){
+  const steps=progressSteps[mission],aliases=progressAliases[mission];
+  const index=point=>steps.findIndex(([key])=>key===(aliases[point]||point));
+  const checkpoint=M.obj(s.checkpoint)?.point;
+  const broadStage=stage=>mission==='m02'&&stage==='claim'?'first':stage;
+  const start=Math.max(index(broadStage(s.stage)),index(checkpoint));
+  const reached=e.written?steps.length-1:M.attemptsFor(data,s.sessionId).reduce((latest,event)=>{
+   const stage=mission==='m02'&&event.stage==='claim'&&event.questId==='claim'?'claim':broadStage(event.stage);
+   return Math.max(latest,index(stage));
+  },start);
+  const judgment=judgmentStatus(data,s);
+  const sentAt=M.time(judgment.record?.createdAt||judgment.record?.clientOccurredAt);
+  const now=Date.now(),evaluationEnds=judgment.code==='pending'&&Math.abs(now-sentAt)<120000?sentAt+120000:0;
+  const elements=e.has?definitions[mission].map(([key])=>studentElement(mission,e.judgment,key)):[];
+  return {reached,judgment,evaluationEnds,met:elements.filter(value=>value==='met').length,
+   revise:elements.filter(value=>value==='revise').length};
+ }
  function criteria(data,rows,prepared=null){
   const map=new Map();
   for(const {e} of prepared||rows.map(s=>({s,e:evaluation(data,s)}))){if(e.has&&!map.has(e.key))map.set(e.key,{key:e.key,label:e.label})}
@@ -93,7 +147,7 @@
   const found=prepared.filter(({e})=>e.key===key&&element(e.judgment,focus.key)==='revise').map(({s,e})=>{
    const input=String(e.record.input||e.record.finalAnswer||'').trim();
    if(!input)return null;
-   const checks=M.obj(e.analysis.checks),ids=focus.key==='W3/WB'?['W3','WB']:[focus.key];
+   const checks=M.obj(e.analysis?.checks)||{},ids=focus.key==='W3/WB'?['W3','WB']:[focus.key];
    const evidence=ids.map(id=>M.obj(checks[id])),reason=evidence.some(c=>typeof c.reason==='string'&&c.reason.trim()),quote=evidence.some(c=>typeof c.quote==='string'&&c.quote.trim()&&input.includes(c.quote));
    return {sessionId:s.sessionId,studentNo:M.number(s),element:focus.key,reason,quote};
   }).filter(Boolean);
@@ -102,13 +156,20 @@
   found.sort((a,b)=>Number(b.quote)-Number(a.quote)||Number(b.reason)-Number(a.reason)||Number(a.studentNo)-Number(b.studentNo)||String(a.studentNo).localeCompare(String(b.studentNo),'ko',{numeric:true})||String(a.sessionId).localeCompare(String(b.sessionId)));
   const seen=new Set();return found.filter(c=>{if(seen.has(c.studentNo))return false;seen.add(c.studentNo);return true}).slice(0,3);
  }
- function lessonPriority(data,rows,mission,key,focusElement=''){
+ function lessonPriority(data,rows,mission,key,focusElement='',evaluated){
   // An unknown version cannot establish a common assessment basis.
   if(!key||key.includes('버전 미기록'))return {missing:[],focus:null,candidates:[]};
-  const prepared=rows.map(s=>({s,e:evaluation(data,s)}));
-  const missing=aggregate(data,rows,mission,key,prepared).cells.filter(c=>c.assessed&&c.revise).sort((a,b)=>b.revise-a.revise||b.assessed-a.assessed||a.label.localeCompare(b.label,'ko')).slice(0,2);
+  const prepared=(evaluated||rows.map(s=>({s,e:evaluation(data,s)}))).filter(({e})=>e.key===key);
+  // An answer that fulfills one steel-wool explanation route can omit the other route.
+  const missing=definitions[mission].map(([id,label])=>{
+   const assessed=prepared.filter(({e})=>!alternateRouteElement(mission,e.judgment,id)&&element(e.judgment,id)!=='unknown');
+   const students=assessed.filter(({e})=>element(e.judgment,id)==='revise')
+    .map(({s})=>({studentNo:M.number(s),sessionId:s.sessionId})).sort((a,b)=>Number(a.studentNo)-Number(b.studentNo));
+   return {key:id,label,assessed:assessed.length,revise:students.length,students};
+  }).filter(c=>c.revise).sort((a,b)=>b.revise-a.revise||b.assessed-a.assessed||a.label.localeCompare(b.label,'ko')).slice(0,2);
   const focus=missing.find(c=>c.key===focusElement)||missing[0]||null;
-  return {missing,focus,candidates:recommendCandidates(prepared,key,focus)};
+  const focusIds=new Set(focus?.students.map(s=>s.sessionId));
+  return {missing,focus,candidates:recommendCandidates(prepared.filter(({s})=>focusIds.has(s.sessionId)),key,focus)};
  }
  function comparePlays(data,mission,key,classKey,isTest=false){
   const groups=new Map();
@@ -157,5 +218,5 @@
    return [m,criteria(d,d.sessions)];
   }))};
  }
- root.TeacherInsights={definitions,descriptions,evaluation,judgmentStatus,finalSubmission,activeRejudgment,element,criteria,aggregate,recommendCandidates,lessonPriority,comparePlays,game,overview};
+ root.TeacherInsights={definitions,descriptions,teachingQuestions,progressSteps,studentProgress,studentElement,evaluation,judgmentStatus,finalSubmission,activeRejudgment,element,criteria,aggregate,recommendCandidates,lessonPriority,comparePlays,game,overview};
 })(typeof window==='undefined'?globalThis:window);

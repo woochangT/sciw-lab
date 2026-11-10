@@ -299,7 +299,7 @@ function writeMissionOp_(op,{sheets,sessions}) {
     }
     sessions.set(sid,putRecord_('session',sid,merged,mission,existing,sheets));
     const kind=merged.clearType&&!old.clearType?'completed':
-      (merged.stage!==old.stage||merged.finalAnswer!==old.finalAnswer||fields.finalJudgment!==undefined||merged.finalEvaluationStatus!==old.finalEvaluationStatus)?'updated':'';
+      (merged.stage!==old.stage||merged.checkpoint?.point!==old.checkpoint?.point||merged.finalAnswer!==old.finalAnswer||fields.finalJudgment!==undefined||merged.finalEvaluationStatus!==old.finalEvaluationStatus)?'updated':'';
     return {session:merged,kind};
   }
   if (!fields.attemptId || typeof fields.attemptId!=='string') throw new Error('시도 ID 오류');
@@ -312,6 +312,7 @@ function writeMissionOp_(op,{sheets,sessions}) {
   const session=Object.assign({},old,{attempts:history,recordSchema:'session-journal-v2',updatedAt:nextRecordTime_(existing.values[7])});
   sessions.set(sid,putRecord_('session',sid,session,mission,existing,sheets));
   const affectsFinal=/^final(?:Evaluation)?$/i.test(fields.questId||'')||
+    fields.stage==='compose'&&fields.questId==='clarify'||
     fields.questId==='studentInput'&&(fields.evaluationStage==='final'||fields.stage==='defense'||fields.questionId==='FINAL');
   return {session,kind:affectsFinal?'updated':''};
 }
