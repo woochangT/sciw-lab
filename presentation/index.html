@@ -198,10 +198,10 @@ body.hud #hud{opacity:1}
 <section class="slide" data-title="고등학생 답안">
   <div class="body" style="display:grid;align-content:start;gap:44px">
     <h2>자료로 주장을 해야 하는 과학 글쓰기<small>2023 통합과학 서술형 · 고등학생 실제 답안</small></h2>
-    <div class="sheet">옥수수가 한가지 유전자형을 갖게되면서 <span class="mark-ev step">유전적 다양성이 줄어들게 되었다.</span><span class="gap step" aria-hidden="true"></span>그래서 환경변화가 왔을때 <span class="mark-cl step">옥수수는 적응하지 못하고 죽게되었다.</span></div>
+    <div class="sheet">옥수수가 한가지 유전자형을 갖게되면서 <span class="mark-ev step" data-order="1">유전적 다양성이 줄어들게 되었다.</span><span class="gap step" data-order="3" aria-hidden="true"></span>그래서 환경변화가 왔을때 <span class="mark-cl step" data-order="2">옥수수는 적응하지 못하고 죽게되었다.</span></div>
     <div class="legend"><span><i style="background:var(--ev)"></i>증거</span><span><i style="background:var(--cl)"></i>주장</span><span><i style="border:4px dashed var(--red);border-radius:50%"></i>비어 있는 연결 고리</span></div>
   </div>
-  <div class="note step" style="left:18px;top:520px;width:140px;font-size:54px">왜<br>못 살지?</div>
+  <div class="note step" data-order="4" style="left:18px;top:520px;width:140px;font-size:54px">왜<br>못 살지?</div>
   <div class="src">출처: 2023년 「통합과학 서술형 답안 피드백 연구」 참여 중 다룬 실제 학생 답안 · 해당 연구실 교수님 사용 허가</div>
 </section>
 
@@ -369,7 +369,8 @@ body.hud #hud{opacity:1}
     const s = Math.min(innerWidth / 1920, innerHeight / 1080);
     deck.style.transform = `translate(${-960 * s}px, ${-540 * s}px) scale(${s})`;
   }
-  const steps = (el) => [...el.querySelectorAll('.step')];
+  // 한 장 안의 .step은 data-order가 있으면 그 순서로, 없으면 문서 순서로 드러난다
+  const steps = (el) => [...el.querySelectorAll('.step')].map((s, i) => [s, Number(s.dataset.order || i + 1)]).sort((a, b) => a[1] - b[1]).map(([s]) => s);
   const demoOf = (el) => el && el.dataset.demo ? document.getElementById('demo-' + el.dataset.demo) : null;
   const curDemo = () => demoOf(slides[cur]);
 

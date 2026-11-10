@@ -1646,7 +1646,6 @@
       await sleep(900);
       acquire([M.links[i].clue], () => {
         if (M.links[i].lens !== M.links[i].clue) addCard(M.links[i].lens);
-        if (window.SCIW_DEMO && window.SCIW_DEMO.reached('scope' + i)) return; // 발표 시연 2는 현미경 관찰 단서를 얻으면 멈춘다
         askLink(i);
       });
     };
@@ -1801,7 +1800,7 @@
   function linkReply(i, value) {
     const L = M.links[i]; const qid = L.quest; const stageDef = STAGES[qid];
     openReply({
-      text: true, rows: 2, enterSends: true, frame: { pre: stageDef.starter.trim(), post: stageDef.ending }, value: value || (window.SCIW_DEMO ? window.SCIW_DEMO.prefill(qid) : ''), send: '말하기',
+      text: true, rows: 2, enterSends: true, frame: { pre: stageDef.starter.trim(), post: stageDef.ending }, value: value || '', send: '말하기',
       onSubmit: async ({ text: typed }) => {
         const sentence = meaningSentence(typed);
         const text = stageDef.starter + sentence;
@@ -1842,7 +1841,7 @@
     setNose(S.nose - 1);
     await sleep(reduced ? 200 : 1300);
     await zoomOut();
-    if (window.SCIW_DEMO && window.SCIW_DEMO.reached('link' + i)) return; // 발표 시연 1은 꼬투리 ① 통과에서 멈춘다
+    if (window.SCIW_DEMO && window.SCIW_DEMO.reached('link' + i)) return; // 발표 시연 1은 꼬투리 ①, 시연 2는 꼬투리 ③ 통과에서 멈춘다
     closeScope();
     if (S.link === null) { exitArena(); startCombine(); return; }
     nextGap(S.link);

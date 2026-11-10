@@ -2,11 +2,11 @@
  * 발표 시연 모드 — 미션 02 「늘어난 강철솜」
  * 주소 끝에 ?demo=1|2|3을 붙이면 시작 화면 없이 그 장면부터 실제 게임이 돈다.
  *   1  꼬투리 ①: 교수가 실험 B 카드를 제멋대로 읽고, 학생이 뒷면을 고쳐 쓴다 (종속 변인 번역)
- *   2  꼬투리 ③: "왜 하필 산소인가?" → 마법 현미경에서 공기 중의 기체를 지켜본다 (모형화)
+ *   2  꼬투리 ③: "왜 하필 산소인가?" → 마법 현미경에서 공기 중의 기체를 지켜본다 (모형화) → 뒷면 고쳐 쓰기
  *   3  완전한 설명: 최종 답안 제출 → 처음/지금 비교·형광펜 결과 → 선생님께 제출
  * 각 장면은 보여 줄 기능이 끝나면(END) 거기서 멈추고 발표 화면에 'sciw-demo-done'을 보낸다.
  * 시연 모드에서는 팀 시트에 기록하지 않는다(js/config.js가 기록 주소를 비운다).
- * 입력칸에는 시연 문장이 미리 들어간다. 문장을 그대로 내면 아래 FIXTURES의 판정 결과를 쓰고(js/api.js),
+ * 입력칸은 비어 있고, 발표자가 '예시 답안' 버튼을 누르면 시연 문장이 써진다. 그 문장을 그대로 내면 아래 FIXTURES의 판정 결과를 쓰고(js/api.js),
  * 발표자가 문장을 고쳐 쓰면 실제 AI 판정을 요청한다.
  * 게임 흐름과 판정 규칙은 바꾸지 않는다. 장면에 필요한 상태(모은 카드, 지나온 꼬투리, 콧대 높이)만 미리 채운다.
  */
@@ -171,14 +171,46 @@
     }
   };
   // 장면마다 보여 줄 기능이 끝나는 지점. 게임은 여기서 멈추고, 발표 화면(presentation/)에 끝났다고 알린다.
-  const END = { 1: 'link0', 2: 'scope2', 3: 'submitted' };
+  const END = { 1: 'link0', 2: 'link2', 3: 'submitted' };
   function reached(point) {
     if (END[scene] !== point) return false;
     document.body.classList.add('demo-done');
     try { window.parent.postMessage({ type: 'sciw-demo-done', scene }, location.origin); } catch (e) { /* 단독으로 열었을 때 */ }
     return true;
   }
-  window.SCIW_DEMO = { scene, text: TEXT, fixtures: FIXTURES, reached, prefill: (q) => (q === 'final' ? TEXT.final : TEXT[q] || '') };
+  window.SCIW_DEMO = { scene, text: TEXT, fixtures: FIXTURES, reached };
+
+  // 예시 답안은 미리 넣지 않는다. 발표자가 설명을 마치고 '예시 답안' 버튼을 누르면 그때 한 글자씩 써진다.
+  function exampleButton(host, ta, text, label) {
+    if (!host || !ta || host.querySelector('.demo-fill') || ta.dataset.demoFilled) return;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'demo-fill'; btn.textContent = label;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; ta.dataset.demoFilled = '1'; btn.remove();
+      ta.focus(); ta.value = '';
+      const step = Math.max(8, Math.min(28, 2600 / text.length)); // 긴 답도 3초 안팎에 다 써진다
+      for (const ch of text) {
+        ta.value += ch;
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        await E.sleep(step);
+      }
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    });
+    host.appendChild(btn);
+  }
+  // 교수에게 답하는 칸(꼬투리 뒷면)이 비어서 열리면 그 문항의 예시 답안 버튼을 붙인다
+  function watchReply() {
+    const box = $('#reply');
+    if (!box) return;
+    const check = () => {
+      const ta = $('#replyText');
+      if (box.hidden || !ta || ta.value.trim()) return;
+      const frame = (box.querySelector('.r-frame') || {}).textContent || '';
+      const q = ['Q1', 'Q2', 'Q3'].find((k) => frame.trim() && E.STAGES[k].starter.trim() === frame.trim());
+      if (q && TEXT[q]) exampleButton(box, ta, TEXT[q], '✎ 예시 답안');
+    };
+    new MutationObserver(check).observe(box, { attributes: true, childList: true, subtree: true });
+  }
 
   const claimCard = () => {
     S.claim = M.claimOptions.find((o) => o.correct);
@@ -196,7 +228,10 @@
     document.body.classList.add('demo-mode');
     // 시연 중에는 '이 브라우저에 저장됨' 같은 기록 상태 표시를 감춘다
     const style = document.createElement('style');
-    style.textContent = '.demo-mode #sciw-save-status{display:none!important}.demo-done #clearScreen .btns.two{display:none!important}';
+    style.textContent = '.demo-mode #sciw-save-status{display:none!important}.demo-done #clearScreen .btns.two{display:none!important}'
+      + '.demo-fill{position:absolute;right:0;top:calc(100% + 12px);z-index:5;padding:7px 14px;border-radius:999px;border:2px dashed #b88a2e;background:#fff8e1;color:#5a4214;font:600 15px Pretendard,system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25)}'
+      + '.demo-fill:hover{background:#ffefc2}.demo-fill:focus-visible{outline:3px solid #f5c400;outline-offset:2px}'
+      + '.answer-wrap{position:relative}.answer-wrap .demo-fill{top:auto;bottom:12px;right:12px}';
     document.head.appendChild(style);
     S.classCode = '3-1'; S.studentNo = '7';
     S.sessionId = API.uid('demo');
@@ -230,6 +265,7 @@
 
   async function scene1() {
     seedLab();
+    watchReply();
     S.tray.push('e1'); // 실제 흐름에서는 뒷면을 쓰기 전에 현미경(밀폐 용기)을 보고 온다. 그 돋보기를 쥐여 둔다.
     seedRebuttal(0, 4);
     await E.sleep(600);
@@ -238,6 +274,7 @@
   }
   async function scene2() {
     seedLab();
+    watchReply();
     linkDone(0, TEXT.Q1);
     linkDone(1, TEXT.Q2);
     S.tray.push('e1', 'e2');
@@ -259,10 +296,8 @@
     const own = $('#ownMode');
     own.checked = true;
     own.dispatchEvent(new Event('change'));
-    const ta = $('#answer');
-    ta.value = TEXT.final;
-    ta.dispatchEvent(new Event('input'));
-    ta.scrollTop = 0;
+    // 최종 답안도 비워 두고, 버튼을 누르면 써진다
+    exampleButton($('#answer').parentElement, $('#answer'), TEXT.final, '✎ 예시 답안 쓰기');
   }
 
   const run = { 1: scene1, 2: scene2, 3: scene3 }[scene];
