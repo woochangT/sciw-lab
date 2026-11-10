@@ -125,10 +125,14 @@ test('teaching prep shows focus, examples and answer previews; student records s
  assert.match(records,/id="task-progress"[^>]*>학생 기록<\/button>/);
  assert.match(records,/class="progress-table"/);
  assert.match(records,/href="#student-answer-1"/);
+ const metrics=records.match(/<section class="dashboard-metrics progress-metrics"[\s\S]*?<\/section>/)[0];
+ assert.match(metrics,/참여 학생[\s\S]*최종 답안[\s\S]*작성 전/);
+ assert.doesNotMatch(metrics,/자동 판정/);
  const analysis=D.screen({...state,view:'analysis',highlightedStudent:'1'});
  assert.match(analysis,/id="task-analysis"[^>]*>학생 답안 분석<\/button>/);
  assert.match(analysis,/id="student-answer-1"[^>]*class="student-answer-highlight"/);
- assert.doesNotMatch(analysis,/수업에서 살펴볼 요소와 처음·최근 판 비교/);
+ assert.match(analysis,/class="matrix-judged">자동 판정 <b>1명/);
+ assert.doesNotMatch(analysis,/수업에서 살펴볼 요소와 처음·최근 판 비교|dashboard-metrics|dashboard-insights|교수 노트 열람/);
 });
 
 test('a completed alternative steel-wool route does not make its optional elements group weaknesses',()=>{
