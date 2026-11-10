@@ -43,24 +43,16 @@ test('pagination clamps stale page indexes and search changes visible rows rathe
  const data=M.analyze(db,'3-2','latest',{missionId:'m02'}),v=D.model({portfolio,data,selectedClass,mission:'m02',query:'2',filter:'pending'});
  assert.equal(v.rows.length,1);assert.equal(v.total,2);assert.equal(v.written,1);
 });
-test('student answers show each saved rubric by default and distinguish version filters from missing judgments',()=>{
- const old=session('old','3-2','3','m02',{finalAnswer:'이전 버전',finalJudgment:{C:false},rubricVersion:'m02-docx-1.1.0'});
- const source={sessions:[...db.sessions,old],attempts:[]},p=I.overview(source);
- const aggregate=D.model({portfolio:p,mission:'m02',criterion:'m02-docx-1.1.0'});
- assert.equal(aggregate.cells[0].assessed,1);
- assert.equal(aggregate.cells[0].rate,0);
- const data=M.analyze(source,'3-2','latest',{missionId:'m02'});
- const state={portfolio:p,data,selectedClass,mission:'m02',source:'sheet'};
- const html=D.screen(state);
- assert.match(html,/<option value="">모든 판정 기준<\/option>/);
- assert.match(html,/1번 강철솜이 무거워진 이유 인정/);
- assert.match(html,/3번 강철솜이 무거워진 이유 보완/);
- assert.match(html,/judgment-criterion">AI 루브릭 1.1.0/);
- assert.match(html,/2번 강철솜이 무거워진 이유 판정 없음/);
- const filtered=D.screen({...state,criterion:'m02-docx-1.1.0'});
- assert.match(filtered,/1번 강철솜이 무거워진 이유 다른 판정 기준/);
- assert.match(filtered,/3번 강철솜이 무거워진 이유 보완/);
- assert.match(filtered,/2번 강철솜이 무거워진 이유 판정 없음/);
+test('class and student analysis have no rubric picker while retaining saved results',()=>{
+ const data=M.analyze(db,'3-2','latest',{missionId:'m02'});
+ for(const selected of [selectedClass,null]){
+  const html=D.screen({portfolio,data,selectedClass:selected,mission:'m02',source:'sheet'});
+  assert.doesNotMatch(html,/id="(?:detailCriterion|overviewCriterion)"|AI 루브릭|data-criterion/);
+  if(selected){
+   assert.match(html,/1번 강철솜이 무거워진 이유 인정/);
+   assert.match(html,/2번 강철솜이 무거워진 이유 판정 없음/);
+  }else assert.equal(D.model({portfolio,mission:'m02'}).cells[0].assessed,2);
+ }
 });
 test('stored AI summaries are escaped and only expose an explicit generation action',()=>{
  const data=M.analyze(db,'3-2','latest',{missionId:'m02'}),html=D.screen({portfolio,data,selectedClass,mission:'m02',view:'overview',source:'sheet',available:true,report:{analysis:{result:{headline:'<script>head</script>',teachingFocus:'<img onerror=bad>'}}}});
