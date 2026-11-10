@@ -1788,7 +1788,7 @@
     else if(!window.SciwClassEntry.valid(classCode))return;
     if(choice.previous)return restoreProgress(choice.previous);
     $('#startScreen').hidden = true;
-    $('#who').textContent = API.isExperience ? '체험·심사 모드 · 기록 안 함' : `${classCode} · ${studentNo}번`;
+    $('#who').textContent = API.isExperience ? '체험·심사 모드' : `${classCode} · ${studentNo}번`;
     S.session = {
       sessionId: API.uid('s'),
       classCode, studentNo, missionId: M.id,

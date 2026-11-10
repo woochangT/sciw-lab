@@ -2496,7 +2496,7 @@
     API.startSession({ sessionId: S.sessionId, missionId: M.id, classCode, studentNo, startedAt: new Date().toISOString(), stage: 'explore', tutorial: S.tutorial, missionVersion: 'm02-1.2', eventSchemaVersion: 'm02-events-v2', hintSchemaVersion: 'm02-note-pages-v1', rubricVersion: RUBRIC.VERSION, hintLevel: 0 });
     API.watchDrafts(() => ({stage:S.stage}));
     API.flush();
-    $('#who').textContent = API.isExperience ? '체험·심사 모드 · 기록 안 함' : `${classCode} · ${studentNo}번`;
+    $('#who').textContent = API.isExperience ? '체험·심사 모드' : `${classCode} · ${studentNo}번`;
     $('#startScreen').hidden = true;
     S.started = true;
     S.resumePoint = 'explore';
