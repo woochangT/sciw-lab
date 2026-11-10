@@ -7,14 +7,15 @@
   const key = op => op.syncId || JSON.stringify(op);
   const bytes = value => new TextEncoder().encode(JSON.stringify(value)).length;
   // A rejected old operation must not block every subsequent login. Preserve it separately.
-  const permanent = /학년은|지원하지 않는 기록 작업|잘못된 기록$|잘못된 요청 크기|잘못된 기록 묶음|요청 크기 한도|세션 ID 오류|시도 ID 오류|세션 범위|시도 범위|시도 ID 충돌|세션이 없어|대화는 logAttempt|기록이 잘못되었거나 너무 큽니다|대화 기록 크기 한도/;
+  const permanent = /학년은|지원하지 않는 기록 작업|잘못된 기록$|잘못된 요청 크기|잘못된 기록 묶음|요청 크기 한도|세션 ID 오류|시도 ID 오류|세션 범위|시도 범위|시도 ID 충돌|세션이 없어|대화는 logAttempt|기록이 잘못되었거나 너무 큽니다|대화 기록 크기 한도|복원 상태 형식/;
 
-  function create({url, queueKey, verified = true}) {
+  function create({url, queueKey, verified = true, defer = false}) {
     const blockedKey = queueKey + '_blocked';
     const read = (name, fallback) => { try { return JSON.parse(localStorage.getItem(name)) ?? fallback; } catch (_) { return fallback; } };
     const write = (name, value) => { try { localStorage.setItem(name, JSON.stringify(value)); return true; } catch (_) { return false; } };
     let queue = read(queueKey, []), blocked = read(blockedKey, []), running = null, timer, backoff = 1000, unpersisted = [];
     const acknowledged = new Set();
+    let mode = defer ? 'idle' : 'student', getProgress = null, progressKey = '', progressTimer, progressInterval;
     let active = null, getContext = null, draftTimer, draft = null, draftKey = '', message = '저장 대기 중인 기록 없음';
     if (!Array.isArray(queue)) queue = [];
     if (!Array.isArray(blocked)) blocked = [];
@@ -23,6 +24,7 @@
       message = text;
       const el = document.getElementById('sciw-save-status');
       if (el) {
+        el.hidden = !text || mode === 'idle' || mode === 'experience';
         el.textContent = text + (blocked.length ? ' · 일부 이전 기록은 별도 보관 중' : '');
         el.title = blocked.length ? '보관된 기록은 내보내서 확인할 수 있습니다.' : '';
         if (blocked.length) {
@@ -58,11 +60,13 @@
       remove([op]);
     }
     function enqueue(op, immediate = false) {
+      if (mode !== 'student') return;
       op = clone({...op,syncId:uid('op')});
       // Consecutive draft snapshots can be replaced; submitted answers and feedback never are.
       queue = current().slice();
       const previous = queue.at(-1);
       if (op.action === 'updateSession' && op.fields.draftOnly && previous?.action === 'updateSession' && previous.fields.draftOnly && sessionId(previous) === sessionId(op) && previous.fields.draftField === op.fields.draftField) queue.pop();
+      if(op.action==='updateSession' && op.fields.checkpointOnly && previous?.action==='updateSession' && previous.fields.checkpointOnly && sessionId(previous)===sessionId(op))queue.pop();
       if (op.action === 'startSession') queue.unshift(op); else queue.push(op);
       const persisted = write(queueKey,queue);
       unpersisted = persisted ? [] : queue.slice();
@@ -113,6 +117,7 @@
       backoff = 1000; status(url ? '서버에 저장됨' : '이 브라우저에 저장됨');
     }
     function flush(options = {}) {
+      if (mode !== 'student') return Promise.resolve();
       if (running) return running;
       if (!current().length) return Promise.resolve();
       const work = () => drain(Boolean(options.keepalive));
@@ -124,38 +129,77 @@
     }
     function pending(id) { return current().filter(op => !id || sessionId(op) === id).length; }
     async function whenSaved(id, timeoutMs = 20000) {
-      const deadline = Date.now() + timeoutMs; captureDraft(); flush();
+      if (mode === 'experience') return true;
+      const deadline = Date.now() + timeoutMs; captureDraft(); captureProgress(); flush();
       while (pending(id) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve,100));
       blocked = read(blockedKey,blocked);
       return !pending(id) && !blocked.some(item => sessionId(item.op) === id);
     }
     function captureDraft() {
       clearTimeout(draftTimer);
-      if (!draft || !active) return;
+      if (mode !== 'student' || !draft || !active) return;
       const value = {...draft}, signature = JSON.stringify(value);
       if (signature === draftKey) return;
       draftKey = signature;
       enqueue({action:'updateSession',sessionId:active.sessionId,fields:{...value,draftOnly:true,draftSavedAt:new Date().toISOString()}},true);
     }
     function input(event) {
-      if (!active || !['replyText','answer','ansText','defText'].includes(event.target?.id)) return;
+      if (mode !== 'student' || !active || !['replyText','answer','ansText','defText'].includes(event.target?.id)) return;
       // Retain the prompt alongside unfinished text, even when evaluation fails or the page closes.
       draft = {...getContext?.(),draftField:event.target.id,draftAnswer:event.target.value,draftQuestion:document.querySelector?.('#bubble .body')?.textContent || ''};
       clearTimeout(draftTimer); draftTimer = setTimeout(captureDraft,800);
+      clearTimeout(progressTimer);progressTimer=setTimeout(captureProgress,650);
     }
     document.addEventListener('input',input,true);
     document.addEventListener('change',event => { input(event); captureDraft(); },true);
     root.addEventListener('online',() => flush());
-    root.addEventListener('pagehide',() => { captureDraft(); flush({keepalive:true}); });
-    document.addEventListener('visibilitychange',() => { if (document.hidden) { captureDraft(); flush({keepalive:true}); } });
+    root.addEventListener('pagehide',() => { captureProgress(); captureDraft(); flush({keepalive:true}); });
+    document.addEventListener('visibilitychange',() => { if (document.hidden) { captureProgress(); captureDraft(); flush({keepalive:true}); } });
     root.addEventListener('storage',event => { if (event.key === queueKey) flush(); });
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',installStatus); else installStatus();
-    if (queue.length) status('미전송 기록 재시도 대기 중');
-    setTimeout(() => flush(),500);
+    if (mode === 'idle') status('');
+    else if (queue.length) status('미전송 기록 재시도 대기 중');
+    if (!defer) setTimeout(() => flush(),500);
+    function captureProgress() {
+      if(mode !== 'student' || !active || !getProgress) return;
+      const checkpoint=getProgress(); if(!checkpoint) return;
+      const signature=JSON.stringify(checkpoint); if(signature===progressKey) return;
+      if(signature.length>30000){status('진행 상태가 너무 커서 저장하지 못했어요. 창을 닫기 전에 답안을 확인해 주세요.');return;}
+      progressKey=signature;
+      enqueue({action:'updateSession',sessionId:active.sessionId,fields:{checkpoint,checkpointSavedAt:new Date().toISOString(),checkpointOnly:true}},true);
+    }
+    async function findSession(classCode, studentNo, missionId) {
+      // 새로 고친 직후에도 직전 탭의 미확인 저장을 먼저 마쳐 오래된 상태를 복원하지 않는다.
+      // 체험 버튼에서는 이 조회를 호출하지 않으므로 이전 기록을 재전송하지 않는다.
+      if(mode === 'idle' && current().length){
+        mode='student';try{await flush();}finally{mode='idle';status('');}
+        if(current().length)throw new Error('이전 플레이 기록을 아직 저장하지 못했어요. 연결을 확인하고 다시 입장해 주세요.');
+      }
+      if(!url){
+        const data=read('sciw_localdb_v1',{sessions:{}});
+        const latest=Object.values(data.sessions||{}).filter(s=>s.classCode===classCode && String(s.studentNo)===studentNo && s.missionId===missionId).sort((a,b)=>String(b.startedAt).localeCompare(String(a.startedAt)))[0];
+        return latest ? {sessionId:latest.sessionId,missionId,classCode,studentNo,checkpoint:latest.checkpoint||null,savedAt:latest.checkpointSavedAt||latest.updatedAt,completed:!!latest.clearType} : null;
+      }
+      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
+      try{
+        const response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'findStudentSession',classCode,studentNo,missionId}),signal:controller.signal});
+        const body=await response.json();
+        if(!response.ok || !body.ok || body.schema!=='student-resume-v1'){
+          const unsupported=!body.schema && (!body.error || /지원하지 않는 기록 작업/.test(body.error));
+          throw new Error(unsupported ? '기록 서버에 이어 하기 기능이 아직 반영되지 않았어요. 체험 입장을 이용해 주세요.' : (body.error || '이전 기록을 확인하지 못했어요. 다시 시도해 주세요.'));
+        }
+        return body.session || null;
+      }catch(error){if(error.name==='AbortError')throw new Error('이전 기록 조회가 늦어지고 있어요. 다시 시도해 주세요.');throw error;}
+      finally{clearTimeout(timer);}
+    }
     return {
-      uid,isLocal:!url,flush,pending,whenSaved,captureDraft,
+      uid,isLocal:!url,flush,pending,whenSaved,captureDraft,captureProgress,findSession,
+      get isExperience(){return mode==='experience';},
+      setExperienceMode(){if(active || running)throw new Error('입장 후에는 체험 모드를 바꿀 수 없어요.');mode='experience';status('');},
+      watchProgress(callback){getProgress=callback;progressKey='';if(!progressInterval)progressInterval=setInterval(()=>{if(!document.hidden)captureProgress();},3000);captureProgress();},
+      resumeSession(session){mode='student';active=clone(session);draft=null;draftKey='';progressKey='';flush();},
       watchDrafts(context) { getContext = context; },
-      startSession(session) { active = clone(session); enqueue({action:'startSession',session},true); },
+      startSession(session) { if(mode !== 'experience')mode='student'; active = clone(session); enqueue({action:'startSession',session},true); },
       updateSession(id,fields,immediate) { enqueue({action:'updateSession',sessionId:id,fields},immediate); },
       logAttempt(attempt) { enqueue({action:'logAttempt',attempt}); },
       recordInput(id,fields) { captureDraft(); const attemptId=uid('input'); enqueue({action:'logAttempt',attempt:{attemptId,sessionId:id,missionId:active?.missionId,classCode:active?.classCode,studentNo:active?.studentNo,questId:'studentInput',createdAt:new Date().toISOString(),...fields}},true); return attemptId; },

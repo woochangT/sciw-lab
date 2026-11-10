@@ -88,6 +88,7 @@ test('missing judge setup and server rate limits never become a keyword result o
 test('separate evaluator reserves its budget and rejects unsupported actions before provider calls',()=>{
   const s=server({props:{M02_DAILY_LIMIT:'1'}});
   assert.equal(s.post({action:'batch',ops:[]}).code,'INVALID_REQUEST');
+  assert.equal(s.post({action:'rejudge',stage:'final',text}).code,'INVALID_REQUEST');
   assert.equal(s.post({action:'judgeM02',stage:'final',text}).ok,true);
   assert.equal(s.post({action:'judgeM02',stage:'final',text}).code,'DAILY_LIMIT');
   assert.equal(s.requests.length,1);
@@ -109,4 +110,10 @@ test('teacher judgment labels distinguish new AI, legacy keyword and missing met
   assert.equal(M.judgmentMethod({judgedBy:'keyword'}),'단어 규칙');
   assert.equal(M.judgmentMethod({judgeVersion:'keyword-1.0'}),'단어 규칙');
   assert.equal(M.judgmentMethod({}),'미기록');
+});
+
+test('experience status stays live through the public game API and AI evaluation still uses its separate server',async()=>{
+ const s=server(),calls=[];const c=client(async(url,opts)=>{const body=JSON.parse(opts.body);calls.push(body.action);return {ok:true,json:async()=>body.action==='judgeM02'?s.post(body):{ok:true}};});
+ c.api.setExperienceMode();assert.equal(c.api.isExperience,true);c.api.startSession({sessionId:'experience',missionId:'m02',classCode:'',studentNo:''});c.api.logAttempt({attemptId:'demo-attempt',sessionId:'experience'});await c.api.flush();assert.equal(calls.length,0);
+ const r=await c.api.judge({stage:'final',text,initialAnswer:'초기 생각',cardSpans:[]});assert.equal(r.pass,true);assert.deepEqual(calls,['judgeM02']);assert.equal(c.values.size,0);
 });

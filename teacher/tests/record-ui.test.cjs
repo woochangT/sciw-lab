@@ -5,7 +5,7 @@ const s={sessionId:'s',missionId:'m02',classCode:'3-2',studentNo:'2',finalAnswer
 const a={attemptId:'a',sessionId:'s',stage:'compose',questId:'final',input:'밖의 <산소>가 철에 붙었다.',judgment:{W1b:true},rubricVersion:'m02-docx-1.2.0',analysis:{checks:{W1b:{status:'met',quote:'<산소>가 철에 붙었다.',reason:'학생이 산소의 결합을 설명함'}}}};
 test('clicked criterion shows the same final attempt judgment, exact quote, reason and assessed answer safely',()=>{
  const data={attempts:[a]},html=U.criterion(data,s,'W1b');
- assert.equal(I.evaluation(data,s).judgment.W1b,true);assert.match(html,/산소로 특정한 근거 · 인정/);assert.match(html,/학생이 산소의 결합을 설명함/);assert.match(html,/&lt;산소&gt;가 철에 붙었다/);assert.doesNotMatch(html,/<산소>/);assert.doesNotMatch(html,/이전 판정/);
+ assert.equal(I.evaluation(data,s).judgment.W1b,true);assert.match(html,/산소 특정 이유 · 인정/);assert.match(html,/학생이 산소의 결합을 설명함/);assert.match(html,/&lt;산소&gt;가 철에 붙었다/);assert.doesNotMatch(html,/<산소>/);assert.doesNotMatch(html,/이전 판정/);
 });
 test('missing historical reasons stay missing; fabricated or nonmatching quotes are not highlighted',()=>{
  assert.match(U.criterion({attempts:[]},{...s,analysis:{}},'W1b'),/항목별 판정 이유가 저장되지/);
@@ -24,4 +24,17 @@ test('unfinished inputs are visible without being mistaken for a final answer or
  const html=U.timeline({attempts:[]},{...s,endedAt:'',stage:'compose',draftAnswer:'작성 중인 <원문>',draftQuestion:'질문 <내용>',draftSavedAt:'2026-11-04'});
  assert.match(html,/작성 중인 답안 · 최종 서술/);assert.match(html,/아직 평가되지 않은 입력/);assert.match(html,/작성 중인 &lt;원문&gt;/);assert.doesNotMatch(html,/<원문>/);
  assert.doesNotMatch(U.timeline({attempts:[]},{...s,endedAt:'2026-11-04',draftAnswer:'이전 초안'}),/작성 중인 답안/);
+});
+test('compact retry appears only for failed or missing submitted answers and needs no key',()=>{
+ const target=I.finalSubmission({attempts:[]},s).target;
+ const retry=(fields,submission=target)=>U.rejudgeControl({attempts:[]},{...s,finalJudgment:undefined,...fields},submission);
+ for(const status of ['failed',undefined]){
+  const html=retry({finalEvaluationStatus:status});
+  assert.match(html,/<button[^>]*>재판정<\/button>/);
+  assert.doesNotMatch(html,/<input|<form|<details|교사 재판정 키/);
+ }
+ for(const fields of [{finalJudgment:{C:false}},{finalEvaluationStatus:'pending'},{finalEvaluationStatus:'unavailable'},{teacherRejudgment:{attemptId:target.id}}]){
+  assert.equal(retry(fields),'');
+ }
+ assert.equal(retry({},null),'');
 });

@@ -1,11 +1,11 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const code=fs.readFileSync('ui/record-sync.js','utf8');
-function setup({fetcher,initial=[],storageFails=false}={}){
+function setup({fetcher,initial=[],storageFails=false,defer=false,statusNode=null}={}){
  const values=new Map([['queue',JSON.stringify(initial)]]),events={},inputs={},requests=[];let failStorage=storageFails;
  const window={addEventListener(name,fn){events[name]=fn}};
- const context={window,TextEncoder,AbortController,setTimeout(){return 1},clearTimeout(){},document:{readyState:'loading',getElementById(){return null},querySelector(){return {textContent:'합성 교수 질문'}},addEventListener(name,fn){inputs[name]=fn}},localStorage:{getItem:k=>values.get(k)||null,setItem(k,v){if(failStorage)throw Error('quota');values.set(k,v)}},fetch:async(url,options)=>{const body=JSON.parse(options.body);requests.push({...options,body});return {ok:true,json:async()=>fetcher?fetcher(body,options,values):{ok:true}}}};
+ const context={window,TextEncoder,AbortController,setTimeout(){return 1},clearTimeout(){},document:{readyState:'loading',getElementById(id){return id==='sciw-save-status'?statusNode:null},querySelector(){return {textContent:'합성 교수 질문'}},addEventListener(name,fn){inputs[name]=fn}},localStorage:{getItem:k=>values.get(k)||null,setItem(k,v){if(failStorage)throw Error('quota');values.set(k,v)}},fetch:async(url,options)=>{const body=JSON.parse(options.body);requests.push({...options,body});return {ok:true,json:async()=>fetcher?fetcher(body,options,values):{ok:true}}}};
  vm.runInNewContext(code,context);
- const api=window.SciwRecordSync.create({url:'https://example.invalid',queueKey:'queue'});
+ const api=window.SciwRecordSync.create({url:'https://example.invalid',queueKey:'queue',defer});
  return {api,values,requests,events,inputs,restoreStorage(){failStorage=false}};
 }
 const start=id=>({action:'startSession',session:{sessionId:id,missionId:'m02',classCode:'3-2',studentNo:'1'}});
@@ -46,4 +46,28 @@ test('drafts and raw submissions survive evaluation failure, and pagehide uses a
 test('storage quota failure keeps unsent operations in memory until storage and the network recover',async()=>{
  let offline=true;const t=setup({storageFails:true,fetcher(){if(offline)throw Error('offline');return {ok:true}}});
  t.api.startSession(start('s').session);await t.api.flush();assert.equal(t.api.pending(),1);t.restoreStorage();offline=false;await t.api.flush();assert.equal(t.api.pending(),0);
+});
+
+test('experience mode never queues, persists or resends student records including an old pending queue',async()=>{
+ const t=setup({initial:[start('older-pending')],defer:true});const before=t.values.get('queue');
+ await t.api.flush();assert.equal(t.requests.length,0);
+ t.api.setExperienceMode();t.api.startSession(start('demo').session);t.api.recordInput('demo',{input:'체험 답'});t.api.logAttempt({sessionId:'demo',attemptId:'demo-answer'});t.api.updateSession('demo',{finalAnswer:'체험 답'});t.api.captureDraft();t.api.captureProgress();
+ t.events.pagehide();await t.api.flush();assert.equal(await t.api.whenSaved('demo',0),true);
+ assert.equal(t.requests.length,0);assert.equal(t.values.get('queue'),before);assert.equal(t.values.has('sciw_localdb_v1'),false);
+});
+test('resuming an existing session appends to that session without starting another one',async()=>{
+ const t=setup({defer:true});t.api.resumeSession(start('resume').session);t.api.logAttempt({sessionId:'resume',attemptId:'resumed-answer',input:'이어서 쓴 합성 답'});await t.api.flush();
+ assert.equal(t.requests.length,1);assert.equal(t.requests[0].body.ops.length,1);assert.equal(t.requests[0].body.ops[0].action,'logAttempt');assert.equal(t.requests[0].body.ops[0].attempt.sessionId,'resume');
+});
+
+test('reentry finishes an unacknowledged previous save before querying its server checkpoint',async()=>{
+ const t=setup({defer:true,initial:[start('previous')],fetcher(body){if(body.action==='findStudentSession')return {ok:true,schema:'student-resume-v1',session:{sessionId:'previous'}};return {ok:true};}});
+ const r=await t.api.findSession('3-2','1','m02');assert.equal(r.sessionId,'previous');assert.equal(t.requests[0].body.action,'batch');assert.equal(t.requests[1].body.action,'findStudentSession');assert.equal(t.api.pending(),0);
+});
+
+test('entry and experience hide the redundant save badge while normal save success and errors stay visible',async()=>{
+ const badge={textContent:'',hidden:false};const t=setup({defer:true,statusNode:badge});assert.equal(badge.hidden,true);assert.equal(badge.textContent,'');
+ t.api.startSession(start('student').session);assert.equal(badge.hidden,false);await t.api.flush();assert.equal(badge.hidden,false);assert.equal(badge.textContent,'서버에 저장됨');
+ const demoBadge={textContent:'',hidden:false};const demo=setup({defer:true,statusNode:demoBadge});demo.api.setExperienceMode();demo.api.startSession(start('experience').session);assert.equal(demoBadge.hidden,true);assert.equal(demoBadge.textContent,'');assert.equal(demo.requests.length,0);
+ const errorBadge={textContent:'',hidden:false};const failed=setup({defer:true,statusNode:errorBadge,fetcher(){throw Error('offline')}});failed.api.startSession(start('failed').session);await failed.api.flush();assert.equal(errorBadge.hidden,false);assert.match(errorBadge.textContent,/서버 저장 실패/);
 });

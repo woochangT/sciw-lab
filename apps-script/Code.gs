@@ -53,17 +53,21 @@ function doPost(e) {
     const raw = e && e.postData && e.postData.contents || '';
     if (!raw || raw.length > 150000) throw new Error('잘못된 요청 크기');
     const body = JSON.parse(raw);
+    if (body.action === 'findStudentSession') return json_(findStudentSession_(body));
     if (body.action === 'classData') {
       authorizeTeacher_(body);
       return json_(Object.assign({ok:true}, getMissionClassData_(body.classCode, body.missionId)));
     }
+    if (body.action === 'rejudge') return json_(rejudgeFinal_(body));
     if (body.action === 'judge') return json_({ok:true,result:judge_(body)});
     // Input-only teaching suggestions: never reads a class or exposes stored records.
     if (body.action === 'analyzeClass') return json_({ok:true,analysis:analyzeClass_(body)});
     const ops = body.action === 'batch' ? body.ops : [body];
     if (!Array.isArray(ops) || !ops.length || ops.length > 40) throw new Error('잘못된 기록 묶음');
     const lock = LockService.getScriptLock(); lock.waitLock(20000);
-    try { ops.forEach(applyMissionOp_); } finally { lock.releaseLock(); }
+    try { ops.forEach(applyMissionOp_); } finally {
+      try { SpreadsheetApp.flush(); } finally { lock.releaseLock(); }
+    }
     return json_({ok:true,applied:ops.length});
   } catch (err) { return json_({ok:false,error:String(err && err.message || err)}); }
 }
@@ -80,6 +84,32 @@ function authorizeTeacher_(body) {
 
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// 학년·반·번호는 본인 인증이 아니다. 반 전체나 대화 이력 대신 지정한 한 학생의 최신 복원 상태만 반환한다.
+function validateStudentCheckpoint_(checkpoint, missionId) {
+  if (!checkpoint || typeof checkpoint !== 'object' || Array.isArray(checkpoint) || checkpoint.schema !== 'student-resume-v1'
+    || !MISSION_SHEETS[checkpoint.missionId] || (missionId && checkpoint.missionId !== missionId)
+    || !checkpoint.state || typeof checkpoint.state !== 'object' || Array.isArray(checkpoint.state)
+    || ['explore','first','claim','scope','link','combine','compose','quest','complete'].indexOf(checkpoint.point) < 0
+    || JSON.stringify(checkpoint).length > 30000) throw new Error('복원 상태 형식이 잘못되었습니다');
+}
+function findStudentSession_(body) {
+  requireClassCode_(body.classCode);
+  if (!MISSION_SHEETS[body.missionId] || !/^[1-9]\d{0,2}$/.test(String(body.studentNo || ''))) throw new Error('학급·번호·미션을 확인해 주세요.');
+  const rows = missionRows_(body.missionId).rows.filter(function(r) {
+    return r[0] === 'session' && r[3] === body.classCode && /^\d{1,3}$/.test(String(r[4])) && Number(r[4]) === Number(body.studentNo);
+  });
+  // 새로 하기는 이전 판을 덮어쓰지 않는다. 생성 시각 기준으로 최신 판을 고른다.
+  rows.sort(function(a,b){return String(b[6]).localeCompare(String(a[6])) || String(b[7]).localeCompare(String(a[7]));});
+  if (!rows.length) return {ok:true,schema:'student-resume-v1',session:null};
+  const row=rows[0]; let session;
+  try {session=JSON.parse(row[8]);}catch(e){throw new Error('이전 기록을 읽지 못했습니다. 담당 선생님께 알려 주세요.');}
+  let checkpoint=session.checkpoint || null;
+  if(checkpoint){try{validateStudentCheckpoint_(checkpoint,body.missionId);}catch(e){checkpoint=null;}}
+  return {ok:true,schema:'student-resume-v1',session:{sessionId:row[2],classCode:body.classCode,
+    studentNo:String(body.studentNo),missionId:body.missionId,checkpoint:checkpoint,
+    savedAt:session.checkpointSavedAt || session.updatedAt || row[7],completed:!!session.clearType}};
 }
 
 function missionSheet_(missionId) {
@@ -157,7 +187,9 @@ function writeMissionOp_(op) {
   if (!op || ['startSession','updateSession','logAttempt'].indexOf(op.action)<0) throw new Error('지원하지 않는 기록 작업');
   const fields=op.action==='startSession'?op.session:op.action==='updateSession'?op.fields:op.attempt;
   if (!fields || typeof fields !== 'object' || Array.isArray(fields)) throw new Error('잘못된 기록');
+  if (['teacherRejudgment','teacherRejudgeRequest'].some(key => Object.prototype.hasOwnProperty.call(fields,key))) throw new Error('교사 전용 기록');
   if(op.action==='startSession'||fields.classCode!==undefined)requireClassCode_(fields.classCode);
+  if (fields.checkpoint !== undefined) validateStudentCheckpoint_(fields.checkpoint, fields.missionId);
   const sid=op.action==='startSession'?fields.sessionId:op.action==='updateSession'?op.sessionId:fields.sessionId;
   if (typeof sid !== 'string' || !sid || sid.length>128) throw new Error('세션 ID 오류');
   const existing=locate_('session',sid) || (op.action==='startSession' ? null : restoreLegacySession_(sid));
@@ -173,10 +205,15 @@ function writeMissionOp_(op) {
   if (!existing) throw new Error('세션이 없어 기록을 보류합니다');
   const old=readPayload_(existing.values), mission=existing.mission;
   requireClassCode_(old.classCode);
+  if (fields.checkpoint !== undefined) validateStudentCheckpoint_(fields.checkpoint, mission);
   if (op.action==='updateSession') {
     ['sessionId','missionId','classCode','studentNo'].forEach(function(k){ if (fields[k]!==undefined && String(fields[k])!==String(old[k])) throw new Error('세션 범위 변경 불가'); });
     if(Object.prototype.hasOwnProperty.call(fields,'attempts'))throw new Error('대화는 logAttempt로 기록해 주세요');
     const merged=Object.assign({},old,fields,{sessionId:sid,missionId:mission,updatedAt:new Date().toISOString()});
+    if (fields.finalAnswer!==undefined && fields.finalAnswer!==old.finalAnswer) {
+      if (old.teacherRejudgment?.attemptId==='') delete merged.teacherRejudgment;
+      if (old.teacherRejudgeRequest?.attemptId==='') delete merged.teacherRejudgeRequest;
+    }
     putRecord_('session',sid,merged,mission,existing); return;
   }
   if (!fields.attemptId || typeof fields.attemptId!=='string') throw new Error('시도 ID 오류');
