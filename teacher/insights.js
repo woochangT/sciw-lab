@@ -5,6 +5,10 @@
   m01:[['C','농도 결론'],['D','실험 자료'],['W1','질량·물 이동'],['W2a','이동 방향'],['W2b','농도 비교'],['W3/WB','농도 범위']],
   m02:[['C','강철솜이 무거워진 이유'],['D-A','A 질량 증가'],['D-B','B 전체 질량'],['W1a','질량 보존'],['W1b','산소 특정 이유'],['W2a','전체 질량'],['W2b','증가분 의미']]
  };
+ const progressElements={
+  m01:[...definitions.m01.slice(0,-1),['W3','두 관찰을 합쳐 농도 범위 설명'],['WB','질량 변화가 0인 조건']],
+  m02:definitions.m02
+ };
  const descriptions={
   m01:{
    C:'감자 세포 안의 농도가 5%와 10% 사이라고 결론 내렸는지 확인합니다.',
@@ -103,14 +107,16 @@
   return 'unknown';
  }
  function alternateRouteElement(mission,judgment,key){
-  if(mission!=='m02'||element(judgment,key)==='met')return false;
+  if(element(judgment,key)==='met')return false;
+  if(mission==='m01')return key==='W3'&&element(judgment,'WB')==='met'||key==='WB'&&element(judgment,'W3')==='met';
+  if(mission!=='m02')return false;
   const met=ids=>ids.every(id=>element(judgment,id)==='met');
   return met(['C','D-A','W1b','W2b'])&&
    (key==='W1a'&&met(['D-B','W2a'])||['D-B','W2a'].includes(key)&&met(['W1a']));
  }
  function studentElement(mission,judgment,key){
   const state=element(judgment,key);
-  return state==='revise'&&alternateRouteElement(mission,judgment,key)?'alternate':state;
+  return alternateRouteElement(mission,judgment,key)?'alternate':state;
  }
  function studentProgress(data,s,e,mission){
   const steps=progressSteps[mission],aliases=progressAliases[mission];
@@ -125,9 +131,10 @@
   const judgment=judgmentStatus(data,s);
   const sentAt=M.time(judgment.record?.createdAt||judgment.record?.clientOccurredAt);
   const now=Date.now(),evaluationEnds=judgment.code==='pending'&&Math.abs(now-sentAt)<120000?sentAt+120000:0;
-  const elements=e.has?definitions[mission].map(([key])=>studentElement(mission,e.judgment,key)):[];
-  return {reached,judgment,evaluationEnds,met:elements.filter(value=>value==='met').length,
-   revise:elements.filter(value=>value==='revise').length};
+  const elements=e.has?progressElements[mission].map(([key,label])=>({key,label,state:studentElement(mission,e.judgment,key)})):[];
+  const met=elements.filter(item=>item.state==='met').length;
+  const relevant=elements.filter(item=>item.state!=='alternate').length;
+  return {reached,judgment,evaluationEnds,elements,met,relevant,percent:relevant?Math.round(met/relevant*100):null};
  }
  function criteria(data,rows,prepared=null){
   const map=new Map();
@@ -170,40 +177,6 @@
   const focus=missing.find(c=>c.key===focusElement)||missing[0]||null;
   const focusIds=new Set(focus?.students.map(s=>s.sessionId));
   return {missing,focus,candidates:recommendCandidates(prepared.filter(({s})=>focusIds.has(s.sessionId)),key,focus)};
- }
- function recordLesson(data,basis){
-  const mission=basis.missionId,rows=data.reps,prepared=rows.map(s=>({s,e:evaluation(data,s)}));
-  const criterion=criteria(data,rows,prepared)[0],{missing}=lessonPriority(data,rows,mission,criterion?.key,'',prepared);
-  const questions=teachingQuestions[mission],details=descriptions[mission];
-  const defaults=mission==='m01'?['D','W1']:['D-A','W2a'];
-  const focusKeys=[...new Set([...missing.map(item=>item.key),...defaults])].slice(0,2);
-  const judged=prepared.filter(({e})=>e.has).length;
-  const headline=missing.length?questions[missing[0].key]:'저장된 답안에서 관찰과 설명을 비교해 보세요';
-  const teachingFocus=missing.length
-   ? `같은 기준으로 판정한 답안에서 ‘${missing.map(item=>item.label).join('’, ‘')}’ 항목에 보완 표시가 있었습니다. 아래 질문으로 학생이 어떤 근거를 사용했는지 확인해 보세요.`
-   : '학생이 실험에서 본 사실과 그 이유를 어떻게 연결했는지 원문에서 확인해 보세요.';
-  const observations=missing.map(item=>({
-   finding:questions[item.key],
-   evidence:`${criterion.label} 기준으로 이 항목을 판정한 ${item.assessed}명 중 ${item.revise}명의 글에 보완 표시가 있습니다.`,
-   alternative:'학생이 설명을 글에서 생략했을 수 있습니다. 수업에서 관찰한 사실과 연결해 말해 보도록 질문해 보세요.'
-  }));
-  if(!observations.length)observations.push({
-   finding:judged?'판정이 저장된 답안부터 함께 읽어 보세요.':'원문을 읽고 근거가 드러나는지 확인해 보세요.',
-   evidence:`참여 번호 ${basis.participants}개 중 최종 답안 ${basis.written}개, 판정이 있는 답안 ${judged}개입니다.`,
-   alternative:'판정이 없는 답안은 원문을 읽고 판단할 수 있습니다.'
-  });
-  const activity=mission==='m01'?{
-   title:'질량 변화에서 물의 이동 찾기',minutes:5,
-   steps:['5%와 10% 설탕물에서 관찰한 감자 질량을 표에 적습니다.','물이 이동한 방향을 화살표로 표시합니다.','두 결과를 묶어 감자 안 농도의 범위를 한 문장으로 설명합니다.'],
-   why:'측정값과 물의 이동, 농도 범위를 하나의 설명으로 연결합니다.'
-  }:{
-   title:'저울이 잰 대상을 두 실험에서 비교하기',minutes:5,
-   steps:['열린 실험의 강철솜과 닫힌 실험의 플라스크 전체를 두 칸에 적습니다.','산소가 어디에 있었고 어디로 이동했는지 각각 화살표로 표시합니다.','두 질량 결과가 함께 성립하는 이유를 설명합니다.'],
-   why:'강철솜만의 질량과 플라스크 전체의 질량을 구분합니다.'
-  };
-  return {headline,teachingFocus,summary:`${basis.mode==='first'?'처음 한 판':'최근 판'}에 저장된 참여 번호 ${basis.participants}개와 답안 발췌 ${basis.sampled}개를 바탕으로 정리했습니다.`,
-   observations,questions:focusKeys.map(key=>({question:questions[key],purpose:details[key]})),activities:[activity],
-   limitations:['미제출과 미판정은 보완 인원에 포함하지 않았습니다.','저장된 답안의 설명 요소는 다음 수업에서 확인할 질문을 고르는 데 사용합니다.']};
  }
  function comparePlays(data,mission,key,classKey,isTest=false){
   const groups=new Map();
@@ -252,5 +225,5 @@
    return [m,criteria(d,d.sessions)];
   }))};
  }
- root.TeacherInsights={definitions,descriptions,teachingQuestions,progressSteps,studentProgress,studentElement,evaluation,judgmentStatus,finalSubmission,activeRejudgment,element,criteria,aggregate,recommendCandidates,lessonPriority,recordLesson,comparePlays,game,overview};
+ root.TeacherInsights={definitions,descriptions,teachingQuestions,progressSteps,studentProgress,studentElement,evaluation,judgmentStatus,finalSubmission,activeRejudgment,element,criteria,aggregate,recommendCandidates,lessonPriority,comparePlays,game,overview};
 })(typeof window==='undefined'?globalThis:window);

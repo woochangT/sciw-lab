@@ -1,6 +1,6 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');
-require('../model.js');require('../scope.js');require('../evidence.js');require('../insights.js');require('../demo.js');
-const M=global.TeacherModel,I=global.TeacherInsights,E=global.TeacherEvidence,demo=global.TeacherDemo;
+require('../model.js');require('../scope.js');require('../insights.js');require('../demo.js');
+const M=global.TeacherModel,I=global.TeacherInsights,demo=global.TeacherDemo;
 const session=(id,no,extra={})=>({sessionId:id,classCode:'A',studentNo:no,missionId:'m02',startedAt:'2026-11-01T00:00:00Z',...extra});
 test('class denominator deduplicates normalized numbers, retries, mirrors and excludes QA, other classes and m01',()=>{
  const s=session('first','02'),db={sessions:[s,s,session('second',' 2 '),session('third','2'),session('other','2',{classCode:'B'}),session('potato','3',{missionId:'m01'}),session('qa_auto','4'),session('explicit-test','5',{isTest:true}),session('invalid','X'),session('student3','3')],attempts:[]};
@@ -38,7 +38,7 @@ test('synthetic classroom exposes 24 unique students and 20 first final submissi
  const a=M.analyze(demo,'2-3');assert.equal(a.stats.N,24);assert.equal(a.stats.submitted,20);assert.equal(a.sessions.length,27);assert.equal([...a.groups.values()].filter(ss=>ss.length>1).length,3);
 });
 
-test('every completed example has explicit rubric values, matching evidence and a class report in both games',()=>{
+test('every completed example has explicit rubric values and matching evidence in both games',()=>{
  for(const classCode of ['1-2','2-3','3-4'])for(const missionId of ['m01','m02']){
   const data=M.analyze(demo,classCode,'latest',{missionId});
   for(const session of data.sessions.filter(s=>s.finalAnswer)){
@@ -50,19 +50,7 @@ test('every completed example has explicit rubric values, matching evidence and 
     if(assessment.judgment[key])assert.ok(check.quote&&session.finalAnswer.includes(check.quote));
    }
   }
-  const result=I.recordLesson(data,E.build(demo,classCode,'latest',{missionId}));
-  assert.equal(result.observations.length,2);
-  assert.equal(result.questions.length,2);
-  assert.ok(result.activities[0].steps.length);
  }
-});
-
-test('a stored answer without a judgment can support a report without inventing an assessment',()=>{
- const record=session('unjudged','1',{finalAnswer:'산소가 붙었다.'}),db={sessions:[record],attempts:[]};
- const data=M.analyze(db,'A','latest'),result=I.recordLesson(data,E.build(db,'A','latest'));
- assert.match(result.observations[0].evidence,/판정이 있는 답안 0개/);
- assert.equal(I.judgmentStatus(data,record).code,'missing');
- assert.equal(record.finalJudgment,undefined);
 });
 
 test('a conflicting normalized number is held for review rather than assigned to a different student',()=>{const a=M.analyze({sessions:[session('x','2',{studentNoNormalized:'3'})],attempts:[]},'A');assert.equal(a.stats.N,0);assert.equal(a.review.length,1)});

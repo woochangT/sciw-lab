@@ -39,18 +39,18 @@
   return `<section class="dashboard-metrics${selectedClass?' progress-metrics':''}" aria-label="${selectedClass?'학생 진행 지표':'핵심 수업 지표'}">${items.map(([label,count,detail],i)=>`<article class="metric metric-${i}"><span>${label}</span><div><strong>${loading&&v.total===0?'—':count}</strong><small>${detail}</small></div></article>`).join('')}</section>`;
  }
  function classCell(c,g,evaluation,index,mission,criterion){const [id,label]=I.definitions[mission][index],cell=evaluation?.cells[index],rate=cell?.rate??null;return `<td><button class="matrix-cell ${rate===null?'missing':rate>=80?'high':rate>=40?'mid':'low'}" data-class-key="${esc(c.classKey)}" data-class-test="${c.isTest}" data-open-game="${mission}" data-criterion="${esc(criterion)}" aria-label="${esc(c.label+' '+label+' '+(rate===null?'판정 없음':rate+'% · '+cell.met+'/'+cell.assessed)+' · 반 분석 보기')}"><b>${rate===null?'—':rate+'%'}</b>${rate===null?'':`<small>${cell.met}/${cell.assessed}</small>`}</button></td>`}
- function studentCell(r,id,label,current){const matches=r.e.key===current&&r.e.has,state=matches?I.studentElement(r.s.missionId||'m01',r.e.judgment,id):'unknown',word={met:'인정',revise:'보완',alternate:'다른 경로',unknown:'—'}[state];return `<td><button class="matrix-cell ${state==='met'?'high':state==='revise'?'low':state==='alternate'?'alternate':'missing'}" data-student="${M.number(r.s)}" data-session="${esc(r.s.sessionId)}" data-element="${id}" aria-label="${esc(M.number(r.s)+'번 '+label+' '+(state==='unknown'?'판정 없음':word)+' · 판정 근거 보기')}"><span class="cell-dot" aria-hidden="true">${state==='met'?'●':state==='revise'?'◐':state==='alternate'?'↔':'—'}</span><b>${word}</b></button></td>`}
+ function studentCell(r,id,label,current){const matches=r.e.key===current&&r.e.has,state=matches?I.studentElement(r.s.missionId||'m01',r.e.judgment,id):'unknown',word={met:'인정',revise:'보완',alternate:'대체 설명',unknown:'—'}[state];return `<td><button class="matrix-cell ${state==='met'?'high':state==='revise'?'low':state==='alternate'?'alternate':'missing'}" data-student="${M.number(r.s)}" data-session="${esc(r.s.sessionId)}" data-element="${id}" aria-label="${esc(M.number(r.s)+'번 '+label+' '+(state==='unknown'?'판정 없음':word)+' · 판정 근거 보기')}"><span class="cell-dot" aria-hidden="true">${state==='met'?'●':state==='revise'?'◐':state==='alternate'?'↔':'—'}</span><b>${word}</b></button></td>`}
  function statusBadge(data,s){const value=I.judgmentStatus(data,s);return `<span class="judgment-status status-${value.code}">${esc(value.label)}</span>`}
  function matrix(v,state){const {mission,selectedClass,query='',filter='all',mode='latest',loading,error}=state,student=Boolean(selectedClass),p=v.pagination;
   return `<section class="matrix-panel" aria-labelledby="matrixTitle"><header class="matrix-panel-heading"><div><h2 id="matrixTitle">${student?'학생별 설명 요소':'학급별 설명 요소'}</h2><span>${student?'칸을 눌러 학생의 판정 근거 확인':'반을 눌러 학생별 결과 확인'}</span></div><div class="matrix-heading-actions">${student?`<p class="matrix-judged">자동 판정 <b>${loading&&!v.total?'—':v.judged+'명'}</b></p>`:''}<label class="criterion-picker"><span>판정 기준</span><select aria-label="판정 기준" id="${student?'detailCriterion':'overviewCriterion'}" ${!v.keys.length?'disabled':''}>${criteriaOptions(v.keys,v.current)}</select></label></div></header><div class="matrix-toolbar"><label class="record-search"><span aria-hidden="true">⌕</span><input id="recordSearch" type="search" value="${esc(query)}" placeholder="${student?'출석번호 검색':'학급 검색'}" aria-label="${student?'출석번호 검색':'학급 검색'}"></label><label class="sr-only" for="recordFilter">작성 상태</label><select id="recordFilter"><option value="all" ${filter==='all'?'selected':''}>전체 기록</option><option value="written" ${filter==='written'?'selected':''}>답안 작성</option><option value="pending" ${filter==='pending'?'selected':''}>작성 전</option></select>${student?`<label class="sr-only" for="playMode">기록 기준</label><select id="playMode"><option value="latest" ${mode==='latest'?'selected':''}>최근 판</option><option value="first" ${mode==='first'?'selected':''}>처음 한 판</option></select>`:`<span class="scope-count">${v.classes.length}개 반</span>`}</div>
   <div id="matrixViewport" class="matrix-viewport" tabindex="0" role="region" aria-label="${student?'학생별':'학급별'} 성취 표"><table class="dashboard-matrix"><caption class="sr-only">${games[mission].name} · ${student?'학생별':'학급별'} 설명 요소. —는 판정 미기록입니다.</caption><thead><tr><th scope="col">${student?'출석번호':'학급'}${student?info('출석번호','게임 시작 화면에 입력한 출석번호입니다. 같은 번호의 판은 선택한 기록 기준에 따라 표시합니다.'):info('학급','게임 시작 화면에 입력한 학년과 반입니다. 반을 누르면 학생별 결과를 볼 수 있습니다.')}</th><th scope="col">${student?'최종 답안':'답안 / 참여'}${student?info('최종 답안','학생이 게임에서 마지막 답안을 제출했는지 보여 줍니다.'):info('답안 / 참여','최종 답안을 작성한 학생 수를 게임을 시작한 학생 수와 함께 표시합니다.')}</th>${I.definitions[mission].map(([id,label])=>`<th scope="col" title="${esc(label+' ('+id+')')}">${esc(label)}${elementInfo(mission,id)}<small class="rubric-code">(${esc(id)})</small></th>`).join('')}${student?`<th scope="col">AI 판정${info('AI 판정','저장된 최종 답안의 자동 판정 상태입니다. 판정 완료·대기·실패·불가·기록 없음은 실제 저장 기록으로 구분합니다.')}</th><th scope="col">기록 보기${info('기록 보기','학생의 답안 원문과 단계별 대화 기록을 엽니다.')}</th>`:''}</tr></thead><tbody>${p.rows.map(r=>student?`<tr id="student-answer-${M.number(r.s)}" tabindex="-1" class="${state.highlightedStudent===M.number(r.s)?'student-answer-highlight':''}"><th scope="row"><b>${M.number(r.s)}번</b></th><td><span class="submission-status ${r.e.written?'written':''}">${r.e.written?'작성':'작성 전'}</span></td>${I.definitions[mission].map(([id,label])=>studentCell(r,id,label,v.current)).join('')}<td>${statusBadge(state.data,r.s)}</td><td><button class="matrix-read" data-student="${M.number(r.s)}" data-session="${esc(r.s.sessionId)}" aria-label="${M.number(r.s)}번 답안과 단계별 대화 보기">답안 ↗</button></td></tr>`:`<tr><th scope="row"><button class="matrix-class" data-class-key="${esc(r.c.classKey)}" data-class-test="${r.c.isTest}">${esc(r.c.label)} <span>↗</span></button></th><td><b class="submission-number">${r.g.written}<small> / ${r.g.participants}</small></b></td>${I.definitions[mission].map((_,i)=>classCell(r.c,r.g,r.g.evaluations.find(e=>e.key===v.current),i,mission,v.current)).join('')}</tr>`).join('')||`<tr class="matrix-empty"><td colspan="${I.definitions[mission].length+(student?4:2)}"><strong>${loading?'기록을 불러오는 중':error?'시트 연결을 확인해 주세요':query||filter!=='all'?'조건에 맞는 기록이 없습니다':'아직 참여 기록이 없습니다'}</strong><p>${loading?'잠시만 기다려 주세요.':error?'상단 새로고침으로 다시 확인할 수 있습니다.':'다른 게임이나 학급을 선택해 보세요.'}</p></td></tr>`}</tbody></table></div>
-  <div class="matrix-pagination"><span>${p.start}–${p.end} / ${p.total}${student?'명':'개 반'}</span><div><button id="matrixPrev" data-page="${p.index-1}" ${p.index===0?'disabled':''} aria-label="이전 페이지">←</button><span>${p.index+1} / ${p.pages}</span><button id="matrixNext" data-page="${p.index+1}" ${p.index+1>=p.pages?'disabled':''} aria-label="다음 페이지">→</button></div></div><footer class="matrix-legend"><span><i class="high"></i> 인정${student?'':' 비율'}</span><span><i class="low"></i> 보완</span>${student&&mission==='m02'?'<span><i class="alternate"></i> 다른 경로</span>':''}<span><i class="missing"></i> — 판정 없음</span><details class="matrix-help"><summary>판정 안내 ⓘ</summary><p>항목마다 판정이 있는 답안만 분모로 셉니다. 미작성·미기록은 0점이 아닙니다. 서로 다른 평가 버전은 분리합니다. ${mission==='m02'?'강철솜은 두 설명 경로 중 하나로 통과할 수 있어 모든 항목의 인정이 필수는 아닙니다.':''}</p></details></footer></section>`;
+  <div class="matrix-pagination"><span>${p.start}–${p.end} / ${p.total}${student?'명':'개 반'}</span><div><button id="matrixPrev" data-page="${p.index-1}" ${p.index===0?'disabled':''} aria-label="이전 페이지">←</button><span>${p.index+1} / ${p.pages}</span><button id="matrixNext" data-page="${p.index+1}" ${p.index+1>=p.pages?'disabled':''} aria-label="다음 페이지">→</button></div></div><footer class="matrix-legend"><span><i class="high"></i> 인정${student?'':' 비율'}</span><span><i class="low"></i> 보완</span>${student&&mission==='m02'?'<span><i class="alternate"></i> 대체 설명으로 충족</span>':''}<span><i class="missing"></i> — 판정 없음</span><details class="matrix-help"><summary>판정 안내 ⓘ</summary><p>항목마다 판정이 있는 답안만 분모로 셉니다. 미작성·미기록은 0점이 아닙니다. 서로 다른 평가 버전은 분리합니다. ${mission==='m02'?'강철솜은 외부 물질이 더해졌다는 질량 보존 설명이나, 닫힌 플라스크 전체의 질량이 유지된다는 설명을 근거로 쓸 수 있습니다. 한 방식으로 기준을 충족하면 다른 방식에서만 쓰는 항목은 대체 설명으로 표시합니다.':''}</p></details></footer></section>`;
  }
  function evidenceBars(v){const cells=v.cells.filter(c=>c.assessed).slice().sort((a,b)=>a.rate-b.rate).slice(0,3);return `<section class="insight-block"><header><h3>요소별 인정 현황</h3><span>인정 / 판정 답안</span></header><div class="element-bars">${cells.map(c=>`<div><span>${esc(c.label)}</span><b>${c.met} / ${c.assessed}</b><i><em style="width:${c.rate??0}%"></em></i></div>`).join('')||'<p class="no-assessment">아직 판정 기록이 없습니다.</p>'}</div></section>`}
 
  function classInsights(v){return `<aside class="dashboard-insights" aria-label="전체 학급 요약"><section class="insight-block overview-progress"><header><h3>반별 답안 현황</h3><span>${v.written} / ${v.total}명</span></header><div class="class-progress-list">${v.all.map(r=>`<button data-class-key="${esc(r.c.classKey)}" data-class-test="${r.c.isTest}"><span>${esc(r.c.label)}</span><b>${r.g.written}<small> / ${r.g.participants}</small></b><i><em style="width:${r.g.participants?100*r.g.written/r.g.participants:0}%"></em></i></button>`).join('')||'<p>학급 기록이 없습니다.</p>'}</div></section>${evidenceBars(v)}</aside>`}
  function tasks(state){
-  const options=state.selectedClass?[['overview','수업 준비'],['progress','학생 기록'],['analysis','학생 답안 분석']]:[['overview','학급 목록'],['analysis','학급별 성취도']];
+  const options=state.selectedClass?[['overview','수업 준비'],['progress','참여 현황'],['analysis','학생 답안 분석']]:[['overview','학급 목록'],['analysis','학급별 성취도']];
   return `<nav class="dashboard-tasks" aria-label="대시보드 보기">${options.map(([id,label])=>`<button type="button" id="task-${id}" data-task="${id}" aria-current="${state.view===id?'page':'false'}">${label}</button>`).join('')}</nav>`;
  }
  function classPicker(v,state){
@@ -68,24 +68,28 @@
   const displayedQuestions=new Set(missing.map(item=>I.teachingQuestions[mission][item.key]));
   const question=Array.isArray(report?.questions)?report.questions.find(item=>typeof item?.question==='string'&&item.question.trim()&&!displayedQuestions.has(item.question.trim()))?.question:'';
   return `<section class="lesson-home" aria-labelledby="lessonHomeTitle">
-   <div class="lesson-home-copy"><p class="focus-kicker">학급 수업 초점</p>
-   <h2 id="lessonHomeTitle">${esc(title)}</h2>
-   ${missing.length?`<p class="focus-detail">보완 표시가 가장 많이 나온 설명부터 보여줘요. 한 학생이 두 그룹에 모두 포함될 수 있어요.${criterion?` <small>판정 기준 ${esc(criterion)}</small>`:''}</p>
+   <div class="lesson-home-copy"><header class="lesson-home-heading">
+    <h2 id="lessonHomeTitle">${esc(title)}</h2>${missing.length&&criterion?`<small>${esc(criterion)}</small>`:''}
+   </header>
+   ${missing.length?`
     <div class="weakness-grid">${missing.map((group,index)=>`<article class="weakness-card">
      <p class="weakness-kicker">보완 ${index+1} <span>${group.assessed}명 중 ${group.revise}명</span></p>
      <h3>${esc(I.teachingQuestions[mission][group.key])}</h3>
      <p class="weakness-description">${esc(I.descriptions[mission][group.key])}</p>
-     <ul class="weakness-students" aria-label="이 설명을 보완할 학생">${group.students.map(({studentNo})=>`<li><a href="#student-answer-${studentNo}" data-analysis-student="${studentNo}" aria-label="${studentNo}번 학생 답안 분석">${studentNo}번</a></li>`).join('')}</ul>
+     <div class="weakness-roster"><b>해당 학생:</b><ul class="weakness-students" aria-label="해당 학생">${group.students.map(({studentNo})=>`<li><a href="#student-answer-${studentNo}" data-analysis-student="${studentNo}" aria-label="${studentNo}번 학생 답안 분석">${studentNo}번</a></li>`).join('')}</ul></div>
      <button type="button" class="dashboard-link" data-compare-element="${esc(group.key)}" aria-label="${esc(I.teachingQuestions[mission][group.key])} 답안 비교" aria-pressed="${focus?.key===group.key}">답안 비교 ↓</button>
-    </article>`).join('')}</div>`:`<p class="focus-detail">${v.written?'같은 기준으로 판정한 글에서 공통 보완점을 찾으면 여기에 표시해요.':'아래에서 학생별 진행과 저장된 답안을 확인할 수 있어요.'}</p>`}
-   ${report?.teachingFocus?`<p class="lesson-question"><b>${state.report.analysis.model==='stored-records'?(state.report.analysis.synthetic?'합성 예시 분석':'저장 기록 기반 분석'):'저장된 학급 분석'}</b> ${esc(report.teachingFocus)}</p>`:''}
+    </article>`).join('')}</div>`:''}
+   ${report?.teachingFocus?`<p class="lesson-question"><b>수업 참고</b> ${esc(report.teachingFocus)}</p>`:''}
    ${question?`<p class="lesson-question"><b>추가로 물어볼 질문</b> ${esc(question)}</p>`:''}
-   ${state.reportStale?'<p class="focus-freshness">요약을 만든 뒤 새 기록이 들어왔어요.</p>':''}
-   ${state.aiError?`<p class="dashboard-ai-error" role="alert">${esc(state.aiError)}</p>`:''}
-   <div class="focus-actions"><button class="dashboard-generate" data-ai-generate ${!state.available||state.busy?'disabled':''}><span class="analysis-refresh-icon" aria-hidden="true">↻</span> ${state.busy?'학급 재분석 중…':'학급 재분석'}</button>
-   ${state.source==='sheet'&&!state.loading&&!state.error&&!report&&!v.written?'<button class="button secondary" data-demo>예시 수업 열기</button>':''}
-   ${report?'<button class="button secondary" data-open-report>상세 리포트와 수업 자료</button>':''}</div></div>
-   <div class="lesson-participation"><img src="${games[state.mission].asset}" alt=""><div><strong>${v.written}<small> / ${v.total}명</small></strong><span>최종 답안 / 참여</span><progress value="${v.written}" max="${v.total||1}" aria-label="학급 최종 답안 작성 인원"></progress></div></div>
+   ${state.reportStale?'<p class="focus-freshness">새 답안이 들어왔어요. 학급 재분석으로 갱신할 수 있어요.</p>':''}
+   </div>
+   <div class="lesson-participation">
+    <div class="lesson-participation-summary"><img src="${games[state.mission].asset}" alt=""><div><strong>${v.written}<small> / ${v.total}명</small></strong><span>최종 답안 / 참여</span></div></div>
+    <progress value="${v.written}" max="${v.total||1}" aria-label="학급 최종 답안 작성 인원"></progress>
+    <button class="dashboard-generate" data-ai-generate ${!state.available||state.busy?'disabled':''}><span class="analysis-refresh-icon" aria-hidden="true">↻</span> ${state.busy?'학급 재분석 중…':'학급 재분석'}</button>
+    ${state.aiError?`<p class="dashboard-ai-error" role="alert">${esc(state.aiError)}</p>`:''}
+    ${state.source==='sheet'&&!state.loading&&!state.error&&!report&&!v.written?'<button class="dashboard-link" data-demo>예시 수업 열기</button>':''}
+   </div>
   </section>`;
  }
  function answerComparison(state,v,priority){
@@ -102,7 +106,7 @@
     const excerpt=position<0?esc(input):esc(input.slice(0,position))+'<mark>'+esc(quote)+'</mark>'+esc(input.slice(position+quote.length));
     return `<article><p>${esc(example.label)}</p><h3>${esc(example.studentNo)}번 학생의 최종 답안</h3><blockquote>${excerpt}</blockquote><button class="dashboard-link" data-student="${esc(example.studentNo)}" data-session="${esc(example.sessionId)}" data-element="${esc(example.element)}">원문과 판정 근거 보기 ↗</button></article>`;
    }).join('')}${examples.length===1?'<p class="focus-empty">같은 판정 기준으로 비교할 두 번째 글이 아직 없습니다.</p>':''}</div>
-   ${examples.length?'<p class="focus-freshness">같은 판정 기준으로 살펴본 최종 답안이에요. 어떤 설명이 드러나는지 함께 읽어 보세요.</p>':'<p class="focus-freshness">아래 목록에서 학생별로 저장된 답안을 열어 볼 수 있어요.</p>'}</section>`;
+   ${examples.length?'':'<p class="focus-freshness">아래 목록에서 학생별로 저장된 답안을 열어 볼 수 있어요.</p>'}</section>`;
  }
  function studentRecords(v,state){
   const p=v.pagination;
@@ -119,23 +123,26 @@
  }
  function progressTable(v,state){
   const steps=I.progressSteps[state.mission],p=v.pagination;
+  const labels={met:'인정',revise:'보완',alternate:'대체 설명으로 충족',unknown:'미판정'};
   return `<section class="student-records progress-panel" aria-labelledby="studentProgressTitle">
    <header><h2 id="studentProgressTitle">학생별 게임 진행</h2>
     <div class="matrix-toolbar"><input id="recordSearch" type="search" value="${esc(state.query)}" placeholder="출석번호 검색" aria-label="출석번호 검색">
     <select id="playMode" aria-label="기록 기준"><option value="latest">최근 판</option><option value="first" ${state.mode==='first'?'selected':''}>처음 한 판</option></select></div></header>
    <div class="progress-scroll" tabindex="0" role="region" aria-label="게임 단계별 진행 표"><table class="progress-table">
-    <thead><tr><th scope="col">출석번호</th>${steps.map(([,label],index)=>`<th scope="col"><small>${index+1}</small>${label}</th>`).join('')}<th scope="col">판정 결과</th></tr></thead>
+    <thead><tr><th scope="col">출석번호</th>${steps.map(([,label],index)=>`<th scope="col"><small>${index+1}</small>${label}</th>`).join('')}<th scope="col">판정 결과${info('판정 결과','초록은 인정, 주황은 보완, 파랑은 대체 설명으로 충족, 회색은 미판정입니다. 비율은 대체 설명 항목을 제외한 전체 항목 중 인정이 확인된 비율입니다.')}</th></tr></thead>
     <tbody>${p.rows.map(({s,e})=>{
-     const no=M.number(s),{reached,judgment,evaluationEnds,met,revise}=I.studentProgress(state.data,s,e,state.mission);
+     const no=M.number(s),{reached,judgment,evaluationEnds,elements,percent,met,relevant}=I.studentProgress(state.data,s,e,state.mission);
      const progress=steps.map((_,index)=>{
       if(e.written&&index===steps.length-1)return '<td><span class="step-done">제출</span></td>';
       if(index<reached)return '<td><span class="step-done" aria-label="지난 단계">✓</span></td>';
       if(index===reached)return '<td><span class="step-current">최근 단계</span></td>';
       return '<td><span class="step-empty" aria-label="기록 없음">—</span></td>';
      }).join('');
-     const result=judgment.code==='completed'?`<a class="progress-result" href="#student-answer-${no}" data-analysis-student="${no}" aria-label="${no}번 답안 분석, 인정 ${met}개, 보완 ${revise}개"><span class="result-met">인정 ${met}</span><span class="result-revise">보완 ${revise}</span><span aria-hidden="true">↗</span></a>`:
+     const result=elements.length?`<a class="progress-result" href="#student-answer-${no}" data-analysis-student="${no}" aria-label="${no}번 답안 분석, 인정 비율 ${percent}%, 대상 ${relevant}개 중 ${met}개 인정">
+       <span class="result-swatches" aria-hidden="true">${elements.map(item=>`<span class="result-square result-${item.state}" title="${esc(item.label+' · '+labels[item.state])}"></span>`).join('')}</span>
+       <strong>${percent}%</strong><span class="result-arrow" aria-hidden="true">↗</span></a>`:
       !e.written?'<span class="step-empty">제출 전</span>':evaluationEnds?`<span class="evaluation-running" data-evaluation-ends="${evaluationEnds}"><span class="evaluation-spinner" aria-hidden="true"></span>AI 판정 중</span>`:
-      `<span class="judgment-status status-${judgment.code}">${esc(judgment.code==='pending'?'판정 응답 미확인':judgment.label)}</span>`;
+      `<span class="judgment-status status-${judgment.code==='completed'?'missing':judgment.code}">${esc(judgment.code==='pending'?'판정 응답 미확인':judgment.code==='completed'?'판정 항목 미기록':judgment.label)}</span>`;
      return `<tr><th scope="row">${no}번</th>${progress}<td>${result}</td></tr>`;
     }).join('')||`<tr><td colspan="${steps.length+2}" class="focus-empty">${state.loading?'게임 기록을 불러오는 중입니다.':'표시할 학생 기록이 없습니다.'}</td></tr>`}</tbody>
    </table></div>

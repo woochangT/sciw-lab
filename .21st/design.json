@@ -69,13 +69,13 @@
       "Default to live connected sheet; never silently replace failed live reads with demo data",
       "Separate test data from real classroom counts; QA remains excluded",
       "Keep mission and class report scopes separate; do not infer unrecorded grades",
-      "Put saved teaching focus first within the selected class/game analysis; detailed report includes frozen evidence and classroom materials",
+      "Keep teaching questions and grouped student answers prominent. Show the saved class analysis as a short note in teaching prep",
       "Never call LLM from page load, selection, sheet refresh or report navigation; regenerate only on explicit click",
       "Teacher starts with a class list and submission progress after authentication; the class achievement heatmap remains available in its own view",
       "Class and student heatmaps show explicit final judgment counts; unknown, zero and different rubric versions must remain separate",
       "Rubric 1.2 note pages 0/1/2 differ from old hint levels; removed sorting is not failure",
       "Keep intro and student game identity; replace teacher page with a compact dashboard using only restrained lab theme accents",
-      "Keep the selected game across class navigation. Teaching prep shows two teaching questions and their student groups. Student Records shows stages and links completed judgments to the student row in Student Answer Analysis",
+      "Keep the selected game across class navigation. Teaching prep shows two teaching questions and their student groups. Participation shows stages and seven colored judgment squares with a recognized proportion linking to the student row in Student Answer Analysis",
       "Desktop key metrics, evidence table and summary rail fit viewport; larger data use table pagination and search, not whole-page scrolling"
     ],
     "avoid": [
