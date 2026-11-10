@@ -82,7 +82,7 @@ async function rejudgePlay(button,s,target,element){
   const saved=db.sessions.find(item=>item.sessionId===submissionId);
   if(!saved)return;
   const effective=I.evaluation(db,saved);
-  if(effective.rejudgment?.requestId===requestId){detailCriterion=effective.key;focusElement=''}
+  if(effective.rejudgment?.requestId===requestId){if(detailCriterion)detailCriterion=effective.key;focusElement=''}
   if(portfolioData?.classes)portfolioData={...portfolioData,classes:portfolioData.classes.map(c=>
    c.classKey===chosenClass.classKey&&c.isTest===isTest?{...c,games:{...c.games,[missionId()]:I.game(db,c.classCodes,missionId(),isTest)}}:c)};
   rejudgeJobs.delete(submissionId);analyze();
@@ -143,7 +143,7 @@ function openStudentAnalysis(studentNo){
  const index=data.reps.findIndex(student=>M.number(student)===studentNo);
  if(index<0)return;
  const student=data.reps[index];
- detailCriterion=I.evaluation(data,student).key||detailCriterion;
+ if(detailCriterion)detailCriterion=I.evaluation(data,student).key||detailCriterion;
  view='analysis';highlightedStudent=studentNo;dashPage=Math.floor(index/dashSize);dashQuery='';filter='all';
  render();
  const row=document.getElementById('student-answer-'+studentNo);
