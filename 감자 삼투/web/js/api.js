@@ -7,9 +7,10 @@
 (function () {
   const cfg = window.SCIW_CONFIG || {};
   const URL_ = (cfg.API_URL || '').trim();
-  const sync = window.SciwRecordSync.create({url: URL_, queueKey: 'sciw_queue_v1', verified: true});
+  const sync = window.SciwRecordSync.create({url: URL_, queueKey: 'sciw_queue_v1', verified: true, defer: true});
   const API = {
     ...sync,
+    get isExperience(){return sync.isExperience;},
 
     // LLM 판정: timeoutMs 안에 답이 없으면 null
     async judge(payload, timeoutMs) {
