@@ -77,7 +77,7 @@
     <h2 class="dashboard-section-title" id="lessonHomeTitle">다음 수업에서 함께 물어볼 질문</h2>
    </header>
    ${missing.length?`
-    <div class="weakness-grid">${missing.map((group,index)=>`<article class="weakness-card">
+    <div class="weakness-grid">${missing.map((group,index)=>`<article class="weakness-card" data-weakness-element="${esc(group.key)}">
      <p class="weakness-kicker">보완 ${index+1} <span>${group.assessed}명 중 ${group.revise}명</span></p>
      <h3>${esc(I.teachingQuestions[mission][group.key])}</h3>
      <p class="weakness-description">${esc(I.descriptions[mission][group.key])}</p>
