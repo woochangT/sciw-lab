@@ -300,6 +300,29 @@
     exampleButton($('#answer').parentElement, $('#answer'), TEXT.final, '✎ 예시 답안 쓰기');
   }
 
+  // 결과 화면을 배속으로 돌릴 때(js/config.js의 REVEAL_PACE): 화면 오른쪽 위에 'n배속'을 띄우고, 글자·형광펜 전환도 같은 배속으로 줄인다
+  function paceBadge() {
+    const pace = Number(cfg.REVEAL_PACE) || 1;
+    const scr = $('#clearScreen');
+    if (pace <= 1 || !scr) return;
+    const d = (s) => `${(s / pace).toFixed(2)}s`;
+    const style = document.createElement('style');
+    style.textContent = `#clearScreen .rv{transition-duration:${d(0.7)}}.final .hl{transition-duration:${d(1.4)}}`
+      + `.final .hl.new-connection{transition-duration:${d(1.4)},${d(0.6)};transition-delay:0s,${d(1.2)}}.hl-pop{transition-duration:${d(0.45)}}`
+      + `#clearScreen .ch.on{transition-duration:${d(0.22)},${d(0.3)},${d(0.22)}}`
+      + '.demo-pace{position:fixed;z-index:2147483000;top:18px;right:18px;padding:8px 16px;border-radius:999px;background:#25332d;color:#ffdc48;font:700 20px/1 Pretendard,system-ui,sans-serif;letter-spacing:.02em;box-shadow:0 4px 14px #0006;pointer-events:none}'
+      + '.demo-pace[hidden]{display:none}';
+    document.head.appendChild(style);
+    const badge = document.createElement('div');
+    badge.className = 'demo-pace'; badge.hidden = true;
+    badge.textContent = `▶▶ ${pace}배속`;
+    document.body.appendChild(badge);
+    const sync = () => { badge.hidden = scr.hidden || !!scr.querySelector('.wrap.submitted'); };
+    new MutationObserver(sync).observe(scr, { attributes: true, attributeFilter: ['hidden'], childList: true, subtree: true });
+    sync();
+  }
+  paceBadge();
+
   const run = { 1: scene1, 2: scene2, 3: scene3 }[scene];
   if (run) run().catch((e) => console.error('[demo]', e));
 })();

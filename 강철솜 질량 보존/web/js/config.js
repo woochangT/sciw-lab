@@ -21,4 +21,7 @@ window.SCIW_CONFIG = {
   if (!scene) return;
   window.SCIW_CONFIG.DEMO = scene;
   window.SCIW_CONFIG.API_URL = '';
+  // 시연 3(완전한 설명)의 결과 화면은 배속으로 드러낸다. 화면에 'n배속' 표시가 뜬다. ?pace=1.5처럼 바꿀 수 있다.
+  const p = /[?&]pace=([0-9.]+)/.exec(location.search);
+  window.SCIW_CONFIG.REVEAL_PACE = p ? Number(p[1]) : (scene === '3' ? 2 : 1);
 })();

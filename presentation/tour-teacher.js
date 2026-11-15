@@ -15,6 +15,7 @@
     .sciw-tour-target{outline:4px solid #f5c400!important;outline-offset:3px;box-shadow:0 0 0 10px rgba(245,220,85,.35)!important}
     .sciw-tour-next{position:fixed;z-index:2147483000;left:24px;bottom:24px;display:flex;align-items:center;gap:18px;width:auto;min-width:0;padding:12px 22px;border:2px solid #8a6800;border-radius:999px;background:#ffdc48;color:#25332d;font:700 19px/1.2 Pretendard,system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 16px #0003}
     .sciw-tour-next small{font-size:12px;font-weight:600;opacity:.8}
+    .sciw-tour-next *{pointer-events:none}
     .sciw-tour-next:focus-visible{outline:3px solid #25332d;outline-offset:4px}
     .sciw-tour-next:disabled{cursor:wait;opacity:.7}
     .sciw-tour-next[hidden]{display:none}
@@ -124,8 +125,12 @@
     if (nextBtn.parentNode !== host) host.appendChild(nextBtn);
     nextBtn.hidden = done || locked();
     nextBtn.disabled = preparing;
-    nextBtn.innerHTML = `<small>대시보드 시연 ${i + 1} / ${steps.length}</small><span>${preparing ? '준비 중…' : '다음 →'}</span>`;
-    nextBtn.setAttribute('aria-label', `대시보드 시연 ${i + 1}/${steps.length}, 다음 장면`);
+    // 0.15초마다 불리므로, 글자가 바뀔 때만 다시 쓴다. 매번 다시 쓰면 누르는 도중에 눌린 글자가 사라져 클릭이 무시된다.
+    const html = `<small>대시보드 시연 ${i + 1} / ${steps.length}</small><span>${preparing ? '준비 중…' : '다음 →'}</span>`;
+    if (nextBtn.dataset.html !== html) {
+      nextBtn.dataset.html = html; nextBtn.innerHTML = html;
+      nextBtn.setAttribute('aria-label', `대시보드 시연 ${i + 1}/${steps.length}, 다음 장면`);
+    }
   }
   function locate() {
     if (done) return;

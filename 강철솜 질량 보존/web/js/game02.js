@@ -2194,11 +2194,14 @@
   }
   // 결과 화면은 처음 → 지금(글) → 형광펜 항목별 → 피드백 모음 순으로 천천히 드러낸다. 화면을 누르면 다음으로 넘어간다.
   const SUBMIT_LOCK_S = (window.SCIW_CONFIG || {}).DEMO ? 3 : 60; // 발표 시연 모드(js/demo02.js)에서는 기다림을 줄인다
+  // 결과 화면을 드러내는 빠르기. 수업에서는 1, 발표 시연 3에서만 배속(js/config.js의 REVEAL_PACE)으로 돈다.
+  const PACE = Math.max(1, Number((window.SCIW_CONFIG || {}).REVEAL_PACE) || 1);
+  const paced = (ms) => ms / PACE;
   function revealWait(ms) {
     return new Promise((resolve) => {
       const scr = $('#clearScreen');
       const done = () => { clearTimeout(t); scr.removeEventListener('pointerdown', done); resolve(); };
-      const t = setTimeout(done, reduced ? Math.min(ms, 400) : ms);
+      const t = setTimeout(done, reduced ? Math.min(ms, 400) : paced(ms));
       scr.addEventListener('pointerdown', done);
     });
   }
@@ -2228,7 +2231,7 @@
       const step = () => {
         if (i >= chars.length) { end(); return; }
         const c = chars[i++]; c.classList.add('on');
-        t = setTimeout(step, /[.,?!…”]/.test(c.textContent) ? ms + 220 : ms);
+        t = setTimeout(step, paced(/[.,?!…”]/.test(c.textContent) ? ms + 220 : ms));
       };
       scr.addEventListener('pointerdown', end);
       step();
@@ -2247,15 +2250,15 @@
     await sleep(30);
     show('.top');
     lockSubmit(); // 60초는 첫 글이 나타나기 시작할 때부터 센다
-    await sleep(reduced ? 0 : 500);
+    await sleep(reduced ? 0 : paced(500));
     await typeOut(sayChars, 70);
     await revealWait(900);
     show('.col.was');
-    await sleep(reduced ? 0 : 500);
+    await sleep(reduced ? 0 : paced(500));
     await typeOut(wasChars, 55);
     await revealWait(1200);
     show('.col.now');
-    await sleep(reduced ? 0 : 500);
+    await sleep(reduced ? 0 : paced(500));
     await typeOut(nowChars, 45);
     await revealWait(1400);
     const col = wrap.querySelector('.col.now');
@@ -2277,11 +2280,11 @@
       pop.style.setProperty('--tail', `${Math.max(14, Math.min(aim - left, pop.offsetWidth - 14))}px`);
       pop.classList.add('show');
       pop.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
-      await sleep(reduced ? 0 : 900); // 형광펜이 칠해지는 동안 기다렸다가 쓴다
+      await sleep(reduced ? 0 : paced(900)); // 형광펜이 칠해지는 동안 기다렸다가 쓴다
       await typeOut(popChars, 50);
       await revealWait(2600);
       pop.classList.remove('show');
-      await sleep(reduced ? 50 : 350);
+      await sleep(reduced ? 50 : paced(350));
     }
     show('.rv-final');
     wrap.querySelector('.rv-final').scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
