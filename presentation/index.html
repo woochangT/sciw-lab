@@ -653,7 +653,7 @@ body.hud #hud{opacity:1}
     if (e.origin !== location.origin || !e.data || e.data.type !== 'sciw-demo-done') return;
     document.querySelectorAll('.demo').forEach((demo) => { if (demo.querySelector('iframe').contentWindow === e.source) demo.classList.add('done'); });
   });
-  const TOUR = new URL('tour-teacher.js?v=explicit-next-v1', location.href).href;
+  const TOUR = new URL('tour-teacher.js?v=pill-click-v2', location.href).href;
   document.querySelectorAll('.demo').forEach((demo) => {
     const f = demo.querySelector('iframe');
     f.addEventListener('load', () => {
