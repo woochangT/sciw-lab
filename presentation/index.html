@@ -156,6 +156,12 @@ h2 small{display:block;margin-top:14px;font-size:28px;font-weight:400;color:var(
 .demo-context .flow span{padding:18px 20px;white-space:nowrap}
 .demo-context .flow span:last-child{border-color:var(--pen);color:var(--pen);font-weight:700}
 
+/* 9장 시연 시작: 링크로 들어오면 보이는 실제 홈 화면. 강철솜 미션과 교사 화면 입구에 노란 틀(틀은 홈 문서 안에 그린다) */
+.home-intro{background:#102e2c}
+.home-intro::before{display:none}
+.home-intro .home-frame{position:absolute;left:0;top:0;width:1920px;height:1080px;border:0;pointer-events:none;background:#102e2c}
+.home-intro .home-tag{position:absolute;left:44px;top:40px;padding:12px 22px;background:var(--paper);color:var(--ink);border:2px solid var(--ink);font:600 24px var(--sans);box-shadow:0 8px 22px rgba(0,0,0,.35)}
+
 /* 마무리 */
 .closing .prof{position:absolute;right:50px;bottom:0;height:740px}
 .closing .say{position:absolute;left:224px;top:150px;right:700px;font-family:var(--hand);font-size:86px;line-height:1.25;color:var(--ink);word-break:keep-all}
@@ -367,7 +373,7 @@ body.hud #hud{opacity:1}
     <div class="facts">
       <div class="fact"><div class="k">대상</div><div class="v">중학교 3학년 과학</div><div class="d">화학 반응의 규칙</div></div>
       <div class="fact"><div class="k">시점</div><div class="v">서술형 평가 전<br>한 차시</div></div>
-      <div class="fact"><div class="k">방식</div><div class="v">크롬북 1인 1기기</div><div class="d">반 코드·출석번호로 입장<br>한 판 9~12분</div></div>
+      <div class="fact"><div class="k">방식</div><div class="v">크롬북 1인 1기기</div><div class="d">반·출석번호로 입장</div></div>
       <div class="fact"><div class="k">교사</div><div class="v">학급별 결과 확인</div><div class="d">학생 답안과 판정이<br>교사 화면에 모임</div></div>
     </div>
     <div class="flow step"><span>게임 플레이</span><i>→</i><span>최종 답안 제출</span><i>→</i><span>교사 화면 히트맵</span><i>→</i><span>교사의 학급별 맞춤 지도</span></div>
@@ -375,13 +381,19 @@ body.hud #hud{opacity:1}
   <div class="src">교과서: 비상교육 『중학 과학 3』 26–27쪽 (질량 보존 법칙, 강철솜의 연소)</div>
 </section>
 
-<!-- 8~11 시연 (실제 게임) -->
+<!-- 8 시연 시작: 링크로 들어오면 보이는 홈 -->
+<section class="slide home-intro" data-title="시연 시작 · 홈 화면">
+  <iframe class="home-frame" title="서술 실험실 홈 화면" src="../index.html" tabindex="-1" aria-hidden="true"></iframe>
+  <div class="home-tag">링크로 들어오면 보이는 첫 화면</div>
+</section>
+
+<!-- 9~12 시연 (실제 게임 · 교사 화면) -->
 <section class="slide" data-demo="d1" data-title="시연 1 · 종속 변인 번역"></section>
 <section class="slide" data-demo="d2" data-title="시연 2 · 모형화"></section>
 <section class="slide" data-demo="d3" data-title="시연 3 · 완전한 설명"></section>
 <section class="slide" data-demo="d4" data-title="교사 화면"></section>
 
-<!-- 12 마무리 -->
+<!-- 13 마무리 -->
 <section class="slide closing" data-title="마무리">
   <img class="prof" src="img/prof-acknowledging.webp" alt="손을 모은 콧대 교수">
   <div class="say">“앞으로 글 쓸 때도 내가 어깨너머로<br>보고 있다고 생각하게.”</div>
@@ -395,7 +407,7 @@ body.hud #hud{opacity:1}
   </div>
 </section>
 
-<!-- 13 참고 자료 (질의응답용) -->
+<!-- 14 참고 자료 (질의응답용) -->
 <section class="slide" data-title="참고 자료">
   <div class="body" style="display:grid;gap:40px;align-content:start">
     <h2>참고 자료</h2>
@@ -410,7 +422,7 @@ body.hud #hud{opacity:1}
   </div>
 </section>
 
-<!-- 14 부록 A: 선행연구 ① 자세히 (질의응답용) -->
+<!-- 15 부록 A: 선행연구 ① 자세히 (질의응답용) -->
 <section class="slide apx" data-title="부록 A · Hoffenberg & Saxton">
   <div class="body">
     <h2><span class="meta" style="display:block;font-size:19px;margin-bottom:10px">부록 A · 4장 선행연구 ①</span>설명을 가르쳐도, 연결은 따로 요구해야 씁니다
@@ -457,7 +469,7 @@ body.hud #hud{opacity:1}
   </div>
 </section>
 
-<!-- 15 부록 B: 선행연구 ② 자세히 (질의응답용) -->
+<!-- 16 부록 B: 선행연구 ② 자세히 (질의응답용) -->
 <section class="slide apx" data-title="부록 B · 이기영 외">
   <div class="body">
     <h2><span class="meta" style="display:block;font-size:19px;margin-bottom:10px">부록 B · 4장 선행연구 ②</span>중3 7,390명: ‘무엇’은 답하지만 ‘왜’는 쓰지 않았습니다
@@ -654,6 +666,20 @@ body.hud #hud{opacity:1}
     demo.querySelector('.finish').addEventListener('click', () => next());
     demo.querySelector('.reload').addEventListener('click', () => { load(demo, true); setTimeout(() => f.focus(), 300); });
   });
+  // 9장 홈 화면: 강철솜 미션 카드와 교사 화면 입구에 반짝이는 노란 틀을 두른다(같은 출처라 홈 문서에 직접 그린다)
+  document.querySelectorAll('.home-frame').forEach((hf) => hf.addEventListener('load', () => {
+    try {
+      const d = hf.contentDocument;
+      const st = d.createElement('style');
+      st.textContent = '.sciw-pick{position:relative}.sciw-ring{position:absolute;inset:-14px;border:6px solid #ffd21f;border-radius:18px;pointer-events:none;z-index:5;animation:sciw-ring 1.3s ease-in-out infinite}@keyframes sciw-ring{0%,100%{opacity:1;box-shadow:0 0 26px 6px rgba(255,210,31,.8),inset 0 0 12px rgba(255,210,31,.5)}50%{opacity:.5;box-shadow:0 0 6px 0 rgba(255,210,31,.3)}}';
+      d.head.appendChild(st);
+      const steel = [...d.querySelectorAll('a.mission')].find((a) => (a.dataset.path || '').startsWith('강철솜'));
+      [steel, d.querySelector('.teacher-link')].forEach((el) => {
+        if (!el || el.querySelector('.sciw-ring')) return;
+        el.classList.add('sciw-pick'); const ring = d.createElement('span'); ring.className = 'sciw-ring'; el.appendChild(ring);
+      });
+    } catch (err) { /* 다른 출처면 틀 없이 홈만 보인다 */ }
+  }));
   addEventListener('resize', fit);
   addEventListener('hashchange', () => { const n = Number((location.hash || '').slice(1)) - 1; if (n >= 0 && n !== cur) go(n); });
   fit();
